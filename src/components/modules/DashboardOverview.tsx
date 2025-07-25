@@ -1,0 +1,742 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useAuth } from '../../lib/context/AuthContext'
+import Notifications from './Notifications'
+import { 
+  getDashboardStats, 
+  getSalesChartData,
+  getTopSellingItems,
+  type DashboardStats,
+  type SalesData,
+  type TopSellingItem
+} from '../../lib/firebase/analytics'
+import { getInventoryAnalytics, type InventoryAnalytics } from '../../lib/firebase/inventoryAnalytics'
+import {
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer
+} from 'recharts'
+
+export default function DashboardOverview() {
+  const { user } = useAuth()
+  const [selectedPeriod, setSelectedPeriod] = useState('week')
+  const [selectedView, setSelectedView] = useState('overview') // overview, analytics, detailed
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
+  const [inventoryAnalytics, setInventoryAnalytics] = useState<InventoryAnalytics | null>(null)
+  const [salesData, setSalesData] = useState<SalesData[]>([])
+  const [topItems, setTopItems] = useState<TopSellingItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [mounted, setMounted] = useState(false)
+
+  // Ensure component is mounted on client-side
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!user?.uid) return
+
+    const loadDashboardData = async () => {
+      try {
+        setLoading(true)
+        const days = selectedPeriod === 'day' ? 1 : selectedPeriod === 'week' ? 7 : selectedPeriod === 'month' ? 30 : 365
+        
+        const [stats, inventory, salesChart, topSellingItems] = await Promise.all([
+          getDashboardStats(user.uid),
+          getInventoryAnalytics(user.uid, days),
+          getSalesChartData(user.uid, days),
+          getTopSellingItems(user.uid, days)
+        ])
+        
+        console.log('Dashboard Debug - Inventory Analytics:', inventory)
+        console.log('Dashboard Debug - Total Value:', inventory?.totalValue, 'Type:', typeof inventory?.totalValue)
+        
+        setDashboardStats(stats)
+        setInventoryAnalytics(inventory)
+        setSalesData(salesChart)
+        setTopItems(topSellingItems)
+      } catch (error) {
+        console.error('Error loading dashboard data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadDashboardData()
+  }, [user?.uid, selectedPeriod])
+
+  // Chart colors
+  const chartColors = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16']
+
+  // Export functionality
+  const exportToCSV = (data: any[], filename: string) => {
+    if (!data.length) return
+    
+    const keys = Object.keys(data[0])
+    const csvContent = [
+      keys.join(','),
+      ...data.map(row => keys.map(key => {
+        const value = row[key]
+        if (typeof value === 'string' && value.includes(',')) {
+          return `"${value}"`
+        }
+        return value
+      }).join(','))
+    ].join('\n')
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${filename}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-2 text-surface-600">Loading dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-surface-50">
+      {/* Modern Header */}
+      <div className="bg-white border-b border-surface-200 sticky top-0 z-10">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-surface-900">Dashboard</h1>
+              <p className="text-surface-500 text-sm mt-1">Welcome back! Here's what's happening with your business today.</p>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              {/* Period Selector */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-surface-600">Period:</label>
+                <select
+                  value={selectedPeriod}
+                  onChange={(e) => setSelectedPeriod(e.target.value)}
+                  className="bg-white border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="day">Today</option>
+                  <option value="week">This Week</option>
+                  <option value="month">This Month</option>
+                  <option value="year">This Year</option>
+                </select>
+              </div>
+              
+              {/* View Tabs */}
+              <div className="flex bg-surface-100 rounded-lg p-1">
+                {['overview', 'analytics', 'detailed'].map((view) => (
+                  <button
+                    key={view}
+                    onClick={() => setSelectedView(view)}
+                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                      selectedView === view
+                        ? 'bg-white text-primary-600 shadow-sm'
+                        : 'text-surface-600 hover:text-surface-900'
+                    }`}
+                  >
+                    {view.charAt(0).toUpperCase() + view.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="p-6 space-y-6">
+        {/* Overview View */}
+        {selectedView === 'overview' && (
+          <>
+            {/* Key Metrics Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+              {/* Revenue Card */}
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-100 rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                    </svg>
+                  </div>
+                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">+12%</span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-green-700 mb-1">Today's Revenue</p>
+                  <p className="text-3xl font-bold text-green-900 mb-2">
+                    ₱{dashboardStats?.todaysSales?.revenue?.toLocaleString() || '0'}
+                  </p>
+                  <p className="text-sm text-green-600">
+                    {dashboardStats?.todaysSales?.orders || 0} orders completed
+                  </p>
+                </div>
+              </div>
+
+              {/* Inventory Card */}
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                  </div>
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">Active</span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-blue-700 mb-1">Inventory Value</p>
+                  <p className="text-3xl font-bold text-blue-900 mb-2">
+                    ₱{(() => {
+                      const value = inventoryAnalytics?.totalValue;
+                      if (value === undefined || value === null || isNaN(value)) {
+                        return '0';
+                      }
+                      return value.toLocaleString();
+                    })()}
+                  </p>
+                  <p className="text-sm text-blue-600">
+                    {inventoryAnalytics?.totalItems || 0} items in stock
+                  </p>
+                </div>
+              </div>
+
+              {/* Alerts Card */}
+              <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
+                    <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  </div>
+                  <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-medium">Review</span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-amber-700 mb-1">Stock Alerts</p>
+                  <p className="text-3xl font-bold text-amber-900 mb-2">
+                    {inventoryAnalytics?.categoryBreakdown?.filter(cat => cat.lowStockCount > 0).length || 0}
+                  </p>
+                  <p className="text-sm text-amber-600">Items need attention</p>
+                </div>
+              </div>
+
+              {/* Categories Card */}
+              <div className="bg-gradient-to-br from-purple-50 to-violet-50 border border-purple-100 rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                    <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                  </div>
+                  <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">Organized</span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-purple-700 mb-1">Categories</p>
+                  <p className="text-3xl font-bold text-purple-900 mb-2">
+                    {inventoryAnalytics?.categoryBreakdown?.length || 0}
+                  </p>
+                  <p className="text-sm text-purple-600">Active categories</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Main Content Grid */}
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+              {/* Sales Chart - Takes 2 columns */}
+              <div className="xl:col-span-2">
+                <div className="bg-white rounded-2xl border border-surface-200 p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-semibold text-surface-900">Sales Performance</h3>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                      <span className="text-sm text-surface-600">Revenue</span>
+                    </div>
+                  </div>
+                  <div className="h-80">
+                    {mounted ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={salesData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                          <XAxis 
+                            dataKey="date" 
+                            stroke="#64748b"
+                            fontSize={12}
+                            tickFormatter={(value) => new Date(value).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
+                          />
+                          <YAxis stroke="#64748b" fontSize={12} />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: 'white', 
+                              border: '1px solid #e2e8f0', 
+                              borderRadius: '12px',
+                              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                            }}
+                            labelFormatter={(value) => new Date(value).toLocaleDateString()}
+                            formatter={(value: number) => [`₱${value.toLocaleString()}`, 'Revenue']}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="revenue"
+                            stroke="#10b981"
+                            fill="#10b981"
+                            fillOpacity={0.1}
+                            strokeWidth={3}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="bg-surface-50 rounded-xl flex items-center justify-center h-full">
+                        <div className="text-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-2"></div>
+                          <p className="text-surface-500 text-sm">Loading chart...</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column - Top Items & Quick Actions */}
+              <div className="space-y-6">
+                {/* Top Selling Items */}
+                <div className="bg-white rounded-2xl border border-surface-200 p-6">
+                  <h3 className="text-lg font-semibold text-surface-900 mb-6">Top Selling Items</h3>
+                  <div className="space-y-4">
+                    {topItems.slice(0, 5).map((item, index) => (
+                      <div key={index} className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white ${
+                            index === 0 ? 'bg-yellow-500' : 
+                            index === 1 ? 'bg-gray-400' : 
+                            index === 2 ? 'bg-amber-600' : 'bg-surface-400'
+                          }`}>
+                            {index + 1}
+                          </div>
+                          <div>
+                            <p className="font-medium text-surface-900 text-sm">{item.name}</p>
+                            <p className="text-xs text-surface-500">{item.quantity} sold</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold text-sm text-surface-900">₱{item.revenue.toLocaleString()}</p>
+                        </div>
+                      </div>
+                    ))}
+                    {topItems.length === 0 && (
+                      <div className="text-center py-8">
+                        <div className="w-12 h-12 bg-surface-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+                          <svg className="w-6 h-6 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                          </svg>
+                        </div>
+                        <p className="text-sm font-medium text-surface-900 mb-1">No Sales Data</p>
+                        <p className="text-xs text-surface-500">Start taking orders to see top selling items</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Additional Insights Section */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              {/* Recent Activity */}
+              <div className="bg-white rounded-2xl border border-surface-200 p-6">
+                <h3 className="text-lg font-semibold text-surface-900 mb-6">Recent Activity</h3>
+                <div className="space-y-4">
+                  {inventoryAnalytics?.stockMovements?.slice(-5).reverse().map((movement, index) => (
+                    <div key={index} className="flex items-center gap-4 p-4 bg-surface-50 rounded-xl">
+                      <div className="w-3 h-3 bg-primary-500 rounded-full flex-shrink-0"></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-surface-900 truncate">
+                          {movement.movements} inventory movements
+                        </p>
+                        <p className="text-xs text-surface-600 mt-1">
+                          {movement.itemsAffected} items affected • {new Date(movement.date).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                  )) || (
+                    <div className="text-center py-8">
+                      <div className="w-12 h-12 bg-surface-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+                        <svg className="w-6 h-6 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <p className="text-sm font-medium text-surface-900 mb-1">No Recent Activity</p>
+                      <p className="text-xs text-surface-500">Activity will appear here as you use the system</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Category Breakdown */}
+              <div className="bg-white rounded-2xl border border-surface-200 p-6">
+                <h3 className="text-lg font-semibold text-surface-900 mb-6">Category Breakdown</h3>
+                <div className="space-y-4">
+                  {inventoryAnalytics?.categoryBreakdown?.slice(0, 5).map((category, index) => (
+                    <div key={category.category} className="flex items-center justify-between p-4 bg-surface-50 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <div 
+                          className="w-4 h-4 rounded-full flex-shrink-0" 
+                          style={{ backgroundColor: `hsl(${(index * 60) % 360}, 70%, 50%)` }}
+                        ></div>
+                        <div className="min-w-0">
+                          <p className="font-medium text-surface-900 truncate">{category.category}</p>
+                          <p className="text-xs text-surface-600">{category.itemCount} items</p>
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="font-medium text-surface-900">₱{category.totalValue.toLocaleString()}</p>
+                        {category.lowStockCount > 0 && (
+                          <p className="text-xs text-amber-600 font-medium">
+                            {category.lowStockCount} low stock
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )) || (
+                    <div className="text-center py-8">
+                      <div className="w-12 h-12 bg-surface-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+                        <svg className="w-6 h-6 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                      </div>
+                      <p className="text-sm font-medium text-surface-900 mb-1">No Categories</p>
+                      <p className="text-xs text-surface-500">Add inventory items to see category breakdown</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Notifications Section */}
+            <div className="bg-white rounded-2xl border border-surface-200 p-6">
+              <Notifications />
+            </div>
+          </>
+        )}
+
+        {/* Analytics View */}
+        {selectedView === 'analytics' && (
+          <>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              {/* Sales Chart */}
+              <div className="bg-white rounded-2xl border border-surface-200 p-6">
+                <h3 className="text-lg font-semibold text-surface-900 mb-6">Sales Trend</h3>
+                <div className="h-80">
+                  {mounted ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={salesData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                        <XAxis 
+                          dataKey="date" 
+                          stroke="#64748b"
+                          fontSize={12}
+                          tickFormatter={(value) => new Date(value).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
+                        />
+                        <YAxis stroke="#64748b" fontSize={12} />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'white', 
+                            border: '1px solid #e2e8f0', 
+                            borderRadius: '12px',
+                            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                          }}
+                          labelFormatter={(value) => new Date(value).toLocaleDateString()}
+                          formatter={(value: number) => [`₱${value.toLocaleString()}`, 'Revenue']}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="revenue"
+                          stroke="#10b981"
+                          fill="#10b981"
+                          fillOpacity={0.1}
+                          strokeWidth={3}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="bg-surface-50 rounded-xl flex items-center justify-center h-full">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-2"></div>
+                        <p className="text-surface-500 text-sm">Loading chart...</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Top Selling Items */}
+              <div className="bg-white rounded-2xl border border-surface-200 p-6">
+                <h3 className="text-lg font-semibold text-surface-900 mb-6">Top Selling Items</h3>
+                <div className="space-y-4">
+                  {topItems.slice(0, 6).map((item, index) => (
+                    <div key={item.name} className="flex items-center justify-between p-4 bg-surface-50 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-white ${
+                          index === 0 ? 'bg-yellow-500' : 
+                          index === 1 ? 'bg-gray-400' : 
+                          index === 2 ? 'bg-amber-600' : 'bg-surface-400'
+                        }`}>
+                          {index + 1}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium text-surface-900 truncate">{item.name}</p>
+                          <p className="text-sm text-surface-600">{item.quantity} sold</p>
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="font-medium text-surface-900">₱{item.revenue.toFixed(2)}</p>
+                        <p className="text-sm text-surface-600">revenue</p>
+                      </div>
+                    </div>
+                  )) || (
+                    <div className="text-center py-8">
+                      <div className="w-12 h-12 bg-surface-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+                        <svg className="w-6 h-6 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                      </div>
+                      <p className="text-sm font-medium text-surface-900 mb-1">No Sales Data</p>
+                      <p className="text-xs text-surface-500">Start taking orders to see top selling items</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Inventory Analytics Charts */}
+            {inventoryAnalytics && (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                {/* Category Value Distribution */}
+                <div className="bg-white rounded-2xl border border-surface-200 p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-semibold text-surface-900">Category Value Distribution</h3>
+                    <button
+                      onClick={() => {
+                        const data = inventoryAnalytics.categoryBreakdown.map(cat => ({
+                          'Category': cat.category,
+                          'Items': cat.itemCount,
+                          'Total Value': cat.totalValue,
+                          'Low Stock Items': cat.lowStockCount
+                        }))
+                        exportToCSV(data, 'category-breakdown')
+                      }}
+                      className="text-sm px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                    >
+                      Export
+                    </button>
+                  </div>
+                  <div className="h-80">
+                    {mounted ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={inventoryAnalytics.categoryBreakdown}
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={100}
+                            fill="#8884d8"
+                            dataKey="totalValue"
+                            label={(entry) => entry.category}
+                          >
+                            {inventoryAnalytics.categoryBreakdown.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: 'white', 
+                              border: '1px solid #e2e8f0', 
+                              borderRadius: '12px',
+                              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                            }}
+                            formatter={(value: number) => [`₱${value.toLocaleString()}`, 'Value']} 
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="bg-surface-50 rounded-xl flex items-center justify-center h-full">
+                        <div className="text-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-2"></div>
+                          <p className="text-surface-500 text-sm">Loading chart...</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Stock Movement Trend */}
+                <div className="bg-white rounded-2xl border border-surface-200 p-6">
+                  <h3 className="text-lg font-semibold text-surface-900 mb-6">Stock Movement Trend</h3>
+                  <div className="h-80">
+                    {mounted ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={inventoryAnalytics.stockMovements}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                          <XAxis 
+                            dataKey="date" 
+                            stroke="#64748b"
+                            fontSize={12}
+                            tickFormatter={(value) => new Date(value).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
+                          />
+                          <YAxis stroke="#64748b" fontSize={12} />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: 'white', 
+                              border: '1px solid #e2e8f0', 
+                              borderRadius: '12px',
+                              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                            }}
+                            labelFormatter={(value) => new Date(value).toLocaleDateString()}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="movements"
+                            stroke={chartColors[1]}
+                            strokeWidth={3}
+                            dot={{ fill: chartColors[1], strokeWidth: 2, r: 4 }}
+                            activeDot={{ r: 6, strokeWidth: 0 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="bg-surface-50 rounded-xl flex items-center justify-center h-full">
+                        <div className="text-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-2"></div>
+                          <p className="text-surface-500 text-sm">Loading chart...</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Detailed View */}
+        {selectedView === 'detailed' && inventoryAnalytics && (
+          <>
+            <div className="grid grid-cols-1 gap-6">
+              {/* Detailed Analytics Table */}
+              <div className="bg-white rounded-2xl border border-surface-200 p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-semibold text-surface-900">Detailed Inventory Analytics</h3>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => {
+                        const data = inventoryAnalytics.topValueItems.map(item => ({
+                          'Item Name': item.name,
+                          'Category': item.category,
+                          'Current Stock': item.currentStock,
+                          'Unit': item.unit,
+                          'Cost Per Unit': item.costPerUnit,
+                          'Total Value': item.totalValue
+                        }))
+                        exportToCSV(data, 'detailed-inventory-analytics')
+                      }}
+                      className="text-sm px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                    >
+                      Export All
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Summary Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-6">
+                    <h4 className="font-medium text-blue-700 mb-2">Total Inventory Value</h4>
+                    <p className="text-3xl font-bold text-blue-900 mb-2">₱{inventoryAnalytics.totalValue.toLocaleString()}</p>
+                    <p className="text-sm text-blue-600">Across {inventoryAnalytics.totalItems} items</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 rounded-xl p-6">
+                    <h4 className="font-medium text-amber-700 mb-2">Low Stock Items</h4>
+                    <p className="text-3xl font-bold text-amber-900 mb-2">
+                      {inventoryAnalytics.categoryBreakdown?.reduce((sum, cat) => sum + (cat.lowStockCount || 0), 0) || 0}
+                    </p>
+                    <p className="text-sm text-amber-600">Need immediate attention</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-purple-50 to-violet-50 border border-purple-100 rounded-xl p-6">
+                    <h4 className="font-medium text-purple-700 mb-2">Active Categories</h4>
+                    <p className="text-3xl font-bold text-purple-900 mb-2">{inventoryAnalytics.categoryBreakdown.length}</p>
+                    <p className="text-sm text-purple-600">Product categories</p>
+                  </div>
+                </div>
+
+                {/* Detailed Items Table */}
+                <div className="overflow-x-auto bg-white rounded-xl border border-surface-200">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-surface-50 border-b border-surface-200">
+                        <th className="text-left py-4 px-6 font-semibold text-surface-900">Item</th>
+                        <th className="text-left py-4 px-6 font-semibold text-surface-900">Category</th>
+                        <th className="text-right py-4 px-6 font-semibold text-surface-900">Stock</th>
+                        <th className="text-right py-4 px-6 font-semibold text-surface-900">Unit Price</th>
+                        <th className="text-right py-4 px-6 font-semibold text-surface-900">Total Value</th>
+                        <th className="text-center py-4 px-6 font-semibold text-surface-900">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {inventoryAnalytics.topValueItems.map((item, index) => (
+                        <tr key={item.id} className={`border-b border-surface-100 hover:bg-surface-50 transition-colors ${
+                          index % 2 === 0 ? 'bg-white' : 'bg-surface-25'
+                        }`}>
+                          <td className="py-4 px-6">
+                            <div className="font-medium text-surface-900">{item.name}</div>
+                          </td>
+                          <td className="py-4 px-6 text-surface-600">{item.category}</td>
+                          <td className="py-4 px-6 text-right">
+                            <span className="font-medium">{item.currentStock}</span>
+                            <span className="text-surface-500 ml-1">{item.unit}</span>
+                          </td>
+                          <td className="py-4 px-6 text-right font-medium">₱{item.costPerUnit.toFixed(2)}</td>
+                          <td className="py-4 px-6 text-right font-bold">₱{item.totalValue.toLocaleString()}</td>
+                          <td className="py-4 px-6 text-center">
+                            <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full ${
+                              item.currentStock < 10
+                                ? 'bg-red-100 text-red-800'
+                                : item.currentStock < 20
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-green-100 text-green-800'
+                            }`}>
+                              {item.currentStock < 10
+                                ? 'Low Stock'
+                                : item.currentStock < 20
+                                ? 'Medium'
+                                : 'Good'
+                              }
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}

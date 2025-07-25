@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6"/>
+      <stop offset="50%" style="stop-color:#2563eb"/>
+      <stop offset="100%" style="stop-color:#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background with rounded corners -->
+  <rect width="192" height="192" rx="36" fill="url(#bg)"/>
+  
+  <!-- Core/Center circle representing the "Core" -->
+  <circle cx="96" cy="96" r="24" fill="white"/>
+  
+  <!-- Tracking lines/paths radiating outward -->
+  <g stroke="white" stroke-linecap="round" stroke-linejoin="round" stroke-width="8">
+    <path d="M96 24v36M96 132v36"/>
+    <path d="M46.56 46.56l25.44 25.44M120 120l25.44 25.44"/>
+    <path d="M24 96h36M132 96h36"/>
+    <path d="M46.56 145.44l25.44-25.44M120 72l25.44-25.44"/>
+  </g>
+  
+  <!-- Small dots at the end of tracking lines -->
+  <g fill="white">
+    <circle cx="96" cy="36" r="6"/>
+    <circle cx="96" cy="156" r="6"/>
+    <circle cx="156" cy="96" r="6"/>
+    <circle cx="36" cy="96" r="6"/>
+  </g>
+</svg>

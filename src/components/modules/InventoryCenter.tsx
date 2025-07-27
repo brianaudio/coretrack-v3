@@ -45,6 +45,8 @@ export default function InventoryCenter() {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
   const [affectedMenuItems, setAffectedMenuItems] = useState<{ [key: string]: MenuItem[] }>({})
   const [loadingAffectedItems, setLoadingAffectedItems] = useState<Set<string>>(new Set())
+  const [showLowStock, setShowLowStock] = useState(false)
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table')
   
   // Get unique categories from existing inventory items
   const getCategories = () => {
@@ -86,7 +88,8 @@ export default function InventoryCenter() {
   const filteredItems = inventoryItems.filter(item => {
     const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase())
-    return matchesCategory && matchesSearch
+    const matchesLowStock = !showLowStock || item.currentStock <= item.minStock
+    return matchesCategory && matchesSearch && matchesLowStock
   })
 
   const getStatusColor = (status: string) => {
@@ -598,62 +601,124 @@ export default function InventoryCenter() {
         </div>
       </div>
 
+      {/* Additional Filters and View Options */}
+      <div className="card p-6">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          {/* Low Stock Filter */}
+          <div className="flex items-center">
+            <label className="flex items-center text-sm font-medium text-surface-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showLowStock}
+                onChange={(e) => setShowLowStock(e.target.checked)}
+                className="mr-3 h-4 w-4 text-primary-600 border-surface-300 rounded focus:ring-primary-500 focus:ring-2"
+              />
+              Show only low stock items
+            </label>
+          </div>
+
+          {/* View Toggle */}
+          <div className="flex items-center bg-surface-100 p-1 rounded-xl border border-surface-200">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                viewMode === 'table'
+                  ? 'bg-white text-primary-700 shadow-sm border border-surface-200'
+                  : 'text-surface-600 hover:text-surface-700'
+              }`}
+            >
+              <svg className="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+              </svg>
+              Table
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                viewMode === 'grid'
+                  ? 'bg-white text-primary-700 shadow-sm border border-surface-200'
+                  : 'text-surface-600 hover:text-surface-700'
+              }`}
+            >
+              <svg className="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+              </svg>
+              Grid
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Search and Actions */}
       <div className="card p-6">
-        <div className="flex flex-col space-y-4 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-4 flex-1">
-            {/* Search */}
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-surface-700 mb-1">Search</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search items..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="input-field pl-10 w-full"
-                />
-                <svg className="w-5 h-5 text-surface-400 absolute left-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
+        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+          {/* Search Section */}
+          <div className="flex-1 max-w-lg">
+            <label className="block text-sm font-medium text-surface-700 mb-2">Search Inventory</label>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search by item name, category, or SKU..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-11 pr-4 py-3 border border-surface-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200 text-surface-900 placeholder-surface-500"
+              />
+              <svg className="w-5 h-5 text-surface-400 absolute left-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
             </div>
           </div>
 
-          <div className="flex space-x-3">
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center gap-3">
             {bulkMode ? (
               <>
                 {selectedItems.size > 0 && (
                   <>
-                    <span className="flex items-center text-sm text-gray-600 bg-blue-50 px-3 py-2 rounded-lg">
+                    <div className="flex items-center text-sm text-primary-700 bg-primary-50 px-4 py-2 rounded-xl border border-primary-200">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
                       {selectedItems.size} selected
-                    </span>
+                    </div>
                     <button
                       onClick={() => setShowBulkStockModal(true)}
-                      className="px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700"
+                      className="inline-flex items-center px-4 py-2 text-sm bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium"
                     >
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m0 0h4a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V5a1 1 0 011-1h4m0 0v3a1 1 0 001 1h6a1 1 0 001-1V4" />
+                      </svg>
                       Adjust Stock
                     </button>
                     <button
                       onClick={handleBulkDelete}
-                      className="px-3 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700"
+                      className="inline-flex items-center px-4 py-2 text-sm bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium"
                     >
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
                       Delete
                     </button>
                   </>
                 )}
                 {selectedItems.size === 0 && (
-                  <span className="flex items-center text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
+                  <div className="flex items-center text-sm text-surface-500 bg-surface-50 px-4 py-2 rounded-xl border border-surface-200">
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                     Select items to perform bulk actions
-                  </span>
+                  </div>
                 )}
                 <button
                   onClick={() => {
                     setBulkMode(false)
                     setSelectedItems(new Set())
                   }}
-                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="inline-flex items-center px-4 py-2 text-sm border border-surface-300 text-surface-700 rounded-xl hover:bg-surface-50 transition-colors font-medium"
                 >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                   Cancel Selection
                 </button>
               </>
@@ -661,22 +726,28 @@ export default function InventoryCenter() {
               <>
                 <button
                   onClick={() => setBulkMode(true)}
-                  className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="inline-flex items-center px-4 py-2 text-sm border border-surface-300 text-surface-700 rounded-xl hover:bg-surface-50 transition-colors font-medium"
                 >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
                   Select Items
                 </button>
                 <PermissionGate 
                   permission="inventory"
                   fallback={
-                    <div className="text-sm text-gray-500 px-4 py-2">
+                    <div className="text-sm text-surface-500 px-4 py-2 bg-surface-50 rounded-xl border border-surface-200">
                       No permission to add items
                     </div>
                   }
                 >
                   <button 
                     onClick={() => setShowAddModal(true)}
-                    className="btn-primary"
+                    className="inline-flex items-center px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm"
                   >
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
                     Add Item
                   </button>
                 </PermissionGate>
@@ -1243,24 +1314,24 @@ export default function InventoryCenter() {
 
       {/* Bulk Stock Adjustment Modal */}
       {showBulkStockModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-surface-900 mb-4">
               Bulk Stock Adjustment
             </h3>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-surface-600 mb-6">
               This will {bulkStockAdjustment.type === 'add' ? 'add' : 'subtract'} {bulkStockAdjustment.quantity} units {bulkStockAdjustment.type === 'add' ? 'to' : 'from'} {selectedItems.size} selected item(s).
             </p>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-surface-700 mb-2">
                   Action
                 </label>
                 <select
                   value={bulkStockAdjustment.type}
                   onChange={(e) => setBulkStockAdjustment(prev => ({ ...prev, type: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 border border-surface-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200 text-surface-900 bg-white"
                 >
                   <option value="add">Add Stock</option>
                   <option value="subtract">Subtract Stock</option>
@@ -1268,7 +1339,7 @@ export default function InventoryCenter() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-surface-700 mb-2">
                   Quantity
                 </label>
                 <input
@@ -1276,22 +1347,22 @@ export default function InventoryCenter() {
                   min="1"
                   value={bulkStockAdjustment.quantity}
                   onChange={(e) => setBulkStockAdjustment(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 border border-surface-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200 text-surface-900 placeholder-surface-500"
                   placeholder="Enter quantity"
                 />
               </div>
             </div>
 
-            <div className="flex space-x-3 mt-6">
+            <div className="flex space-x-3 pt-6">
               <button
                 onClick={() => setShowBulkStockModal(false)}
-                className="flex-1 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="btn-secondary flex-1"
               >
                 Cancel
               </button>
               <button
                 onClick={handleBulkStockUpdate}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="btn-primary flex-1"
               >
                 Apply Changes
               </button>

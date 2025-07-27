@@ -1,0 +1,34 @@
+{
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/.git": true,
+    "**/.next": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/.DS_Store": true,
+    "**/coverage": true
+  },
+  "typescript.preferences.includePackageJsonAutoImports": "off",
+  "typescript.suggest.autoImports": false,
+  "javascript.suggest.autoImports": false,
+  "typescript.disableAutomaticTypeAcquisition": true,
+  "extensions.autoUpdate": false,
+  "git.enabled": false,
+  "editor.minimap.enabled": false,
+  "editor.codeLens": false,
+  "editor.hover.enabled": false,
+  "editor.quickSuggestions": {
+    "comments": "off",
+    "strings": "off",
+    "other": "off"
+  },
+  "editor.parameterHints.enabled": false,
+  "workbench.startupEditor": "none",
+  "eslint.enable": false,
+  "breadcrumbs.enabled": false,
+  "files.watcherExclude": {
+    "**/.git/**": true,
+    "**/node_modules/**": true,
+    "**/.next/**": true
+  }
+}

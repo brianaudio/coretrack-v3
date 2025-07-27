@@ -1,0 +1,15 @@
+interface Branch {
+  id: string;
+  name: string;
+  address: string;
+  phone: string;
+  manager: string;
+  status: 'active' | 'inactive';
+  isMain: boolean;
+  icon: string;
+  stats: {
+    inventory: number;
+    sales: string;
+    staff: number;
+  };
+}

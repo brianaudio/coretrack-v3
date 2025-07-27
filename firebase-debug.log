@@ -1,0 +1,243 @@
+[debug] [2025-07-25T12:56:01.245Z] ----------------------------------------------------------------------
+[debug] [2025-07-25T12:56:01.251Z] Command:       /usr/local/bin/node /usr/local/bin/firebase deploy --only firestore:indexes
+[debug] [2025-07-25T12:56:01.252Z] CLI Version:   14.9.0
+[debug] [2025-07-25T12:56:01.252Z] Platform:      darwin
+[debug] [2025-07-25T12:56:01.252Z] Node Version:  v22.17.1
+[debug] [2025-07-25T12:56:01.252Z] Time:          Fri Jul 25 2025 20:56:01 GMT+0800 (Philippine Standard Time)
+[debug] [2025-07-25T12:56:01.252Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-07-25T12:56:01.357Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-07-25T12:56:01.357Z] > authorizing via signed-in user (ridgeridetv@gmail.com)
+[debug] [2025-07-25T12:56:01.357Z] [iam] checking project cfc-inventory-v3 for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]
+[debug] [2025-07-25T12:56:01.358Z] Checked if tokens are valid: false, expires at: 1753447666222
+[debug] [2025-07-25T12:56:01.358Z] Checked if tokens are valid: false, expires at: 1753447666222
+[debug] [2025-07-25T12:56:01.358Z] > refreshing access token with scopes: []
+[debug] [2025-07-25T12:56:01.359Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2025-07-25T12:56:01.359Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-07-25T12:56:01.622Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2025-07-25T12:56:01.623Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-07-25T12:56:01.634Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/cfc-inventory-v3:testIamPermissions [none]
+[debug] [2025-07-25T12:56:01.635Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/cfc-inventory-v3:testIamPermissions x-goog-quota-user=projects/cfc-inventory-v3
+[debug] [2025-07-25T12:56:01.635Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/cfc-inventory-v3:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[debug] [2025-07-25T12:56:02.551Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/cfc-inventory-v3:testIamPermissions 200
+[debug] [2025-07-25T12:56:02.551Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/cfc-inventory-v3:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[info] 
+[info] === Deploying to 'cfc-inventory-v3'...
+[info] 
+[info] i  deploying firestore 
+[info] i  firestore: reading indexes from firestore.indexes.json... 
+[info] i  cloud.firestore: checking firestore.rules for compilation errors... 
+[debug] [2025-07-25T12:56:02.554Z] Checked if tokens are valid: true, expires at: 1753451760623
+[debug] [2025-07-25T12:56:02.554Z] Checked if tokens are valid: true, expires at: 1753451760623
+[debug] [2025-07-25T12:56:02.554Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/cfc-inventory-v3:test [none]
+[debug] [2025-07-25T12:56:02.554Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/cfc-inventory-v3:test [omitted]
+[debug] [2025-07-25T12:56:03.626Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/cfc-inventory-v3:test 200
+[debug] [2025-07-25T12:56:03.627Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/cfc-inventory-v3:test {}
+[info] ✔  cloud.firestore: rules file firestore.rules compiled successfully 
+[debug] [2025-07-25T12:56:03.629Z] Checked if tokens are valid: true, expires at: 1753451760623
+[debug] [2025-07-25T12:56:03.629Z] Checked if tokens are valid: true, expires at: 1753451760623
+[debug] [2025-07-25T12:56:03.629Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default) [none]
+[debug] [2025-07-25T12:56:04.083Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default) 200
+[debug] [2025-07-25T12:56:04.083Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default) {"name":"projects/cfc-inventory-v3/databases/(default)","uid":"d5f5d5af-8279-4e45-b105-5c078cf64254","createTime":"2025-06-29T14:42:19.748771Z","updateTime":"2025-06-29T14:42:19.748771Z","locationId":"asia-southeast1","type":"FIRESTORE_NATIVE","concurrencyMode":"PESSIMISTIC","versionRetentionPeriod":"3600s","earliestVersionTime":"2025-07-25T11:56:04.101261Z","appEngineIntegrationMode":"DISABLED","keyPrefix":"zas","pointInTimeRecoveryEnablement":"POINT_IN_TIME_RECOVERY_DISABLED","deleteProtectionState":"DELETE_PROTECTION_DISABLED","databaseEdition":"STANDARD","freeTier":true,"etag":"IKWV0LeH2I4DMICQj+vwlo4D"}
+[info] i  firestore: deploying indexes... 
+[debug] [2025-07-25T12:56:04.086Z] Checked if tokens are valid: true, expires at: 1753451760623
+[debug] [2025-07-25T12:56:04.086Z] Checked if tokens are valid: true, expires at: 1753451760623
+[debug] [2025-07-25T12:56:04.086Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/indexes [none]
+[debug] [2025-07-25T12:56:04.217Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/indexes 200
+[debug] [2025-07-25T12:56:04.217Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/indexes {"indexes":[{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/invitations/indexes/CICAgJim14AK","queryScope":"COLLECTION","fields":[{"fieldPath":"email","order":"ASCENDING"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/locations/indexes/CICAgOjXh4EK","queryScope":"COLLECTION","fields":[{"fieldPath":"tenantId","order":"ASCENDING"},{"fieldPath":"name","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/locationAnalytics/indexes/CICAgJjF9oIK","queryScope":"COLLECTION","fields":[{"fieldPath":"locationId","order":"ASCENDING"},{"fieldPath":"period","order":"ASCENDING"},{"fieldPath":"date","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/invitations/indexes/CICAgJiUpoMK","queryScope":"COLLECTION","fields":[{"fieldPath":"tenantId","order":"ASCENDING"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/locationInventory/indexes/CICAgOi3kJAK","queryScope":"COLLECTION","fields":[{"fieldPath":"locationId","order":"ASCENDING"},{"fieldPath":"productId","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/locationAnalytics/indexes/CICAgJiUsZIK","queryScope":"COLLECTION","fields":[{"fieldPath":"locationId","order":"ASCENDING"},{"fieldPath":"period","order":"ASCENDING"},{"fieldPath":"date","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}],"state":"READY","density":"SPARSE_ALL"}]}
+[debug] [2025-07-25T12:56:04.218Z] Checked if tokens are valid: true, expires at: 1753451760623
+[debug] [2025-07-25T12:56:04.218Z] Checked if tokens are valid: true, expires at: 1753451760623
+[debug] [2025-07-25T12:56:04.218Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* [none]
+[debug] [2025-07-25T12:56:04.302Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* 200
+[debug] [2025-07-25T12:56:04.302Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* {"fields":[{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/__default__/fields/*","indexConfig":{"indexes":[{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","order":"ASCENDING"}],"state":"READY"},{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","order":"DESCENDING"}],"state":"READY"},{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","arrayConfig":"CONTAINS"}],"state":"READY"}]}}]}
+[info] i  firestore: The following indexes are defined in your project but are not present in your firestore indexes file:
+	(invitations) -- (email,ASCENDING) (status,ASCENDING) 
+	(locations) -- (tenantId,ASCENDING) (name,ASCENDING) 
+	(locationAnalytics) -- (locationId,ASCENDING) (period,ASCENDING) (date,DESCENDING) 
+	(locationInventory) -- (locationId,ASCENDING) (productId,ASCENDING) 
+	(locationAnalytics) -- (locationId,ASCENDING) (period,ASCENDING) (date,ASCENDING)  
+[debug] [2025-07-27T01:23:44.717Z] ----------------------------------------------------------------------
+[debug] [2025-07-27T01:23:44.724Z] Command:       /usr/local/bin/node /usr/local/bin/firebase deploy --only firestore:indexes
+[debug] [2025-07-27T01:23:44.724Z] CLI Version:   14.9.0
+[debug] [2025-07-27T01:23:44.724Z] Platform:      darwin
+[debug] [2025-07-27T01:23:44.724Z] Node Version:  v22.17.1
+[debug] [2025-07-27T01:23:44.724Z] Time:          Sun Jul 27 2025 09:23:44 GMT+0800 (Philippine Standard Time)
+[debug] [2025-07-27T01:23:44.724Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-07-27T01:23:44.726Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2025-07-27T01:23:44.867Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-07-27T01:23:44.867Z] > authorizing via signed-in user (ridgeridetv@gmail.com)
+[debug] [2025-07-27T01:23:44.867Z] [iam] checking project cfc-inventory-v3 for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]
+[debug] [2025-07-27T01:23:44.868Z] Checked if tokens are valid: false, expires at: 1753451760623
+[debug] [2025-07-27T01:23:44.868Z] Checked if tokens are valid: false, expires at: 1753451760623
+[debug] [2025-07-27T01:23:44.868Z] > refreshing access token with scopes: []
+[debug] [2025-07-27T01:23:44.868Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2025-07-27T01:23:44.868Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-07-27T01:23:44.990Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2025-07-27T01:23:44.990Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-07-27T01:23:45.008Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/cfc-inventory-v3:testIamPermissions [none]
+[debug] [2025-07-27T01:23:45.008Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/cfc-inventory-v3:testIamPermissions x-goog-quota-user=projects/cfc-inventory-v3
+[debug] [2025-07-27T01:23:45.008Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/cfc-inventory-v3:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[debug] [2025-07-27T01:23:45.272Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
+[debug] [2025-07-27T01:23:45.272Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
+[debug] [2025-07-27T01:23:45.970Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/cfc-inventory-v3:testIamPermissions 200
+[debug] [2025-07-27T01:23:45.970Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/cfc-inventory-v3:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[info] 
+[info] === Deploying to 'cfc-inventory-v3'...
+[info] 
+[info] i  deploying firestore 
+[info] i  firestore: reading indexes from firestore.indexes.json... 
+[info] i  cloud.firestore: checking firestore.rules for compilation errors... 
+[debug] [2025-07-27T01:23:45.978Z] Checked if tokens are valid: true, expires at: 1753583023990
+[debug] [2025-07-27T01:23:45.978Z] Checked if tokens are valid: true, expires at: 1753583023990
+[debug] [2025-07-27T01:23:45.978Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/cfc-inventory-v3:test [none]
+[debug] [2025-07-27T01:23:45.978Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/cfc-inventory-v3:test [omitted]
+[debug] [2025-07-27T01:23:47.094Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/cfc-inventory-v3:test 200
+[debug] [2025-07-27T01:23:47.094Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/cfc-inventory-v3:test {}
+[info] ✔  cloud.firestore: rules file firestore.rules compiled successfully 
+[debug] [2025-07-27T01:23:47.095Z] Checked if tokens are valid: true, expires at: 1753583023990
+[debug] [2025-07-27T01:23:47.095Z] Checked if tokens are valid: true, expires at: 1753583023990
+[debug] [2025-07-27T01:23:47.095Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default) [none]
+[debug] [2025-07-27T01:23:47.456Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default) 200
+[debug] [2025-07-27T01:23:47.456Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default) {"name":"projects/cfc-inventory-v3/databases/(default)","uid":"d5f5d5af-8279-4e45-b105-5c078cf64254","createTime":"2025-06-29T14:42:19.748771Z","updateTime":"2025-06-29T14:42:19.748771Z","locationId":"asia-southeast1","type":"FIRESTORE_NATIVE","concurrencyMode":"PESSIMISTIC","versionRetentionPeriod":"3600s","earliestVersionTime":"2025-07-27T00:23:47.523366Z","appEngineIntegrationMode":"DISABLED","keyPrefix":"zas","pointInTimeRecoveryEnablement":"POINT_IN_TIME_RECOVERY_DISABLED","deleteProtectionState":"DELETE_PROTECTION_DISABLED","databaseEdition":"STANDARD","freeTier":true,"etag":"IJ7N87bw244DMICQj+vwlo4D"}
+[info] i  firestore: deploying indexes... 
+[debug] [2025-07-27T01:23:47.456Z] Checked if tokens are valid: true, expires at: 1753583023990
+[debug] [2025-07-27T01:23:47.456Z] Checked if tokens are valid: true, expires at: 1753583023990
+[debug] [2025-07-27T01:23:47.456Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/indexes [none]
+[debug] [2025-07-27T01:23:47.595Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/indexes 200
+[debug] [2025-07-27T01:23:47.595Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/indexes {"indexes":[{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/invitations/indexes/CICAgJim14AK","queryScope":"COLLECTION","fields":[{"fieldPath":"email","order":"ASCENDING"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/locations/indexes/CICAgOjXh4EK","queryScope":"COLLECTION","fields":[{"fieldPath":"tenantId","order":"ASCENDING"},{"fieldPath":"name","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/locationAnalytics/indexes/CICAgJjF9oIK","queryScope":"COLLECTION","fields":[{"fieldPath":"locationId","order":"ASCENDING"},{"fieldPath":"period","order":"ASCENDING"},{"fieldPath":"date","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/invitations/indexes/CICAgJiUpoMK","queryScope":"COLLECTION","fields":[{"fieldPath":"tenantId","order":"ASCENDING"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/locationInventory/indexes/CICAgOi3kJAK","queryScope":"COLLECTION","fields":[{"fieldPath":"locationId","order":"ASCENDING"},{"fieldPath":"productId","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/locationAnalytics/indexes/CICAgJiUsZIK","queryScope":"COLLECTION","fields":[{"fieldPath":"locationId","order":"ASCENDING"},{"fieldPath":"period","order":"ASCENDING"},{"fieldPath":"date","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}],"state":"READY","density":"SPARSE_ALL"}]}
+[debug] [2025-07-27T01:23:47.597Z] Checked if tokens are valid: true, expires at: 1753583023990
+[debug] [2025-07-27T01:23:47.597Z] Checked if tokens are valid: true, expires at: 1753583023990
+[debug] [2025-07-27T01:23:47.597Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* [none]
+[debug] [2025-07-27T01:23:47.681Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* 200
+[debug] [2025-07-27T01:23:47.681Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* {"fields":[{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/__default__/fields/*","indexConfig":{"indexes":[{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","order":"ASCENDING"}],"state":"READY"},{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","order":"DESCENDING"}],"state":"READY"},{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","arrayConfig":"CONTAINS"}],"state":"READY"}]}}]}
+[info] i  firestore: The following indexes are defined in your project but are not present in your firestore indexes file:
+	(invitations) -- (email,ASCENDING) (status,ASCENDING) 
+	(locations) -- (tenantId,ASCENDING) (name,ASCENDING) 
+	(locationAnalytics) -- (locationId,ASCENDING) (period,ASCENDING) (date,DESCENDING) 
+	(locationInventory) -- (locationId,ASCENDING) (productId,ASCENDING) 
+	(locationAnalytics) -- (locationId,ASCENDING) (period,ASCENDING) (date,ASCENDING)  
+[debug] [2025-07-27T01:59:31.807Z] ----------------------------------------------------------------------
+[debug] [2025-07-27T01:59:31.814Z] Command:       /usr/local/bin/node /usr/local/bin/firebase deploy --only firestore:indexes
+[debug] [2025-07-27T01:59:31.814Z] CLI Version:   14.9.0
+[debug] [2025-07-27T01:59:31.814Z] Platform:      darwin
+[debug] [2025-07-27T01:59:31.814Z] Node Version:  v22.17.1
+[debug] [2025-07-27T01:59:31.814Z] Time:          Sun Jul 27 2025 09:59:31 GMT+0800 (Philippine Standard Time)
+[debug] [2025-07-27T01:59:31.814Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-07-27T01:59:31.911Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-07-27T01:59:31.911Z] > authorizing via signed-in user (ridgeridetv@gmail.com)
+[debug] [2025-07-27T01:59:31.911Z] [iam] checking project cfc-inventory-v3 for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]
+[debug] [2025-07-27T01:59:31.913Z] Checked if tokens are valid: true, expires at: 1753583023990
+[debug] [2025-07-27T01:59:31.913Z] Checked if tokens are valid: true, expires at: 1753583023990
+[debug] [2025-07-27T01:59:31.913Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/cfc-inventory-v3:testIamPermissions [none]
+[debug] [2025-07-27T01:59:31.913Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/cfc-inventory-v3:testIamPermissions x-goog-quota-user=projects/cfc-inventory-v3
+[debug] [2025-07-27T01:59:31.913Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/cfc-inventory-v3:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[debug] [2025-07-27T01:59:32.907Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/cfc-inventory-v3:testIamPermissions 200
+[debug] [2025-07-27T01:59:32.907Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/cfc-inventory-v3:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[info] 
+[info] === Deploying to 'cfc-inventory-v3'...
+[info] 
+[info] i  deploying firestore 
+[info] i  firestore: reading indexes from firestore.indexes.json... 
+[info] i  cloud.firestore: checking firestore.rules for compilation errors... 
+[debug] [2025-07-27T01:59:32.913Z] Checked if tokens are valid: true, expires at: 1753583023990
+[debug] [2025-07-27T01:59:32.913Z] Checked if tokens are valid: true, expires at: 1753583023990
+[debug] [2025-07-27T01:59:32.913Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/cfc-inventory-v3:test [none]
+[debug] [2025-07-27T01:59:32.914Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/cfc-inventory-v3:test [omitted]
+[debug] [2025-07-27T01:59:33.983Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/cfc-inventory-v3:test 200
+[debug] [2025-07-27T01:59:33.983Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/cfc-inventory-v3:test {}
+[info] ✔  cloud.firestore: rules file firestore.rules compiled successfully 
+[debug] [2025-07-27T01:59:33.986Z] Checked if tokens are valid: true, expires at: 1753583023990
+[debug] [2025-07-27T01:59:33.986Z] Checked if tokens are valid: true, expires at: 1753583023990
+[debug] [2025-07-27T01:59:33.986Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default) [none]
+[debug] [2025-07-27T01:59:34.362Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default) 200
+[debug] [2025-07-27T01:59:34.362Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default) {"name":"projects/cfc-inventory-v3/databases/(default)","uid":"d5f5d5af-8279-4e45-b105-5c078cf64254","createTime":"2025-06-29T14:42:19.748771Z","updateTime":"2025-06-29T14:42:19.748771Z","locationId":"asia-southeast1","type":"FIRESTORE_NATIVE","concurrencyMode":"PESSIMISTIC","versionRetentionPeriod":"3600s","earliestVersionTime":"2025-07-27T00:59:34.394669Z","appEngineIntegrationMode":"DISABLED","keyPrefix":"zas","pointInTimeRecoveryEnablement":"POINT_IN_TIME_RECOVERY_DISABLED","deleteProtectionState":"DELETE_PROTECTION_DISABLED","databaseEdition":"STANDARD","freeTier":true,"etag":"IPqgzrb4244DMICQj+vwlo4D"}
+[info] i  firestore: deploying indexes... 
+[debug] [2025-07-27T01:59:34.365Z] Checked if tokens are valid: true, expires at: 1753583023990
+[debug] [2025-07-27T01:59:34.365Z] Checked if tokens are valid: true, expires at: 1753583023990
+[debug] [2025-07-27T01:59:34.365Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/indexes [none]
+[debug] [2025-07-27T01:59:34.487Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/indexes 200
+[debug] [2025-07-27T01:59:34.488Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/indexes {"indexes":[{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/invitations/indexes/CICAgJim14AK","queryScope":"COLLECTION","fields":[{"fieldPath":"email","order":"ASCENDING"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/locations/indexes/CICAgOjXh4EK","queryScope":"COLLECTION","fields":[{"fieldPath":"tenantId","order":"ASCENDING"},{"fieldPath":"name","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/locationAnalytics/indexes/CICAgJjF9oIK","queryScope":"COLLECTION","fields":[{"fieldPath":"locationId","order":"ASCENDING"},{"fieldPath":"period","order":"ASCENDING"},{"fieldPath":"date","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/invitations/indexes/CICAgJiUpoMK","queryScope":"COLLECTION","fields":[{"fieldPath":"tenantId","order":"ASCENDING"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/locationInventory/indexes/CICAgOi3kJAK","queryScope":"COLLECTION","fields":[{"fieldPath":"locationId","order":"ASCENDING"},{"fieldPath":"productId","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/locationAnalytics/indexes/CICAgJiUsZIK","queryScope":"COLLECTION","fields":[{"fieldPath":"locationId","order":"ASCENDING"},{"fieldPath":"period","order":"ASCENDING"},{"fieldPath":"date","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}],"state":"READY","density":"SPARSE_ALL"}]}
+[debug] [2025-07-27T01:59:34.488Z] Checked if tokens are valid: true, expires at: 1753583023990
+[debug] [2025-07-27T01:59:34.489Z] Checked if tokens are valid: true, expires at: 1753583023990
+[debug] [2025-07-27T01:59:34.489Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* [none]
+[debug] [2025-07-27T01:59:34.574Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* 200
+[debug] [2025-07-27T01:59:34.574Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* {"fields":[{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/__default__/fields/*","indexConfig":{"indexes":[{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","order":"ASCENDING"}],"state":"READY"},{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","order":"DESCENDING"}],"state":"READY"},{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","arrayConfig":"CONTAINS"}],"state":"READY"}]}}]}
+[info] i  firestore: The following indexes are defined in your project but are not present in your firestore indexes file:
+	(invitations) -- (email,ASCENDING) (status,ASCENDING) 
+	(locations) -- (tenantId,ASCENDING) (name,ASCENDING) 
+	(locationAnalytics) -- (locationId,ASCENDING) (period,ASCENDING) (date,DESCENDING) 
+	(locationInventory) -- (locationId,ASCENDING) (productId,ASCENDING) 
+	(locationAnalytics) -- (locationId,ASCENDING) (period,ASCENDING) (date,ASCENDING)  
+[debug] [2025-07-27T02:04:40.539Z] ----------------------------------------------------------------------
+[debug] [2025-07-27T02:04:40.541Z] Command:       /usr/local/bin/node /usr/local/bin/firebase login --reauth
+[debug] [2025-07-27T02:04:40.541Z] CLI Version:   14.9.0
+[debug] [2025-07-27T02:04:40.541Z] Platform:      darwin
+[debug] [2025-07-27T02:04:40.541Z] Node Version:  v22.17.1
+[debug] [2025-07-27T02:04:40.542Z] Time:          Sun Jul 27 2025 10:04:40 GMT+0800 (Philippine Standard Time)
+[debug] [2025-07-27T02:04:40.542Z] ----------------------------------------------------------------------
+[debug] 
+[info] 
+[info] Visit this URL on this device to log in:
+[info] https://accounts.google.com/o/oauth2/auth?client_id=563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com&scope=email%20openid%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloudplatformprojects.readonly%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Ffirebase%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloud-platform&response_type=code&state=406267032&redirect_uri=http%3A%2F%2Flocalhost%3A9005&login_hint=ridgeridetv%40gmail.com
+[info] 
+[info] Waiting for authentication...
+[debug] [2025-07-27T02:21:32.922Z] ----------------------------------------------------------------------
+[debug] [2025-07-27T02:21:32.926Z] Command:       /usr/local/bin/node /usr/local/bin/firebase deploy --only firestore:indexes
+[debug] [2025-07-27T02:21:32.926Z] CLI Version:   14.9.0
+[debug] [2025-07-27T02:21:32.926Z] Platform:      darwin
+[debug] [2025-07-27T02:21:32.927Z] Node Version:  v22.17.1
+[debug] [2025-07-27T02:21:32.927Z] Time:          Sun Jul 27 2025 10:21:32 GMT+0800 (Philippine Standard Time)
+[debug] [2025-07-27T02:21:32.927Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-07-27T02:21:33.024Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-07-27T02:21:33.024Z] > authorizing via signed-in user (ridgeridetv@gmail.com)
+[debug] [2025-07-27T02:21:33.025Z] [iam] checking project cfc-inventory-v3 for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]
+[debug] [2025-07-27T02:21:33.025Z] Checked if tokens are valid: false, expires at: 1753583023990
+[debug] [2025-07-27T02:21:33.025Z] Checked if tokens are valid: false, expires at: 1753583023990
+[debug] [2025-07-27T02:21:33.025Z] > refreshing access token with scopes: []
+[debug] [2025-07-27T02:21:33.026Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2025-07-27T02:21:33.026Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-07-27T02:21:33.192Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2025-07-27T02:21:33.192Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-07-27T02:21:33.209Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/cfc-inventory-v3:testIamPermissions [none]
+[debug] [2025-07-27T02:21:33.209Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/cfc-inventory-v3:testIamPermissions x-goog-quota-user=projects/cfc-inventory-v3
+[debug] [2025-07-27T02:21:33.209Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/cfc-inventory-v3:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[debug] [2025-07-27T02:21:34.123Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/cfc-inventory-v3:testIamPermissions 200
+[debug] [2025-07-27T02:21:34.123Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/cfc-inventory-v3:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[info] 
+[info] === Deploying to 'cfc-inventory-v3'...
+[info] 
+[info] i  deploying firestore 
+[info] i  firestore: reading indexes from firestore.indexes.json... 
+[info] i  cloud.firestore: checking firestore.rules for compilation errors... 
+[debug] [2025-07-27T02:21:34.130Z] Checked if tokens are valid: true, expires at: 1753586492192
+[debug] [2025-07-27T02:21:34.130Z] Checked if tokens are valid: true, expires at: 1753586492192
+[debug] [2025-07-27T02:21:34.130Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/cfc-inventory-v3:test [none]
+[debug] [2025-07-27T02:21:34.130Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/cfc-inventory-v3:test [omitted]
+[debug] [2025-07-27T02:21:35.192Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/cfc-inventory-v3:test 200
+[debug] [2025-07-27T02:21:35.192Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/cfc-inventory-v3:test {}
+[info] ✔  cloud.firestore: rules file firestore.rules compiled successfully 
+[debug] [2025-07-27T02:21:35.194Z] Checked if tokens are valid: true, expires at: 1753586492192
+[debug] [2025-07-27T02:21:35.194Z] Checked if tokens are valid: true, expires at: 1753586492192
+[debug] [2025-07-27T02:21:35.194Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default) [none]
+[debug] [2025-07-27T02:21:35.635Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default) 200
+[debug] [2025-07-27T02:21:35.636Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default) {"name":"projects/cfc-inventory-v3/databases/(default)","uid":"d5f5d5af-8279-4e45-b105-5c078cf64254","createTime":"2025-06-29T14:42:19.748771Z","updateTime":"2025-06-29T14:42:19.748771Z","locationId":"asia-southeast1","type":"FIRESTORE_NATIVE","concurrencyMode":"PESSIMISTIC","versionRetentionPeriod":"3600s","earliestVersionTime":"2025-07-27T01:21:35.607977Z","appEngineIntegrationMode":"DISABLED","keyPrefix":"zas","pointInTimeRecoveryEnablement":"POINT_IN_TIME_RECOVERY_DISABLED","deleteProtectionState":"DELETE_PROTECTION_DISABLED","databaseEdition":"STANDARD","freeTier":true,"etag":"IPDXzqz9244DMICQj+vwlo4D"}
+[info] i  firestore: deploying indexes... 
+[debug] [2025-07-27T02:21:35.638Z] Checked if tokens are valid: true, expires at: 1753586492192
+[debug] [2025-07-27T02:21:35.638Z] Checked if tokens are valid: true, expires at: 1753586492192
+[debug] [2025-07-27T02:21:35.639Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/indexes [none]
+[debug] [2025-07-27T02:21:35.754Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/indexes 200
+[debug] [2025-07-27T02:21:35.754Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/indexes {"indexes":[{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/invitations/indexes/CICAgJim14AK","queryScope":"COLLECTION","fields":[{"fieldPath":"email","order":"ASCENDING"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/locations/indexes/CICAgOjXh4EK","queryScope":"COLLECTION","fields":[{"fieldPath":"tenantId","order":"ASCENDING"},{"fieldPath":"name","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/locationAnalytics/indexes/CICAgJjF9oIK","queryScope":"COLLECTION","fields":[{"fieldPath":"locationId","order":"ASCENDING"},{"fieldPath":"period","order":"ASCENDING"},{"fieldPath":"date","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/invitations/indexes/CICAgJiUpoMK","queryScope":"COLLECTION","fields":[{"fieldPath":"tenantId","order":"ASCENDING"},{"fieldPath":"status","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/locationInventory/indexes/CICAgOi3kJAK","queryScope":"COLLECTION","fields":[{"fieldPath":"locationId","order":"ASCENDING"},{"fieldPath":"productId","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}],"state":"READY","density":"SPARSE_ALL"},{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/locationAnalytics/indexes/CICAgJiUsZIK","queryScope":"COLLECTION","fields":[{"fieldPath":"locationId","order":"ASCENDING"},{"fieldPath":"period","order":"ASCENDING"},{"fieldPath":"date","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}],"state":"READY","density":"SPARSE_ALL"}]}
+[debug] [2025-07-27T02:21:35.755Z] Checked if tokens are valid: true, expires at: 1753586492192
+[debug] [2025-07-27T02:21:35.755Z] Checked if tokens are valid: true, expires at: 1753586492192
+[debug] [2025-07-27T02:21:35.756Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* [none]
+[debug] [2025-07-27T02:21:35.835Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* 200
+[debug] [2025-07-27T02:21:35.835Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/cfc-inventory-v3/databases/(default)/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* {"fields":[{"name":"projects/cfc-inventory-v3/databases/(default)/collectionGroups/__default__/fields/*","indexConfig":{"indexes":[{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","order":"ASCENDING"}],"state":"READY"},{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","order":"DESCENDING"}],"state":"READY"},{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","arrayConfig":"CONTAINS"}],"state":"READY"}]}}]}
+[info] i  firestore: The following indexes are defined in your project but are not present in your firestore indexes file:
+	(invitations) -- (email,ASCENDING) (status,ASCENDING) 
+	(locations) -- (tenantId,ASCENDING) (name,ASCENDING) 
+	(locationAnalytics) -- (locationId,ASCENDING) (period,ASCENDING) (date,DESCENDING) 
+	(locationInventory) -- (locationId,ASCENDING) (productId,ASCENDING) 
+	(locationAnalytics) -- (locationId,ASCENDING) (period,ASCENDING) (date,ASCENDING)  

@@ -1,0 +1,52 @@
+  // Branch Management State
+  const [showAddBranchModal, setShowAddBranchModal] = useState(false)
+  const [branches, setBranches] = useState<Branch[]>([])
+
+  // Mock branches data for demo
+  const mockBranches: Branch[] = [
+    {
+      id: 'main',
+      name: 'Main Branch',
+      address: '123 Main Street, City Center',
+      phone: '+1 (555) 123-4567',
+      manager: 'John Smith',
+      status: 'active',
+      isMain: true,
+      icon: '🏢',
+      stats: {
+        inventory: 4,
+        sales: '$12.5k',
+        staff: 8
+      }
+    },
+    {
+      id: 'downtown',
+      name: 'Downtown Store',
+      address: '456 Downtown Ave, Business District',
+      phone: '+1 (555) 234-5678',
+      manager: 'Sarah Johnson',
+      status: 'active',
+      isMain: false,
+      icon: '🏪',
+      stats: {
+        inventory: 0,
+        sales: '$8.2k',
+        staff: 5
+      }
+    },
+    {
+      id: 'mall',
+      name: 'Mall Location',
+      address: '789 Shopping Mall, Level 2',
+      phone: '+1 (555) 345-6789',
+      manager: 'Mike Davis',
+      status: 'inactive',
+      isMain: false,
+      icon: '🛍️',
+      stats: {
+        inventory: 0,
+        sales: '$0',
+        staff: 0
+      }
+    }
+  ]

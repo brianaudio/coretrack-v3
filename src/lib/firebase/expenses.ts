@@ -28,6 +28,7 @@ export interface Expense {
   date: Timestamp;
   approvedBy?: string;
   createdBy: string;
+  locationId?: string;
   tenantId: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -55,6 +56,7 @@ export interface CreateExpense {
   date: Date;
   createdBy: string;
   tenantId: string;
+  locationId?: string;
 }
 
 export interface CreateExpenseCategory {
@@ -75,16 +77,23 @@ const getExpenseCategoriesCollection = (tenantId: string) => {
 };
 
 // Expenses CRUD operations
-export const getExpenses = async (tenantId: string): Promise<Expense[]> => {
+export const getExpenses = async (tenantId: string, locationId?: string): Promise<Expense[]> => {
   try {
     const expensesRef = getExpensesCollection(tenantId);
     const q = query(expensesRef, orderBy('date', 'desc'));
     const snapshot = await getDocs(q);
     
-    return snapshot.docs.map(doc => ({
+    const allExpenses = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as Expense[];
+
+    // Filter by locationId if provided, using client-side filtering
+    if (locationId) {
+      return allExpenses.filter(expense => expense.locationId === locationId);
+    }
+    
+    return allExpenses;
   } catch (error) {
     console.error('Error fetching expenses:', error);
     throw new Error('Failed to fetch expenses');

@@ -6,6 +6,8 @@ import { useUserPermissions } from '../../lib/context/UserPermissionsContext'
 import { FeatureGate, UsageLimit } from '../subscription/FeatureGate'
 import { PermissionGate, NoPermissionMessage } from '../permissions/PermissionGate'
 import { useFeatureAccess } from '../../lib/hooks/useFeatureAccess'
+import { useBranch } from '../../lib/context/BranchContext'
+import { getBranchLocationId } from '../../lib/utils/branchUtils'
 import { 
   InventoryItem, 
   InventoryMovement,
@@ -25,6 +27,7 @@ export default function InventoryCenter() {
   const { profile } = useAuth()
   const { hasPermission, isOwner, isManager } = useUserPermissions()
   const { canAddProduct, blockActionWithLimit } = useFeatureAccess()
+  const { selectedBranch } = useBranch()
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState('All')
@@ -51,18 +54,34 @@ export default function InventoryCenter() {
 
   // Firebase real-time subscription
   useEffect(() => {
-    if (!profile?.tenantId) return
+    if (!profile?.tenantId || !selectedBranch) return
+
+    // Use branch-based location ID
+    const locationId = getBranchLocationId(selectedBranch.id)
 
     const unsubscribe = subscribeToInventoryItems(
       profile.tenantId,
-      (items) => {
+      locationId,
+      (items: InventoryItem[]) => {
         setInventoryItems(items)
         setLoading(false)
       }
     )
 
     return unsubscribe
-  }, [profile?.tenantId])
+  }, [profile?.tenantId, selectedBranch?.id])
+
+  // Listen for branch changes and reload inventory
+  useEffect(() => {
+    const handleBranchChange = () => {
+      // Branch changes are now handled by the BranchContext
+      // This effect is kept for backward compatibility with any legacy events
+      setLoading(true)
+    }
+
+    window.addEventListener('branchChanged', handleBranchChange)
+    return () => window.removeEventListener('branchChanged', handleBranchChange)
+  }, [selectedBranch?.id])
 
   const filteredItems = inventoryItems.filter(item => {
     const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory
@@ -120,7 +139,8 @@ export default function InventoryCenter() {
         minStock: Number(formData.get('minStock')),
         unit: formData.get('unit') as string,
         costPerUnit: costPerUnitValue ? Number(costPerUnitValue) : undefined,
-        tenantId: profile.tenantId
+        tenantId: profile.tenantId,
+        locationId: getBranchLocationId(selectedBranch?.id || 'main')
       }, profile.uid, profile.displayName)
       
       setShowAddModal(false)
@@ -449,8 +469,23 @@ export default function InventoryCenter() {
   return (
     <FeatureGate feature="inventory">
       <div className="space-y-6">
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* Page Header with Branch Indicator */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-surface-900">Inventory Center</h1>
+            <div className="flex items-center mt-1 text-sm text-surface-600">
+              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+              <span className="font-medium">{selectedBranch?.name || 'Main Branch'}</span>
+              <span className="mx-2">•</span>
+              <span>Viewing branch inventory</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="card p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -565,19 +600,23 @@ export default function InventoryCenter() {
 
       {/* Search and Actions */}
       <div className="card p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-          <div className="flex-1 sm:mr-4">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search items..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="input-field pl-10 w-full"
-              />
-              <svg className="w-5 h-5 text-surface-400 absolute left-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
+        <div className="flex flex-col space-y-4 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-4 flex-1">
+            {/* Search */}
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-surface-700 mb-1">Search</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search items..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="input-field pl-10 w-full"
+                />
+                <svg className="w-5 h-5 text-surface-400 absolute left-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
             </div>
           </div>
 
@@ -627,7 +666,7 @@ export default function InventoryCenter() {
                   Select Items
                 </button>
                 <PermissionGate 
-                  permission="inventory.create"
+                  permission="inventory"
                   fallback={
                     <div className="text-sm text-gray-500 px-4 py-2">
                       No permission to add items
@@ -891,7 +930,7 @@ export default function InventoryCenter() {
                                   
                                   <div className="grid grid-cols-2 gap-2">
                                     <PermissionGate 
-                                      permission="inventory.update"
+                                      permission="inventory"
                                       fallback={
                                         <div className="flex items-center justify-center px-3 py-2 bg-gray-100 text-gray-400 rounded-lg text-sm">
                                           <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -913,7 +952,7 @@ export default function InventoryCenter() {
                                     </PermissionGate>
                                     
                                     <PermissionGate 
-                                      permission="inventory.delete"
+                                      permission="inventory"
                                       fallback={
                                         <div className="flex items-center justify-center px-3 py-2 bg-gray-100 text-gray-400 rounded-lg text-sm">
                                           <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">

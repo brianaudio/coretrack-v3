@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
+import { useBranch } from '../../lib/context/BranchContext'
+import { getBranchLocationId } from '../../lib/utils/branchUtils'
 import { useFeatureAccess } from '../../lib/hooks/useFeatureAccess'
 import { 
   getExpenses, 
@@ -25,6 +27,7 @@ import { Timestamp } from 'firebase/firestore'
 
 export default function Expenses() {
   const { user, profile } = useAuth()
+  const { selectedBranch } = useBranch()
   const { canAddProduct, blockActionWithLimit } = useFeatureAccess()
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [categories, setCategories] = useState<ExpenseCategory[]>([])
@@ -117,15 +120,16 @@ export default function Expenses() {
 
   // Calculate profit metrics
   const calculateProfitMetrics = useCallback(async () => {
-    if (!profile?.tenantId) return
+    if (!profile?.tenantId || !selectedBranch) return
 
     try {
       setProfitLoading(true)
       
+      const locationId = getBranchLocationId(selectedBranch.id)
       // Get orders and menu items for the selected date range
       const [orders, menuItems] = await Promise.all([
-        getPOSOrders(profile.tenantId),
-        getPOSItems(profile.tenantId)
+        getPOSOrders(profile.tenantId, locationId),
+        getPOSItems(profile.tenantId, locationId)
       ])
 
       // Filter orders based on date filter - inline filtering to avoid dependency
@@ -213,37 +217,32 @@ export default function Expenses() {
     } finally {
       setProfitLoading(false)
     }
-  }, [profile?.tenantId, dateFilter, expenses]) // Simplified dependencies
+  }, [profile?.tenantId, selectedBranch?.id, dateFilter, expenses]) // Include selectedBranch in dependencies
 
   // Load expenses and categories
   useEffect(() => {
-    if (!profile?.tenantId) {
-      // Development mode: create mock data for testing
-      if (process.env.NODE_ENV === 'development') {
-        setLoading(false)
-        setProfitLoading(false)
-        setExpenses([])
-        setCategories([
-          { id: '1', name: 'Office Supplies', description: 'Office related expenses', tenantId: 'mock', isActive: true, createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
-          { id: '2', name: 'Marketing', description: 'Marketing and advertising', tenantId: 'mock', isActive: true, createdAt: Timestamp.now(), updatedAt: Timestamp.now() },
-          { id: '3', name: 'Utilities', description: 'Electricity, water, internet', tenantId: 'mock', isActive: true, createdAt: Timestamp.now(), updatedAt: Timestamp.now() }
-        ])
-        setProfitData({
-          totalRevenue: 0,
-          totalCOGS: 0,
-          grossProfit: 0,
-          totalExpenses: 0,
-          netProfit: 0
-        })
-      }
+    if (!profile?.tenantId || !selectedBranch) {
+      // No tenant or branch: set empty state
+      setLoading(false)
+      setProfitLoading(false)
+      setExpenses([])
+      setCategories([])
+      setProfitData({
+        totalRevenue: 0,
+        totalCOGS: 0,
+        grossProfit: 0,
+        totalExpenses: 0,
+        netProfit: 0
+      })
       return
     }
 
     const loadData = async () => {
       try {
         setLoading(true)
+        const locationId = getBranchLocationId(selectedBranch.id)
         const [expensesData, categoriesData] = await Promise.all([
-          getExpenses(profile.tenantId),
+          getExpenses(profile.tenantId, locationId),
           getExpenseCategories(profile.tenantId)
         ])
         setExpenses(expensesData)
@@ -256,7 +255,7 @@ export default function Expenses() {
     }
 
     loadData()
-  }, [profile?.tenantId]) // Only re-run when tenantId changes
+  }, [profile?.tenantId, selectedBranch?.id]) // Re-run when tenantId or branch changes
 
   // Separate effect to calculate profit metrics when expenses or date filter changes
   useEffect(() => {
@@ -266,9 +265,10 @@ export default function Expenses() {
   }, [profile?.tenantId, expenses, dateFilter]) // Remove calculateProfitMetrics from dependencies
 
   const handleCreateExpense = async () => {
-    if (!profile?.tenantId || !newExpense.title || !newExpense.amount || !newExpense.category) return
+    if (!profile?.tenantId || !selectedBranch || !newExpense.title || !newExpense.amount || !newExpense.category) return
 
     try {
+      const locationId = getBranchLocationId(selectedBranch.id)
       const expenseData: CreateExpense = {
         title: newExpense.title,
         category: newExpense.category,
@@ -279,13 +279,14 @@ export default function Expenses() {
         paymentMethod: newExpense.paymentMethod,
         date: new Date(newExpense.date),
         createdBy: profile.uid,
-        tenantId: profile.tenantId
+        tenantId: profile.tenantId,
+        locationId: locationId
       }
 
       await addExpense(expenseData)
       
       // Refresh expenses
-      const updatedExpenses = await getExpenses(profile.tenantId)
+      const updatedExpenses = await getExpenses(profile.tenantId, locationId)
       setExpenses(updatedExpenses)
       
       // Recalculate profit metrics

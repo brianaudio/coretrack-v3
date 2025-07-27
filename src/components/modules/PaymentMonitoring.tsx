@@ -22,7 +22,7 @@ import {
 } from '../../lib/firebase/cashManagement'
 
 export default function PaymentMonitoring() {
-  const { user } = useAuth()
+  const { profile } = useAuth()
   const [loading, setLoading] = useState(true)
   const [cashDrawerBalance, setCashDrawerBalance] = useState(0)
   const [paymentSummary, setPaymentSummary] = useState<PaymentMethodSummary | null>(null)
@@ -36,11 +36,11 @@ export default function PaymentMonitoring() {
   const [newPaymentMethod, setNewPaymentMethod] = useState<CreatePaymentMethod>({
     type: 'digital',
     name: '',
-    tenantId: user?.uid || ''
+    tenantId: profile?.tenantId || ''
   })
 
   useEffect(() => {
-    if (!user?.uid) return
+    if (!profile?.tenantId) return
 
     const loadData = async () => {
       try {
@@ -48,16 +48,16 @@ export default function PaymentMonitoring() {
         
         // Initialize default payment methods and cash drawer if none exist
         await Promise.all([
-          initializeDefaultPaymentMethods(user.uid),
-          initializeDefaultCashDrawer(user.uid)
+          initializeDefaultPaymentMethods(profile.tenantId),
+          initializeDefaultCashDrawer(profile.tenantId)
         ])
         
         const [balance, summary, daily, counts, methods] = await Promise.all([
-          getCashDrawerBalance(user.uid),
-          getPaymentMethodSummary(user.uid),
-          getDailyCashSummary(user.uid),
-          getCashCounts(user.uid),
-          getPaymentMethods(user.uid)
+          getCashDrawerBalance(profile.tenantId),
+          getPaymentMethodSummary(profile.tenantId),
+          getDailyCashSummary(profile.tenantId),
+          getCashCounts(profile.tenantId),
+          getPaymentMethods(profile.tenantId)
         ])
         
         setCashDrawerBalance(balance)
@@ -78,9 +78,9 @@ export default function PaymentMonitoring() {
     const refreshInterval = setInterval(async () => {
       try {
         const [balance, summary, daily] = await Promise.all([
-          getCashDrawerBalance(user.uid),
-          getPaymentMethodSummary(user.uid),
-          getDailyCashSummary(user.uid)
+          getCashDrawerBalance(profile.tenantId),
+          getPaymentMethodSummary(profile.tenantId),
+          getDailyCashSummary(profile.tenantId)
         ])
         
         setCashDrawerBalance(balance)
@@ -92,13 +92,13 @@ export default function PaymentMonitoring() {
     }, 30000) // Refresh every 30 seconds
 
     return () => clearInterval(refreshInterval)
-  }, [user?.uid])
+  }, [profile?.tenantId])
 
   const handleAddCashCount = async () => {
-    if (!user?.uid || !newCashCount.amount) return
+    if (!profile?.tenantId || !newCashCount.amount) return
 
     try {
-      await addCashCount(user.uid, {
+      await addCashCount(profile.tenantId, {
         amount: parseFloat(newCashCount.amount),
         notes: newCashCount.notes,
         countedBy: user.email || 'Unknown User'
@@ -106,8 +106,8 @@ export default function PaymentMonitoring() {
 
       // Refresh data
       const [balance, counts] = await Promise.all([
-        getCashDrawerBalance(user.uid),
-        getCashCounts(user.uid)
+        getCashDrawerBalance(profile.tenantId),
+        getCashCounts(profile.tenantId)
       ])
       
       setCashDrawerBalance(balance)
@@ -120,18 +120,18 @@ export default function PaymentMonitoring() {
   }
 
   const handleAddPaymentMethod = async () => {
-    if (!user?.uid || !newPaymentMethod.name.trim()) return
+    if (!profile?.tenantId || !newPaymentMethod.name.trim()) return
 
     try {
       await addPaymentMethod({
         ...newPaymentMethod,
-        tenantId: user.uid
+        tenantId: profile.tenantId
       })
 
       // Refresh payment methods and summary
       const [methods, summary] = await Promise.all([
-        getPaymentMethods(user.uid),
-        getPaymentMethodSummary(user.uid)
+        getPaymentMethods(profile.tenantId),
+        getPaymentMethodSummary(profile.tenantId)
       ])
       
       setPaymentMethods(methods)
@@ -139,7 +139,7 @@ export default function PaymentMonitoring() {
       setNewPaymentMethod({
         type: 'digital',
         name: '',
-        tenantId: user.uid
+        tenantId: profile.tenantId
       })
       setShowPaymentMethodManager(false)
     } catch (error) {
@@ -148,10 +148,10 @@ export default function PaymentMonitoring() {
   }
 
   const handleUpdatePaymentMethod = async () => {
-    if (!user?.uid || !editingMethod) return
+    if (!profile?.tenantId || !editingMethod) return
 
     try {
-      await updatePaymentMethod(user.uid, editingMethod.id, {
+      await updatePaymentMethod(profile.tenantId, editingMethod.id, {
         name: editingMethod.name,
         type: editingMethod.type,
         isActive: editingMethod.isActive
@@ -159,8 +159,8 @@ export default function PaymentMonitoring() {
 
       // Refresh payment methods and summary
       const [methods, summary] = await Promise.all([
-        getPaymentMethods(user.uid),
-        getPaymentMethodSummary(user.uid)
+        getPaymentMethods(profile.tenantId),
+        getPaymentMethodSummary(profile.tenantId)
       ])
       
       setPaymentMethods(methods)
@@ -172,16 +172,16 @@ export default function PaymentMonitoring() {
   }
 
   const handleDeletePaymentMethod = async (methodId: string) => {
-    if (!user?.uid) return
+    if (!profile?.tenantId) return
 
     if (confirm('Are you sure you want to delete this payment method? This action cannot be undone.')) {
       try {
-        await deletePaymentMethod(user.uid, methodId)
+        await deletePaymentMethod(profile.tenantId, methodId)
 
         // Refresh payment methods and summary
         const [methods, summary] = await Promise.all([
-          getPaymentMethods(user.uid),
-          getPaymentMethodSummary(user.uid)
+          getPaymentMethods(profile.tenantId),
+          getPaymentMethodSummary(profile.tenantId)
         ])
         
         setPaymentMethods(methods)
@@ -193,15 +193,15 @@ export default function PaymentMonitoring() {
   }
 
   const handleRefreshData = async () => {
-    if (!user?.uid) return
+    if (!profile?.tenantId) return
 
     try {
       setLoading(true)
       const [balance, summary, daily, counts] = await Promise.all([
-        getCashDrawerBalance(user.uid),
-        getPaymentMethodSummary(user.uid),
-        getDailyCashSummary(user.uid),
-        getCashCounts(user.uid)
+        getCashDrawerBalance(profile.tenantId),
+        getPaymentMethodSummary(profile.tenantId),
+        getDailyCashSummary(profile.tenantId),
+        getCashCounts(profile.tenantId)
       ])
       
       setCashDrawerBalance(balance)
@@ -329,7 +329,7 @@ export default function PaymentMonitoring() {
       {/* Daily Summary */}
       {dailySummary && (
         <div className="bg-white rounded-xl border border-surface-200 p-6">
-          <h2 className="text-xl font-semibold text-surface-900 mb-4">Today's Summary</h2>
+          <h2 className="text-xl font-semibold text-surface-900 mb-4">Today&apos;s Summary</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <p className="text-sm font-medium text-surface-600">Opening Balance</p>

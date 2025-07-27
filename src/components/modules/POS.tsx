@@ -3,9 +3,12 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
 import { useUserPermissions } from '../../lib/context/UserPermissionsContext'
+import { useBranch } from '../../lib/context/BranchContext'
+import { getBranchLocationId } from '../../lib/utils/branchUtils'
 import { FeatureGate } from '../subscription/FeatureGate'
 import { PermissionGate, NoPermissionMessage } from '../permissions/PermissionGate'
 import { useFeatureAccess } from '../../lib/hooks/useFeatureAccess'
+import { POSItemSkeleton } from '../ui/Skeleton'
 import CoreTrackLogo from '../CoreTrackLogo'
 import { 
   getPOSItems, 
@@ -13,10 +16,13 @@ import {
   getPOSCategories,
   getPOSOrders,
   subscribeToPOSOrders,
+  subscribeToPOSItems,
   type POSItem,
   type POSOrder,
   type CreatePOSOrder
 } from '../../lib/firebase/pos'
+import { collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, orderBy, where, Timestamp } from 'firebase/firestore'
+import { db } from '../../lib/firebase'
 import {
   processInventoryDeduction
 } from '../../lib/firebase/integration'
@@ -60,7 +66,16 @@ interface QuickAction {
 type OrderType = 'dine-in' | 'takeout' | 'delivery'
 
 export default function POS() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
+  const { hasPermission } = useUserPermissions()
+  const { canAccessPOS } = useFeatureAccess()
+  const { selectedBranch } = useBranch()
+  
+  // Simple message function instead of toast for now
+  const showMessage = (message: string, type: string = 'info') => {
+    console.log(`📱 POS ${type.toUpperCase()}:`, message)
+  }
+  
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [cart, setCart] = useState<CartItem[]>([])
   const [customerName, setCustomerName] = useState('')
@@ -100,17 +115,23 @@ export default function POS() {
     lowStockItems: [] as Array<{name: string, stock: number, category: string}>
   })
 
-  // Load favorites from localStorage on component mount
+  // Load favorites from Firebase on component mount
   useEffect(() => {
-    try {
-      const savedFavorites = localStorage.getItem('pos-favorites')
-      if (savedFavorites) {
-        setFavorites(JSON.parse(savedFavorites))
+    if (!profile?.tenantId) return
+    
+    const loadFavorites = async () => {
+      try {
+        const favoritesRef = collection(db, `tenants/${profile.tenantId}/posFavorites`)
+        const snapshot = await getDocs(favoritesRef)
+        const savedFavorites = snapshot.docs.map(doc => doc.data().itemId)
+        setFavorites(savedFavorites)
+      } catch (error) {
+        console.error('Error loading favorites from Firebase:', error)
       }
-    } catch (error) {
-      console.error('Error loading favorites from localStorage:', error)
     }
-  }, [])
+    
+    loadFavorites()
+  }, [profile?.tenantId])
 
   // Debug favorites and menu items
   useEffect(() => {
@@ -128,17 +149,33 @@ export default function POS() {
     { id: 'mod2', name: 'No Onions', type: 'modifier', price: 0, icon: '🚫' },
   ])
 
-  // Load quick modifiers from localStorage on component mount
+  // Load quick modifiers from Firebase on component mount
   useEffect(() => {
-    try {
-      const savedModifiers = localStorage.getItem('pos-quick-modifiers')
-      if (savedModifiers) {
-        setQuickActions(JSON.parse(savedModifiers))
+    if (!profile?.tenantId) return
+    
+    const loadQuickModifiers = async () => {
+      try {
+        const modifiersRef = collection(db, `tenants/${profile.tenantId}/posQuickModifiers`)
+        const snapshot = await getDocs(modifiersRef)
+        const savedModifiers = snapshot.docs.map(doc => {
+          const data = doc.data()
+          return {
+            id: data.id,
+            name: data.name,
+            type: data.type,
+            icon: data.icon,
+            price: data.price,
+            items: data.items
+          }
+        }) as QuickAction[]
+        setQuickActions(savedModifiers)
+      } catch (error) {
+        console.error('Error loading quick modifiers from Firebase:', error)
       }
-    } catch (error) {
-      console.error('Error loading quick modifiers from localStorage:', error)
     }
-  }, [])
+    
+    loadQuickModifiers()
+  }, [profile?.tenantId])
 
   // Load sales dashboard data
   useEffect(() => {
@@ -186,22 +223,26 @@ export default function POS() {
 
   // Load menu items and categories with real-time updates
   useEffect(() => {
-    if (!user?.uid) return
+    if (!user?.uid || !selectedBranch) return
+
+    // Use branch-based location ID for filtering
+    const locationId = getBranchLocationId(selectedBranch.id)
 
     const loadData = async () => {
       try {
         setLoading(true)
-        console.log('🔄 POS - Loading data for tenant:', user.uid)
+        console.log('🔄 POS - Loading data for tenant:', profile?.tenantId, 'branch:', selectedBranch.name)
         
         const [items, cats, methods] = await Promise.all([
-          getPOSItems(user.uid),
-          getPOSCategories(user.uid),
-          getPaymentMethods(user.uid)
+          getPOSItems(profile.tenantId, locationId),
+          getPOSCategories(profile.tenantId),
+          getPaymentMethods(profile.tenantId)
         ])
         
         console.log('📦 POS Items loaded:', items.length)
         console.log('📂 POS Categories loaded:', cats.length)
         console.log('💳 Payment Methods loaded:', methods.length)
+        console.log('🏢 Branch locationId:', locationId)
         console.log('🔍 First few items:', items.slice(0, 3))
         
         setMenuItems(items)
@@ -211,9 +252,9 @@ export default function POS() {
         // Initialize default payment methods if none exist
         if (methods.length === 0) {
           console.log('No payment methods found, initializing defaults...')
-          await initializeDefaultPaymentMethods(user.uid)
+          await initializeDefaultPaymentMethods(profile.tenantId)
           // Refresh payment methods after initialization
-          const updatedMethods = await getPaymentMethods(user.uid)
+          const updatedMethods = await getPaymentMethods(profile.tenantId)
           setPaymentMethods(updatedMethods)
           
           // Set default payment method to the first active method or 'cash'
@@ -237,25 +278,31 @@ export default function POS() {
 
     // Set up real-time subscription for POS items
     const { subscribeToPOSItems } = require('../../lib/firebase/pos')
-    const unsubscribe = subscribeToPOSItems(user.uid, (items: POSItem[]) => {
+    const unsubscribe = subscribeToPOSItems(profile.tenantId, (items: POSItem[]) => {
       console.log('🔄 POS - Real-time update:', items.length, 'items')
       setMenuItems(items)
       setLoading(false)
-    })
+    }, locationId)
 
     return () => {
       if (unsubscribe) unsubscribe()
     }
-  }, [user?.uid])
+  }, [profile?.tenantId, selectedBranch?.id])
 
   // Load recent orders
   useEffect(() => {
-    if (!user?.uid) return
+    if (!profile?.tenantId || !selectedBranch) return
+
+    // Use branch-based location ID for filtering
+    const locationId = getBranchLocationId(selectedBranch.id)
 
     const loadRecentOrders = async () => {
       try {
         setLoadingOrders(true)
-        const orders = await getPOSOrders(user.uid)
+        
+        console.log('🔄 POS - Loading recent orders for branch:', selectedBranch.name, 'locationId:', locationId)
+        
+        const orders = await getPOSOrders(profile.tenantId, locationId)
         // Get today's orders only
         const today = new Date()
         today.setHours(0, 0, 0, 0)
@@ -276,7 +323,7 @@ export default function POS() {
     loadRecentOrders()
 
     // Set up real-time subscription for orders
-    const unsubscribeOrders = subscribeToPOSOrders(user.uid, (orders: POSOrder[]) => {
+    const unsubscribeOrders = subscribeToPOSOrders(profile.tenantId, (orders: POSOrder[]) => {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
       
@@ -287,12 +334,12 @@ export default function POS() {
       
       setRecentOrders(todaysOrders)
       setLoadingOrders(false)
-    })
+    }, locationId)
 
     return () => {
       if (unsubscribeOrders) unsubscribeOrders()
     }
-  }, [user?.uid])
+  }, [profile?.tenantId, selectedBranch?.id])
 
   // Calculate change when cash received amount changes
   useEffect(() => {
@@ -310,11 +357,21 @@ export default function POS() {
     return matchesCategory && matchesSearch && item.isAvailable
   })
 
-  const addToCart = (item: POSItem, options?: { notes?: string, modifiers?: Array<{name: string, price: number}> }) => {
-    setCart(prevCart => {
-      const modifierPrice = options?.modifiers?.reduce((sum, mod) => sum + mod.price, 0) || 0
-      const totalPrice = item.price + modifierPrice
+  const [lastCartAction, setLastCartAction] = useState<{action: string, itemName: string} | null>(null)
 
+  // Handle toast notifications for cart actions
+  useEffect(() => {
+    if (lastCartAction) {
+      showMessage(`${lastCartAction.itemName} ${lastCartAction.action}`, 'success')
+      setLastCartAction(null)
+    }
+  }, [lastCartAction])
+
+  const addToCart = (item: POSItem, options?: { notes?: string, modifiers?: Array<{name: string, price: number}> }) => {
+    const modifierPrice = options?.modifiers?.reduce((sum, mod) => sum + mod.price, 0) || 0
+    const totalPrice = item.price + modifierPrice
+
+    setCart(prevCart => {
       const existingItemIndex = prevCart.findIndex(cartItem => 
         cartItem.id === item.id && 
         JSON.stringify(cartItem.modifiers) === JSON.stringify(options?.modifiers) &&
@@ -322,12 +379,16 @@ export default function POS() {
       )
 
       if (existingItemIndex >= 0) {
+        // Schedule toast notification
+        setLastCartAction({action: 'quantity updated', itemName: item.name})
         return prevCart.map((cartItem, index) =>
           index === existingItemIndex
             ? { ...cartItem, quantity: cartItem.quantity + 1 }
             : cartItem
         )
       } else {
+        // Schedule toast notification
+        setLastCartAction({action: 'added to cart', itemName: item.name})
         return [...prevCart, { 
           ...item, 
           price: totalPrice,
@@ -341,28 +402,45 @@ export default function POS() {
     })
   }
 
-  const addToFavorites = (itemId: string) => {
+  const addToFavorites = async (itemId: string) => {
     const newFavorites = [...favorites, itemId]
     setFavorites(newFavorites)
+    
+    if (!profile?.tenantId) return
+    
     try {
-      localStorage.setItem('pos-favorites', JSON.stringify(newFavorites))
+      const favoritesRef = collection(db, `tenants/${profile.tenantId}/posFavorites`)
+      await addDoc(favoritesRef, {
+        itemId: itemId,
+        createdAt: Timestamp.now(),
+        userId: user?.uid
+      })
     } catch (error) {
-      console.error('Error saving favorites to localStorage:', error)
+      console.error('Error saving favorites to Firebase:', error)
     }
   }
 
-  const removeFromFavorites = (itemId: string) => {
+  const removeFromFavorites = async (itemId: string) => {
     const newFavorites = favorites.filter(id => id !== itemId)
     setFavorites(newFavorites)
+    
+    if (!profile?.tenantId) return
+    
     try {
-      localStorage.setItem('pos-favorites', JSON.stringify(newFavorites))
+      const favoritesRef = collection(db, `tenants/${profile.tenantId}/posFavorites`)
+      const q = query(favoritesRef, where('itemId', '==', itemId))
+      const snapshot = await getDocs(q)
+      
+      snapshot.docs.forEach(async (docSnapshot) => {
+        await deleteDoc(doc(db, `tenants/${profile.tenantId}/posFavorites`, docSnapshot.id))
+      })
     } catch (error) {
-      console.error('Error saving favorites to localStorage:', error)
+      console.error('Error removing favorites from Firebase:', error)
     }
   }
 
   // Quick Modifier Management Functions
-  const addQuickModifier = (modifier: Omit<QuickAction, 'id'>) => {
+  const addQuickModifier = async (modifier: Omit<QuickAction, 'id'>) => {
     const newModifier = {
       ...modifier,
       id: `mod_${Date.now()}`,
@@ -370,32 +448,58 @@ export default function POS() {
     }
     const newModifiers = [...quickActions, newModifier]
     setQuickActions(newModifiers)
+    
+    if (!profile?.tenantId) return
+    
     try {
-      localStorage.setItem('pos-quick-modifiers', JSON.stringify(newModifiers))
+      const modifiersRef = collection(db, `tenants/${profile.tenantId}/posQuickModifiers`)
+      await addDoc(modifiersRef, {
+        ...newModifier,
+        createdAt: Timestamp.now(),
+        userId: user?.uid
+      })
     } catch (error) {
-      console.error('Error saving quick modifiers to localStorage:', error)
+      console.error('Error saving quick modifiers to Firebase:', error)
     }
   }
 
-  const updateQuickModifier = (id: string, updates: Partial<QuickAction>) => {
+  const updateQuickModifier = async (id: string, updates: Partial<QuickAction>) => {
     const newModifiers = quickActions.map(action => 
       action.id === id ? { ...action, ...updates } : action
     )
     setQuickActions(newModifiers)
+    
+    if (!profile?.tenantId) return
+    
     try {
-      localStorage.setItem('pos-quick-modifiers', JSON.stringify(newModifiers))
+      const modifiersRef = collection(db, `tenants/${profile.tenantId}/posQuickModifiers`)
+      const q = query(modifiersRef, where('id', '==', id))
+      const snapshot = await getDocs(q)
+      
+      snapshot.docs.forEach(async (docSnapshot) => {
+        await updateDoc(doc(db, `tenants/${profile.tenantId}/posQuickModifiers`, docSnapshot.id), updates)
+      })
     } catch (error) {
-      console.error('Error saving quick modifiers to localStorage:', error)
+      console.error('Error updating quick modifiers in Firebase:', error)
     }
   }
 
-  const deleteQuickModifier = (id: string) => {
+  const deleteQuickModifier = async (id: string) => {
     const newModifiers = quickActions.filter(action => action.id !== id)
     setQuickActions(newModifiers)
+    
+    if (!profile?.tenantId) return
+    
     try {
-      localStorage.setItem('pos-quick-modifiers', JSON.stringify(newModifiers))
+      const modifiersRef = collection(db, `tenants/${profile.tenantId}/posQuickModifiers`)
+      const q = query(modifiersRef, where('id', '==', id))
+      const snapshot = await getDocs(q)
+      
+      snapshot.docs.forEach(async (docSnapshot) => {
+        await deleteDoc(doc(db, `tenants/${profile.tenantId}/posQuickModifiers`, docSnapshot.id))
+      })
     } catch (error) {
-      console.error('Error saving quick modifiers to localStorage:', error)
+      console.error('Error deleting quick modifiers from Firebase:', error)
     }
   }
 
@@ -489,18 +593,27 @@ export default function POS() {
 
   const processOrder = async () => {
     if (!user?.uid || cart.length === 0) {
-      alert('Cart is empty! Please add items before processing.')
+      showMessage('Cart is empty! Please add items before processing.', 'warning')
+      return
+    }
+
+    if (!selectedBranch) {
+      showMessage('No branch selected! Please select a branch.', 'error')
       return
     }
 
     // Validate cash payment
     if (isCashPayment() && !canProcessCashPayment()) {
-      alert(`Insufficient cash! Need ₱${totalAmount.toFixed(2)}, received ₱${(parseFloat(cashReceived) || 0).toFixed(2)}`)
+      showMessage(`Insufficient cash! Need ₱${totalAmount.toFixed(2)}, received ₱${(parseFloat(cashReceived) || 0).toFixed(2)}`, 'error')
       return
     }
 
     try {
       setProcessing(true)
+      showMessage('Processing order...', 'info')
+      
+      // Generate locationId for the current branch
+      const locationId = getBranchLocationId(selectedBranch.id)
       
       const orderItems = cart.map(item => ({
         itemId: item.id,
@@ -520,7 +633,8 @@ export default function POS() {
         customerName: customerName || 'Walk-in Customer',
         orderType,
         paymentMethod: selectedPaymentMethod?.name || paymentMethod,
-        tenantId: user.uid
+        tenantId: profile.tenantId,
+        locationId // Add branch-specific locationId
       }
 
       // Create the order
@@ -528,7 +642,7 @@ export default function POS() {
       console.log('✅ Order created:', orderId)
       
       // Process inventory deductions
-      await processInventoryDeduction(user.uid, orderItems)
+      await processInventoryDeduction(profile.tenantId, orderItems)
       console.log('✅ Inventory updated for sold items')
       
       // Handle cash payment and drawer updates
@@ -538,16 +652,16 @@ export default function POS() {
           const changeGiven = changeAmount
           
           // Ensure cash drawer exists first
-          await initializeDefaultCashDrawer(user.uid)
+          await initializeDefaultCashDrawer(profile.tenantId)
           
           // Get the cash drawer (assuming first active drawer, could be enhanced)
-          const cashDrawers = await getCashDrawers(user.uid)
+          const cashDrawers = await getCashDrawers(profile.tenantId)
           const activeCashDrawer = cashDrawers.find(drawer => drawer.status !== 'uncounted')
           
           if (activeCashDrawer) {
             // Update cash drawer balance (add net cash)
             const netCashAdded = totalAmount // The order total goes into the drawer
-            await updateCashDrawer(user.uid, activeCashDrawer.id, {
+            await updateCashDrawer(profile.tenantId, activeCashDrawer.id, {
               cashOnHand: activeCashDrawer.cashOnHand + netCashAdded,
               expectedCash: activeCashDrawer.expectedCash + netCashAdded,
             })
@@ -565,7 +679,7 @@ export default function POS() {
             amount: totalAmount,
             cashReceived: receivedAmount,
             changeGiven: changeGiven,
-            tenantId: user.uid,
+            tenantId: profile.tenantId,
           })
           console.log('📝 Payment transaction recorded')
           
@@ -582,7 +696,7 @@ export default function POS() {
             paymentMethod: selectedPaymentMethod.type,
             paymentMethodName: selectedPaymentMethod.name,
             amount: totalAmount,
-            tenantId: user.uid,
+            tenantId: profile.tenantId,
           })
           console.log('📝 Payment transaction recorded')
         } catch (paymentError) {
@@ -598,13 +712,13 @@ export default function POS() {
       setShowCashPayment(false)
       
       if (isCashPayment() && changeAmount > 0) {
-        alert(`Order placed successfully! Change: ₱${changeAmount.toFixed(2)}`)
+        showMessage(`Order completed! Change: ₱${changeAmount.toFixed(2)}`, 'success')
       } else {
-        alert('Order placed successfully! Inventory has been updated.')
+        showMessage('Order completed successfully! Inventory updated.', 'success')
       }
     } catch (error) {
       console.error('Error processing order:', error)
-      alert('Error processing order. Please try again.')
+      showMessage('Error processing order. Please try again.', 'error')
     } finally {
       setProcessing(false)
     }
@@ -622,13 +736,13 @@ export default function POS() {
       // Restore inventory quantities
       const { restoreInventoryFromVoid } = require('../../lib/firebase/integration')
       console.log('🔄 Starting inventory restoration...')
-      await restoreInventoryFromVoid(user.uid, order.items)
+      await restoreInventoryFromVoid(profile.tenantId, order.items)
       console.log('✅ Inventory restoration completed')
       
       // Update order status to voided
       const { updatePOSOrder } = require('../../lib/firebase/pos')
       console.log('📝 Updating order status to voided...')
-      await updatePOSOrder(user.uid, order.id, {
+      await updatePOSOrder(profile.tenantId, order.id, {
         status: 'voided',
         voidReason: reason,
         voidedAt: new Date(),
@@ -637,9 +751,9 @@ export default function POS() {
       console.log('✅ Order status updated to voided')
       
       // Refresh the recent orders list to show the updated status
-      if (user?.uid) {
+      if (profile?.tenantId) {
         const { getPOSOrders } = require('../../lib/firebase/pos')
-        const orders = await getPOSOrders(user.uid)
+        const orders = await getPOSOrders(profile.tenantId)
         const sortedOrders = orders.sort((a: POSOrder, b: POSOrder) => {
           const aTime = a.createdAt?.toDate() || new Date(0)
           const bTime = b.createdAt?.toDate() || new Date(0)
@@ -661,8 +775,8 @@ export default function POS() {
   return (
     <FeatureGate feature="pos">
       <PermissionGate 
-        permission="pos.read"
-        fallback={<NoPermissionMessage permission="pos.read" action="access the Point of Sale system" />}
+        permission="pos"
+        fallback={<NoPermissionMessage permission="pos" action="access the Point of Sale system" />}
       >
         <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Professional Header */}
@@ -676,6 +790,16 @@ export default function POS() {
                 <h1 className="text-xl font-bold text-gray-900">Point of Sale</h1>
                 <p className="text-gray-500 text-sm">Professional POS System</p>
               </div>
+            </div>
+
+            {/* Branch Indicator */}
+            <div className="flex items-center bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
+              <svg className="w-4 h-4 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+              <span className="font-medium">{selectedBranch?.name || 'Main Branch'}</span>
+              <span className="mx-2">•</span>
+              <span>POS Terminal</span>
             </div>
             
             {/* Search Bar */}
@@ -1152,7 +1276,7 @@ export default function POS() {
                       if (user?.uid) {
                         setLoadingOrders(true);
                         try {
-                          const orders = await getPOSOrders(user.uid);
+                          const orders = await getPOSOrders(profile.tenantId);
                           const sortedOrders = orders.sort((a: POSOrder, b: POSOrder) => {
                             const aTime = a.createdAt?.toDate() || new Date(0);
                             const bTime = b.createdAt?.toDate() || new Date(0);
@@ -1383,14 +1507,9 @@ export default function POS() {
           <div className="flex-1 overflow-y-auto bg-gray-50">
             <div className="p-6">
               {loading ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {[...Array(12)].map((_, i) => (
-                    <div key={i} className="bg-white rounded-lg p-4 animate-pulse shadow-sm border border-gray-200" style={{ aspectRatio: '1' }}>
-                      <div className="w-8 h-8 bg-gray-200 rounded-lg mx-auto mb-3"></div>
-                      <div className="h-3 bg-gray-200 rounded mb-2"></div>
-                      <div className="h-2 bg-gray-200 rounded w-2/3 mx-auto mb-3"></div>
-                      <div className="h-4 bg-gray-200 rounded"></div>
-                    </div>
+                    <POSItemSkeleton key={i} />
                   ))}
                 </div>
               ) : filteredItems.length === 0 ? (
@@ -1413,7 +1532,7 @@ export default function POS() {
                       <div>Total items: {menuItems.length}</div>
                       <div>Filtered items: {filteredItems.length}</div>
                       <div>Selected category: {selectedCategory}</div>
-                      <div>Search term: "{searchTerm}"</div>
+                      <div>Search term: &quot;{searchTerm}&quot;</div>
                     </div>
                     {menuItems.length === 0 && (
                       <button
@@ -1473,14 +1592,14 @@ export default function POS() {
                         </div>
 
                         {/* Actions */}
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
                               addToCart(item)
                               console.log('🛒 Added to cart:', item.name)
                             }}
-                            className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm py-2.5 transition-colors rounded-lg font-medium"
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm py-3 transition-colors rounded-lg font-medium min-h-[44px] touch-manipulation"
                           >
                             Add to Cart
                           </button>
@@ -1490,7 +1609,7 @@ export default function POS() {
                               e.stopPropagation()
                               setSelectedItemForNotes(item.id)
                             }}
-                            className="w-full border border-gray-200 hover:bg-gray-50 text-gray-600 text-sm py-2.5 transition-colors rounded-lg"
+                            className="w-full border border-gray-200 hover:bg-gray-50 text-gray-600 text-sm py-3 transition-colors rounded-lg min-h-[44px] touch-manipulation"
                           >
                             Add Note
                           </button>
@@ -1925,7 +2044,7 @@ export default function POS() {
 
                   {/* Checkout Button */}
                   <PermissionGate 
-                    permission="pos.create"
+                    permission="pos"
                     fallback={
                       <div className="w-full bg-gray-300 text-gray-500 py-3 px-4 rounded-lg font-bold text-sm text-center">
                         No permission to process orders

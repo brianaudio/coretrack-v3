@@ -47,7 +47,8 @@ export const syncMenuItemToPOS = async (menuItem: MenuItem): Promise<void> => {
       image: menuItem.image || getDefaultEmoji(menuItem.category),
       isAvailable: menuItem.status === 'active',
       preparationTime: menuItem.preparationTime,
-      tenantId: menuItem.tenantId
+      tenantId: menuItem.tenantId,
+      locationId: menuItem.locationId // Include locationId for branch-specific POS items
     };
 
     // Check if POS item already exists

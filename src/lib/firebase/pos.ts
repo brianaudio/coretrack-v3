@@ -26,6 +26,7 @@ export interface POSItem {
   isAvailable: boolean;
   preparationTime: number; // in minutes
   tenantId: string;
+  locationId?: string; // Added for branch-specific filtering
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -47,6 +48,7 @@ export interface POSOrder {
   orderType: 'dine-in' | 'takeout' | 'delivery';
   paymentMethod: string;
   tenantId: string;
+  locationId?: string; // Added for branch-specific filtering
   createdAt: Timestamp;
   updatedAt: Timestamp;
   // Void-related fields
@@ -65,6 +67,7 @@ export interface CreatePOSItem {
   isAvailable: boolean;
   preparationTime: number;
   tenantId: string;
+  locationId?: string; // Added for branch-specific items
 }
 
 export interface CreatePOSOrder {
@@ -82,6 +85,7 @@ export interface CreatePOSOrder {
   orderType: 'dine-in' | 'takeout' | 'delivery';
   paymentMethod: string;
   tenantId: string;
+  locationId?: string; // Added for branch-specific orders
 }
 
 // Get POS items collection reference
@@ -94,19 +98,26 @@ const getPOSOrdersCollection = (tenantId: string) => {
   return collection(db, `tenants/${tenantId}/posOrders`);
 };
 
-// Get all POS menu items
-export const getPOSItems = async (tenantId: string): Promise<POSItem[]> => {
+// Get all POS menu items (with optional location filtering)
+export const getPOSItems = async (tenantId: string, locationId?: string): Promise<POSItem[]> => {
   try {
     const itemsRef = getPOSItemsCollection(tenantId);
+    
+    // For now, get all items and filter client-side to avoid index requirements
     const q = query(itemsRef, orderBy('name'));
     const snapshot = await getDocs(q);
     
-    const items = snapshot.docs.map(doc => ({
+    let items = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as POSItem[];
     
-    console.log(`📦 POS: Loaded ${items.length} items`);
+    // Filter client-side by locationId if specified
+    if (locationId) {
+      items = items.filter(item => item.locationId === locationId);
+    }
+    
+    console.log(`📦 POS: Loaded ${items.length} items${locationId ? ` for location ${locationId}` : ''}`);
     return items;
   } catch (error) {
     console.error('❌ Error fetching POS items:', error);
@@ -114,20 +125,29 @@ export const getPOSItems = async (tenantId: string): Promise<POSItem[]> => {
   }
 };
 
-// Listen to real-time POS items updates
+// Listen to real-time POS items updates (with optional location filtering)
 export const subscribeToPOSItems = (
   tenantId: string, 
-  callback: (items: POSItem[]) => void
+  callback: (items: POSItem[]) => void,
+  locationId?: string
 ) => {
   const itemsRef = getPOSItemsCollection(tenantId);
+  
+  // For now, get all items and filter client-side to avoid index requirements
   const q = query(itemsRef, orderBy('name'));
   
   return onSnapshot(q, (snapshot) => {
-    const items = snapshot.docs.map(doc => ({
+    let items = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as POSItem[];
     
+    // Filter client-side by locationId if specified
+    if (locationId) {
+      items = items.filter(item => item.locationId === locationId);
+    }
+    
+    console.log(`🔄 POS: Real-time update - ${items.length} items${locationId ? ` for location ${locationId}` : ''}`);
     callback(items);
   }, (error) => {
     console.error('Error in POS items subscription:', error);
@@ -216,37 +236,56 @@ export const createPOSOrder = async (order: CreatePOSOrder): Promise<string> => 
   }
 };
 
-// Get POS orders
-export const getPOSOrders = async (tenantId: string): Promise<POSOrder[]> => {
+// Get POS orders (with optional location filtering)
+export const getPOSOrders = async (tenantId: string, locationId?: string): Promise<POSOrder[]> => {
   try {
     const ordersRef = getPOSOrdersCollection(tenantId);
+    
+    // For now, get all orders and filter client-side to avoid index requirements
     const q = query(ordersRef, orderBy('createdAt', 'desc'));
     const snapshot = await getDocs(q);
     
-    return snapshot.docs.map(doc => ({
+    let orders = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as POSOrder[];
+    
+    // Filter client-side by locationId if specified
+    if (locationId) {
+      orders = orders.filter(order => order.locationId === locationId);
+    }
+    
+    console.log(`📋 POS: Loaded ${orders.length} orders${locationId ? ` for location ${locationId}` : ''}`);
+    return orders;
   } catch (error) {
     console.error('Error fetching POS orders:', error);
     throw new Error('Failed to fetch POS orders');
   }
 };
 
-// Listen to real-time POS orders updates
+// Listen to real-time POS orders updates (with optional location filtering)
 export const subscribeToPOSOrders = (
   tenantId: string, 
-  callback: (orders: POSOrder[]) => void
+  callback: (orders: POSOrder[]) => void,
+  locationId?: string
 ) => {
   const ordersRef = getPOSOrdersCollection(tenantId);
+  
+  // For now, get all orders and filter client-side to avoid index requirements
   const q = query(ordersRef, orderBy('createdAt', 'desc'));
   
   return onSnapshot(q, (snapshot) => {
-    const orders = snapshot.docs.map(doc => ({
+    let orders = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as POSOrder[];
     
+    // Filter client-side by locationId if specified
+    if (locationId) {
+      orders = orders.filter(order => order.locationId === locationId);
+    }
+    
+    console.log(`🔄 POS: Real-time orders update - ${orders.length} orders${locationId ? ` for location ${locationId}` : ''}`);
     callback(orders);
   }, (error) => {
     console.error('Error in POS orders subscription:', error);

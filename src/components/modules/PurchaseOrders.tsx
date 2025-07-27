@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
+import { useBranch } from '../../lib/context/BranchContext'
+import { getBranchLocationId } from '../../lib/utils/branchUtils'
 import { 
   getPurchaseOrders, 
   createPurchaseOrder, 
@@ -20,7 +22,8 @@ import {
 } from '../../lib/firebase/inventory'
 
 export default function PurchaseOrders() {
-  const { user } = useAuth()
+  const { profile } = useAuth()
+  const { selectedBranch } = useBranch()
   const [orders, setOrders] = useState<PurchaseOrder[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
@@ -61,15 +64,19 @@ export default function PurchaseOrders() {
 
   // Load purchase orders and suppliers
   useEffect(() => {
-    if (!user?.uid) return
+    if (!profile?.tenantId || !selectedBranch) return
 
     const loadData = async () => {
       try {
         setLoading(true)
+        const locationId = getBranchLocationId(selectedBranch.id)
+        
+        console.log('🔄 PO - Loading data for branch:', selectedBranch.name, 'locationId:', locationId)
+        
         const [ordersData, suppliersData, inventoryData] = await Promise.all([
-          getPurchaseOrders(user.uid),
-          getSuppliers(user.uid),
-          getInventoryItems(user.uid)
+          getPurchaseOrders(profile.tenantId, locationId),
+          getSuppliers(profile.tenantId),
+          getInventoryItems(profile.tenantId, locationId)
         ])
         setOrders(ordersData)
         setSuppliers(suppliersData)
@@ -82,7 +89,7 @@ export default function PurchaseOrders() {
     }
 
     loadData()
-  }, [user?.uid])
+  }, [profile?.tenantId, selectedBranch?.id])
 
   const calculateTotals = (items: PurchaseOrderItem[]) => {
     const subtotal = items.reduce((sum, item) => sum + item.total, 0)
@@ -94,7 +101,7 @@ export default function PurchaseOrders() {
   }
 
   const handleCreateOrder = async () => {
-    if (!user?.uid || !newOrder.supplierId || !newOrder.requestor) return
+    if (!profile?.tenantId || !newOrder.supplierId || !newOrder.requestor || !selectedBranch) return
 
     try {
       // Calculate totals for each item
@@ -107,6 +114,9 @@ export default function PurchaseOrders() {
 
       const { subtotal, tax, total } = calculateTotals(updatedItems)
 
+      // Generate locationId for the current branch
+      const locationId = getBranchLocationId(selectedBranch.id)
+
       const orderData: CreatePurchaseOrder = {
         supplierId: newOrder.supplierId, // This is now the supplier name
         supplierName: newOrder.supplierId, // Using the same value since it's now a text input
@@ -117,14 +127,15 @@ export default function PurchaseOrders() {
         expectedDelivery: newOrder.expectedDelivery,
         notes: newOrder.notes,
         requestor: newOrder.requestor,
-        createdBy: user.uid,
-        tenantId: user.uid
+        createdBy: profile.tenantId,
+        tenantId: profile.tenantId,
+        locationId // Add branch-specific locationId
       }
 
       await createPurchaseOrder(orderData)
       
       // Refresh orders
-      const updatedOrders = await getPurchaseOrders(user.uid)
+      const updatedOrders = await getPurchaseOrders(profile.tenantId)
       setOrders(updatedOrders)
       
       // Reset form
@@ -142,11 +153,11 @@ export default function PurchaseOrders() {
   }
 
   const handleUpdateStatus = async (orderId: string, status: PurchaseOrder['status']) => {
-    if (!user?.uid) return
+    if (!profile?.tenantId) return
 
     try {
-      const approvedBy = status === 'approved' ? user.uid : undefined
-      await updatePurchaseOrderStatus(user.uid, orderId, status, approvedBy)
+      const approvedBy = status === 'approved' ? profile.tenantId : undefined
+      await updatePurchaseOrderStatus(profile.tenantId, orderId, status, approvedBy)
       
       // Update local state
       setOrders(prev => prev.map(order => 
@@ -154,7 +165,7 @@ export default function PurchaseOrders() {
           ? { 
               ...order, 
               status,
-              ...(status === 'approved' && { approvedBy: user.uid })
+              ...(status === 'approved' && { approvedBy: profile.tenantId })
             } 
           : order
       ))
@@ -164,10 +175,10 @@ export default function PurchaseOrders() {
   }
 
   const handleDeleteOrder = async (orderId: string) => {
-    if (!user?.uid || !confirm('Are you sure you want to delete this order?')) return
+    if (!profile?.tenantId || !confirm('Are you sure you want to delete this order?')) return
 
     try {
-      await deletePurchaseOrder(user.uid, orderId)
+      await deletePurchaseOrder(profile.tenantId, orderId)
       setOrders(prev => prev.filter(order => order.id !== orderId))
     } catch (error) {
       console.error('Error deleting order:', error)
@@ -175,7 +186,7 @@ export default function PurchaseOrders() {
   }
 
   const handleShowDeliveryModal = async (order: PurchaseOrder) => {
-    if (!user?.uid || loadingDelivery === order.id) return
+    if (!profile?.tenantId || loadingDelivery === order.id) return
     
     try {
       setLoadingDelivery(order.id!)
@@ -184,7 +195,7 @@ export default function PurchaseOrders() {
       const { getPurchaseOrderById } = await import('../../lib/firebase/purchaseOrders')
       
       // Fetch the latest order status from database
-      const latestOrder = await getPurchaseOrderById(user.uid, order.id!)
+      const latestOrder = await getPurchaseOrderById(profile.tenantId, order.id!)
       
       if (!latestOrder) {
         alert('Purchase order not found. It may have been deleted.')
@@ -235,7 +246,7 @@ export default function PurchaseOrders() {
   }
 
   const handleConfirmDelivery = async () => {
-    if (!user?.uid || !deliveringOrder || isDelivering) return
+    if (!profile?.tenantId || !deliveringOrder || isDelivering) return
 
     try {
       setIsDelivering(true)
@@ -257,7 +268,7 @@ export default function PurchaseOrders() {
       }
 
       const result = await deliverPurchaseOrder(
-        user.uid,
+        profile.tenantId,
         deliveringOrder.id!,
         itemsToDeliver.map(item => ({
           itemName: item.itemName,
@@ -265,7 +276,7 @@ export default function PurchaseOrders() {
           unit: item.unit,
           unitPrice: item.unitPrice
         })),
-        user.uid
+        profile.tenantId
       )
 
       if (result.success) {
@@ -275,7 +286,7 @@ export default function PurchaseOrders() {
             ? { 
                 ...order, 
                 status: 'delivered' as const,
-                deliveredBy: user.uid,
+                deliveredBy: profile.tenantId,
                 deliveredAt: new Date() as any,
                 items: order.items.map(item => {
                   const deliveredItem = itemsToDeliver.find(di => 
@@ -423,6 +434,16 @@ export default function PurchaseOrders() {
         >
           New Order
         </button>
+      </div>
+
+      {/* Branch Indicator */}
+      <div className="flex items-center bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
+        <svg className="w-4 h-4 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+        <span className="font-medium">{selectedBranch?.name || 'Main Branch'}</span>
+        <span className="mx-2">•</span>
+        <span>Viewing branch purchase orders</span>
       </div>
 
       {/* Stats */}

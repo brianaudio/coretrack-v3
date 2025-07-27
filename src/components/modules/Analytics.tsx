@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
+import { useBranch } from '../../lib/context/BranchContext'
+import { getBranchLocationId } from '../../lib/utils/branchUtils'
 import { 
   getDashboardStats, 
   getSalesChartData,
@@ -39,7 +41,8 @@ import {
 } from 'recharts'
 
 export default function Analytics() {
-  const { user } = useAuth()
+  const { profile } = useAuth()
+  const { selectedBranch } = useBranch()
   const [selectedPeriod, setSelectedPeriod] = useState('week')
   const [selectedMetric, setSelectedMetric] = useState('sales')
   const [selectedTab, setSelectedTab] = useState('overview') // overview, inventory, predictions, usage
@@ -51,18 +54,19 @@ export default function Analytics() {
 
   // Load analytics data
   useEffect(() => {
-    if (!user?.uid) return
+    if (!profile?.tenantId || !selectedBranch) return
 
     const loadAnalyticsData = async () => {
       try {
         setLoading(true)
+        const locationId = getBranchLocationId(selectedBranch.id)
         const days = selectedPeriod === 'day' ? 1 : selectedPeriod === 'week' ? 7 : selectedPeriod === 'month' ? 30 : 365
         
         const [stats, salesChart, topSellingItems, inventoryData] = await Promise.all([
-          getDashboardStats(user.uid),
-          getSalesChartData(user.uid, days),
-          getTopSellingItems(user.uid, days),
-          getInventoryAnalytics(user.uid, days)
+          getDashboardStats(profile.tenantId, locationId),
+          getSalesChartData(profile.tenantId, days, locationId),
+          getTopSellingItems(profile.tenantId, days, 10, locationId),
+          getInventoryAnalytics(profile.tenantId, days, locationId)
         ])
         
         setDashboardStats(stats)
@@ -77,7 +81,7 @@ export default function Analytics() {
     }
 
     loadAnalyticsData()
-  }, [user?.uid, selectedPeriod])
+  }, [profile?.tenantId, selectedBranch?.id, selectedPeriod])
 
   const totalSales = salesData.reduce((sum, day) => sum + day.revenue, 0)
   const totalOrders = salesData.reduce((sum, day) => sum + day.orders, 0)

@@ -39,6 +39,7 @@ export interface MenuItem {
   isPopular: boolean;
   displayOrder: number;
   tenantId: string;
+  locationId?: string; // Added for branch-specific menu items
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -79,6 +80,7 @@ export interface CreateMenuItem {
   isPopular?: boolean;
   displayOrder?: number;
   tenantId: string;
+  locationId?: string; // Added for branch-specific menu items
 }
 
 export interface CreateMenuCategory {
@@ -115,25 +117,33 @@ const calculateMenuItemCost = (ingredients: MenuIngredient[]): number => {
   return ingredients.reduce((total, ingredient) => total + ingredient.cost, 0);
 };
 
-// Menu Items CRUD operations
-export const getMenuItems = async (tenantId: string): Promise<MenuItem[]> => {
+// Menu Items CRUD operations (with optional location filtering)
+export const getMenuItems = async (tenantId: string, locationId?: string): Promise<MenuItem[]> => {
   try {
     const itemsRef = getMenuItemsCollection(tenantId);
     // Get all items without orderBy to avoid composite index issues
     const snapshot = await getDocs(itemsRef);
     
-    const items = snapshot.docs.map(doc => ({
+    let items = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as MenuItem[];
     
+    // Filter client-side by locationId if specified
+    if (locationId) {
+      items = items.filter(item => item.locationId === locationId);
+    }
+    
     // Sort in memory by displayOrder, then by name
-    return items.sort((a, b) => {
+    const sortedItems = items.sort((a, b) => {
       if (a.displayOrder !== b.displayOrder) {
         return a.displayOrder - b.displayOrder;
       }
       return a.name.localeCompare(b.name);
     });
+    
+    console.log(`📋 Menu: Loaded ${sortedItems.length} menu items${locationId ? ` for location ${locationId}` : ''}`);
+    return sortedItems;
   } catch (error) {
     console.error('Error fetching menu items:', error);
     throw new Error('Failed to fetch menu items');

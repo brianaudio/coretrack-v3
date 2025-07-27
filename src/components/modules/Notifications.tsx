@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
+import { getCurrentBranch } from '../../lib/utils/branchUtils'
 import {
   getNotifications,
   markNotificationAsRead,
@@ -27,7 +28,7 @@ interface NotificationsProps {
 }
 
 export default function Notifications({ showAsWidget = false, maxItems = 10 }: NotificationsProps) {
-  const { user } = useAuth()
+  const { profile } = useAuth()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -42,15 +43,17 @@ export default function Notifications({ showAsWidget = false, maxItems = 10 }: N
 
   // Load notifications and settings
   useEffect(() => {
-    if (!user?.uid) return
+    if (!profile?.tenantId) return
 
     const loadData = async () => {
       try {
         setLoading(true)
+        const currentBranch = getCurrentBranch()
+        const locationId = `location_${currentBranch.toLowerCase()}`
         const [notificationsData, settingsData, alertsData] = await Promise.all([
-          getNotifications(user.uid, { limit: maxItems }),
-          getNotificationSettings(user.uid),
-          runSmartAlerts(user.uid)
+          getNotifications(profile.tenantId, { limit: maxItems }),
+          getNotificationSettings(profile.tenantId),
+          runSmartAlerts(profile.tenantId, locationId)
         ])
         
         setNotifications(notificationsData)
@@ -68,7 +71,7 @@ export default function Notifications({ showAsWidget = false, maxItems = 10 }: N
 
     // Subscribe to real-time notifications
     const unsubscribe = subscribeToNotifications(
-      user.uid,
+      profile.tenantId,
       (newNotifications) => {
         setNotifications(newNotifications.slice(0, maxItems))
         setUnreadCount(newNotifications.filter(n => !n.isRead).length)
@@ -77,13 +80,13 @@ export default function Notifications({ showAsWidget = false, maxItems = 10 }: N
     )
 
     return unsubscribe
-  }, [user?.uid, maxItems])
+  }, [profile?.tenantId, maxItems])
 
   const handleMarkAsRead = async (notificationId: string) => {
-    if (!user?.uid) return
+    if (!profile?.tenantId) return
     
     try {
-      await markNotificationAsRead(user.uid, notificationId)
+      await markNotificationAsRead(profile.tenantId, notificationId)
       setNotifications(prev => 
         prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n)
       )
@@ -94,10 +97,10 @@ export default function Notifications({ showAsWidget = false, maxItems = 10 }: N
   }
 
   const handleMarkAllAsRead = async () => {
-    if (!user?.uid) return
+    if (!profile?.tenantId) return
     
     try {
-      await markAllNotificationsAsRead(user.uid)
+      await markAllNotificationsAsRead(profile.tenantId)
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })))
       setUnreadCount(0)
     } catch (error) {
@@ -106,10 +109,10 @@ export default function Notifications({ showAsWidget = false, maxItems = 10 }: N
   }
 
   const handleDeleteNotification = async (notificationId: string) => {
-    if (!user?.uid) return
+    if (!profile?.tenantId) return
     
     try {
-      await deleteNotification(user.uid, notificationId)
+      await deleteNotification(profile.tenantId, notificationId)
       setNotifications(prev => prev.filter(n => n.id !== notificationId))
       setUnreadCount(prev => {
         const notification = notifications.find(n => n.id === notificationId)
@@ -121,10 +124,10 @@ export default function Notifications({ showAsWidget = false, maxItems = 10 }: N
   }
 
   const handleUpdateSettings = async (newSettings: Partial<NotificationSettings>) => {
-    if (!user?.uid) return
+    if (!profile?.tenantId) return
     
     try {
-      await updateNotificationSettings(user.uid, newSettings)
+      await updateNotificationSettings(profile.tenantId, newSettings)
       setSettings(prev => prev ? { ...prev, ...newSettings } : null)
     } catch (error) {
       console.error('Error updating settings:', error)
@@ -132,10 +135,12 @@ export default function Notifications({ showAsWidget = false, maxItems = 10 }: N
   }
 
   const handleRunSmartAlerts = async () => {
-    if (!user?.uid) return
+    if (!profile?.tenantId) return
     
     try {
-      const alerts = await runSmartAlerts(user.uid)
+      const currentBranch = getCurrentBranch()
+      const locationId = `location_${currentBranch.toLowerCase()}`
+      const alerts = await runSmartAlerts(profile.tenantId, locationId)
       setSmartAlerts(alerts)
     } catch (error) {
       console.error('Error running smart alerts:', error)
@@ -143,10 +148,12 @@ export default function Notifications({ showAsWidget = false, maxItems = 10 }: N
   }
 
   const handleGenerateReport = async () => {
-    if (!user?.uid) return
+    if (!profile?.tenantId) return
     
     try {
-      const report = await generateDailyReport(user.uid)
+      const currentBranch = getCurrentBranch()
+      const locationId = `location_${currentBranch.toLowerCase()}`
+      const report = await generateDailyReport(profile.tenantId, locationId)
       // Create a blob for download
       const blob = new Blob([report], { type: 'text/plain' })
       const url = window.URL.createObjectURL(blob)

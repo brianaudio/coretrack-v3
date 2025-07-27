@@ -3,12 +3,15 @@ import './globals.css'
 import { AuthProvider } from '../lib/context/AuthContext'
 import { SubscriptionProvider } from '../lib/context/SubscriptionContext'
 import { UserPermissionsProvider } from '../lib/context/UserPermissionsContext'
-import { DemoModeProvider } from '../lib/context/DemoModeContext'
 import { BusinessSettingsProvider } from '../lib/context/BusinessSettingsContext'
+import { UserProvider } from '../lib/rbac/UserContext'
+import { ToastProvider } from '../components/ui/Toast'
+import ErrorBoundary from '../components/ErrorBoundary'
+import DataInitializer from '../components/DataInitializer'
 
 export const metadata: Metadata = {
   title: 'CoreTrack - Business Inventory Management',
-  description: 'Complete inventory management system for restaurants and businesses',
+  description: 'Complete inventory management system for businesses',
 }
 
 export const viewport: Viewport = {
@@ -35,17 +38,22 @@ export default function RootLayout({
         <meta name="format-detection" content="telephone=no" />
       </head>
       <body className="h-full bg-surface-50">
-        <AuthProvider>
-          <SubscriptionProvider>
-            <BusinessSettingsProvider>
-              <DemoModeProvider>
-                <UserPermissionsProvider>
-                  {children}
-                </UserPermissionsProvider>
-              </DemoModeProvider>
-            </BusinessSettingsProvider>
-          </SubscriptionProvider>
-        </AuthProvider>
+        <DataInitializer />
+        <ErrorBoundary>
+          <AuthProvider>
+            <UserProvider>
+              <BusinessSettingsProvider>
+                <SubscriptionProvider>
+                  <UserPermissionsProvider>
+                    <ToastProvider>
+                      {children}
+                    </ToastProvider>
+                  </UserPermissionsProvider>
+                </SubscriptionProvider>
+              </BusinessSettingsProvider>
+            </UserProvider>
+          </AuthProvider>
+        </ErrorBoundary>
       </body>
     </html>
   )

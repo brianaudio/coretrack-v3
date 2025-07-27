@@ -13,27 +13,24 @@ export const useFeatureAccess = () => {
     trialDaysRemaining 
   } = useSubscription();
 
-  // DEVELOPMENT MODE: Allow everything during testing
-  const isDevMode = process.env.NODE_ENV === 'development';
-
   // Quick access functions for common features
-  const canAccessPOS = () => isDevMode || hasFeature('pos');
-  const canAccessInventory = () => isDevMode || hasFeature('inventory');
-  const canAccessPurchaseOrders = () => isDevMode || hasFeature('purchaseOrders');
-  const canAccessAdvancedAnalytics = () => isDevMode || hasFeature('advancedAnalytics');
-  const canExportData = () => isDevMode || hasFeature('exportData');
-  const canManageTeam = () => isDevMode || hasFeature('teamManagement');
-  const canUseBarcodeScanning = () => isDevMode || hasFeature('barcodeScanning');
-  const canUseAutomaticReordering = () => isDevMode || hasFeature('automaticReordering');
-  const canAccessVendorManagement = () => isDevMode || hasFeature('vendorManagement');
-  const canAccessRecipeManagement = () => isDevMode || hasFeature('recipeManagement');
+  const canAccessPOS = () => hasFeature('pos');
+  const canAccessInventory = () => hasFeature('inventory');
+  const canAccessPurchaseOrders = () => hasFeature('purchaseOrders');
+  const canAccessAdvancedAnalytics = () => hasFeature('advancedAnalytics');
+  const canExportData = () => hasFeature('exportData');
+  const canManageTeam = () => hasFeature('teamManagement');
+  const canUseBarcodeScanning = () => hasFeature('barcodeScanning');
+  const canUseAutomaticReordering = () => hasFeature('automaticReordering');
+  const canAccessVendorManagement = () => hasFeature('vendorManagement');
+  const canAccessRecipeManagement = () => hasFeature('recipeManagement');
 
   // Limit checking functions
-  const canAddUser = (currentUsers: number) => isDevMode || isWithinLimit('maxUsers', currentUsers);
-  const canAddProduct = (currentProducts: number) => isDevMode || isWithinLimit('maxProducts', currentProducts);
-  const canAddSupplier = (currentSuppliers: number) => isDevMode || isWithinLimit('maxSuppliers', currentSuppliers);
-  const canAddLocation = (currentLocations: number) => isDevMode || isWithinLimit('maxLocations', currentLocations);
-  const canPlaceOrder = (currentOrders: number) => isDevMode || isWithinLimit('maxOrders', currentOrders);
+  const canAddUser = (currentUsers: number) => isWithinLimit('maxUsers', currentUsers);
+  const canAddProduct = (currentProducts: number) => isWithinLimit('maxProducts', currentProducts);
+  const canAddSupplier = (currentSuppliers: number) => isWithinLimit('maxSuppliers', currentSuppliers);
+  const canAddLocation = (currentLocations: number) => isWithinLimit('maxLocations', currentLocations);
+  const canPlaceOrder = (currentOrders: number) => isWithinLimit('maxOrders', currentOrders);
 
   // Get current usage limits
   const getUserLimit = () => subscription?.currentUsage.users || 0;
@@ -44,12 +41,12 @@ export const useFeatureAccess = () => {
 
   // Feature requirement checker
   const requiresFeature = (feature: keyof SubscriptionFeatures): boolean => {
-    return isDevMode || hasFeature(feature);
+    return hasFeature(feature);
   };
 
   // Block action if feature not available
   const blockAction = (feature: keyof SubscriptionFeatures, action: () => void) => {
-    if (isDevMode || hasFeature(feature)) {
+    if (hasFeature(feature)) {
       action();
     } else {
       // Could show a modal or redirect to upgrade page
@@ -65,7 +62,7 @@ export const useFeatureAccess = () => {
     currentUsage: number, 
     action: () => void
   ) => {
-    if (isDevMode || isWithinLimit(limit, currentUsage)) {
+    if (isWithinLimit(limit, currentUsage)) {
       action();
     } else {
       console.warn(`Action blocked: ${limit} limit reached`);

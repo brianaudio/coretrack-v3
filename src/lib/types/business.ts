@@ -1,6 +1,7 @@
 export type BusinessType = 'restaurant' | 'retail' | 'hybrid'
 
 export interface BusinessSettings {
+  businessName: string
   businessType: BusinessType
   enableTableManagement: boolean
   enableRecipeTracking: boolean
@@ -16,6 +17,7 @@ export interface BusinessSettings {
 }
 
 export const DEFAULT_BUSINESS_SETTINGS: BusinessSettings = {
+  businessName: 'My Restaurant',
   businessType: 'restaurant',
   enableTableManagement: true,
   enableRecipeTracking: true,

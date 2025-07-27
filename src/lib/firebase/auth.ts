@@ -231,28 +231,3 @@ export const resetPassword = async (email: string): Promise<void> => {
     throw error;
   }
 };
-
-// Demo login for testing (creates a demo user if it doesn't exist)
-export const demoLogin = async (): Promise<{ user: User; profile: UserProfile }> => {
-  const demoEmail = 'demo@coretrack.com';
-  const demoPassword = 'demo123456';
-  
-  try {
-    // Try to sign in first
-    return await signIn(demoEmail, demoPassword);
-  } catch (error) {
-    // If sign in fails, create demo account
-    try {
-      return await signUp(
-        demoEmail,
-        demoPassword,
-        'Demo User',
-        'Demo Restaurant',
-        'restaurant'
-      );
-    } catch (signUpError) {
-      console.error('Error creating demo account:', signUpError);
-      throw signUpError;
-    }
-  }
-};

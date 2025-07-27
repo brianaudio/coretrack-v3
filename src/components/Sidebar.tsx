@@ -2,12 +2,15 @@
 
 import { ModuleType } from './Dashboard'
 import CoreTrackLogo from './CoreTrackLogo'
+import { ModulePermission, UserRole } from '../lib/rbac/permissions'
 
 interface SidebarProps {
   activeModule: ModuleType
   onModuleChange: (module: ModuleType) => void
   isOpen: boolean
   onToggle: () => void
+  allowedModules: ModulePermission[]
+  currentRole: UserRole
 }
 
 const menuItems = [
@@ -30,8 +33,17 @@ const menuItems = [
     )
   },
   {
+    id: 'purchase-orders' as ModuleType,
+    label: 'Purchase Orders',
+    icon: (
+      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M19 7h-3V6a4 4 0 0 0-8 0v1H5a1 1 0 0 0-1 1v11a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V8a1 1 0 0 0-1-1zM10 6a2 2 0 0 1 4 0v1h-4V6zm8 13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V9h2v1a1 1 0 0 0 2 0V9h4v1a1 1 0 0 0 2 0V9h2v10z"/>
+      </svg>
+    )
+  },
+  {
     id: 'menu-builder' as ModuleType,
-    label: 'Product Builder',
+    label: 'Menu Builder',
     icon: (
       <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
         <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM19 19H5V5H19V19Z"/>
@@ -41,7 +53,7 @@ const menuItems = [
   },
   {
     id: 'dashboard' as ModuleType,
-    label: 'Dashboard',
+    label: 'Analytics',
     icon: (
       <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
         <path d="M3 13H11V3H3V13ZM3 21H11V15H3V21ZM13 21H21V11H13V21ZM13 3V9H21V3H13Z"/>
@@ -49,18 +61,8 @@ const menuItems = [
     )
   },
   {
-    id: 'purchase-orders' as ModuleType,
-    label: 'Purchase Orders',
-    icon: (
-      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM18 20H6V4H13V9H18V20Z"/>
-        <path d="M8 12H16V14H8V12ZM8 16H13V18H8V16Z"/>
-      </svg>
-    )
-  },
-  {
     id: 'expenses' as ModuleType,
-    label: 'Profit and Expenses',
+    label: 'Financials',
     icon: (
       <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
         <path d="M11.8 10.9C9.53 10.31 8.8 9.7 8.8 8.75C8.8 7.66 9.81 6.9 11.5 6.9C13.28 6.9 13.94 7.75 14 9H16.21C16.14 7.28 15.09 5.7 13 5.19V3H10V5.16C8.06 5.58 6.5 6.84 6.5 8.77C6.5 11.08 8.41 12.23 11.2 12.9C13.7 13.5 14.2 14.38 14.2 15.31C14.2 16 13.71 17.1 11.5 17.1C9.44 17.1 8.63 16.18 8.52 15H6.32C6.44 17.19 8.08 18.42 10 18.83V21H13V18.85C14.95 18.5 16.5 17.35 16.5 15.3C16.5 12.46 14.07 11.5 11.8 10.9Z"/>
@@ -68,19 +70,8 @@ const menuItems = [
     )
   },
   {
-    id: 'payment-monitoring' as ModuleType,
-    label: 'Payment Monitoring',
-    icon: (
-      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M20 4H4C2.89 4 2.01 4.89 2.01 6L2 18C2 19.11 2.89 20 4 20H20C21.11 20 22 19.11 22 18V6C22 4.89 21.11 4 20 4ZM20 18H4V12H20V18ZM20 8H4V6H20V8Z"/>
-        <circle cx="9" cy="15" r="1"/>
-        <circle cx="15" cy="15" r="1"/>
-      </svg>
-    )
-  },
-  {
     id: 'team-management' as ModuleType,
-    label: 'Team Management',
+    label: 'Team & Shifts',
     icon: (
       <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
         <path d="M16 4C18.2 4 20 5.8 20 8S18.2 12 16 12 12 10.2 12 8 13.8 4 16 4M16 14C20.4 14 24 15.8 24 18V20H8V18C8 15.8 11.6 14 16 14M8 13C9.7 13 11 11.7 11 10S9.7 7 8 7 5 8.3 5 10 6.3 13 8 13M8 15C4.3 15 1 16.3 1 18V20H6V18C6 16.8 6.8 15.8 8 15Z"/>
@@ -92,22 +83,44 @@ const menuItems = [
     label: 'Locations',
     icon: (
       <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22S19 14.25 19 9C19 5.13 15.87 2 12 2ZM12 11.5C10.62 11.5 9.5 10.38 9.5 9S10.62 6.5 12 6.5 14.5 7.62 14.5 9 13.38 11.5 12 11.5Z"/>
+        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
       </svg>
     )
   },
   {
-    id: 'business-config' as ModuleType,
-    label: 'Business Config',
+    id: 'discrepancy-monitoring' as ModuleType,
+    label: 'Discrepancy Monitor',
     icon: (
       <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10M10,22C9.75,22 9.54,21.82 9.5,21.58L9.13,18.93C8.5,18.68 7.96,18.34 7.44,17.94L4.95,18.95C4.73,19.03 4.46,18.95 4.34,18.73L2.34,15.27C2.21,15.05 2.27,14.78 2.46,14.63L4.57,12.97L4.5,12L4.57,11L2.46,9.37C2.27,9.22 2.21,8.95 2.34,8.73L4.34,5.27C4.46,5.05 4.73,4.96 4.95,5.05L7.44,6.05C7.96,5.66 8.5,5.32 9.13,5.07L9.5,2.42C9.54,2.18 9.75,2 10,2H14C14.25,2 14.46,2.18 14.5,2.42L14.87,5.07C15.5,5.32 16.04,5.66 16.56,6.05L19.05,5.05C19.27,4.96 19.54,5.05 19.66,5.27L21.66,8.73C21.79,8.95 21.73,9.22 21.54,9.37L19.43,11L19.5,12L19.43,13L21.54,14.63C21.73,14.78 21.79,15.05 21.66,15.27L19.66,18.73C19.54,18.95 19.27,19.04 19.05,18.95L16.56,17.95C16.04,18.34 15.5,18.68 14.87,18.93L14.5,21.58C14.46,21.82 14.25,22 14,22H10M11.25,4L10.88,6.61C9.68,6.86 8.62,7.5 7.85,8.39L5.44,7.35L4.69,8.65L6.8,10.2C6.4,11.37 6.4,12.64 6.8,13.8L4.68,15.36L5.43,16.66L7.86,15.62C8.63,16.5 9.68,17.14 10.87,17.38L11.24,20H12.76L13.13,17.39C14.32,17.14 15.37,16.5 16.14,15.62L18.57,16.66L19.32,15.36L17.2,13.81C17.6,12.64 17.6,11.37 17.2,10.2L19.31,8.65L18.56,7.35L16.15,8.39C15.38,7.5 14.32,6.86 13.12,6.62L12.75,4H11.25Z"/>
+        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+      </svg>
+    )
+  },
+  {
+    id: 'settings' as ModuleType,
+    label: 'Settings',
+    icon: (
+      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.82,11.69,4.82,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
       </svg>
     )
   }
 ]
 
-export default function Sidebar({ activeModule, onModuleChange, isOpen, onToggle }: SidebarProps) {
+export default function Sidebar({ 
+  activeModule, 
+  onModuleChange, 
+  isOpen, 
+  onToggle, 
+  allowedModules, 
+  currentRole 
+}: SidebarProps) {
+  // Filter menu items based on user permissions
+  const filteredMenuItems = menuItems.filter(item => 
+    allowedModules.includes(item.id as ModulePermission)
+  )
+
   return (
     <>
       {/* Mobile overlay */}
@@ -134,7 +147,7 @@ export default function Sidebar({ activeModule, onModuleChange, isOpen, onToggle
               {(isOpen) && (
                 <div className="ml-3">
                   <h1 className="text-xl font-bold text-surface-900">CoreTrack</h1>
-                  <p className="text-sm text-surface-600">Restaurant Management</p>
+                  <p className="text-sm text-surface-600">Business Management</p>
                 </div>
               )}
             </div>
@@ -158,7 +171,15 @@ export default function Sidebar({ activeModule, onModuleChange, isOpen, onToggle
 
           {/* Navigation */}
           <nav className={`flex-1 py-6 space-y-2 transition-all duration-300 ${isOpen ? 'px-4' : 'px-2'}`}>
-            {menuItems.map((item) => (
+            {/* Role indicator */}
+            {isOpen && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs font-medium text-blue-800 uppercase tracking-wide">Current Role</p>
+                <p className="text-sm font-semibold text-blue-900 capitalize">{currentRole}</p>
+              </div>
+            )}
+            
+            {filteredMenuItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => onModuleChange(item.id)}
@@ -174,26 +195,6 @@ export default function Sidebar({ activeModule, onModuleChange, isOpen, onToggle
               </button>
             ))}
           </nav>
-
-          {/* User section */}
-          <div className={`border-t border-surface-200 transition-all duration-300 ${isOpen ? 'p-4' : 'p-2'}`}>
-            <button
-              onClick={() => alert('User Profile:\n• Manager: John Doe\n• Restaurant: #001\n• Role: Administrator\n• Last Login: Today 9:30 AM')}
-              className={`w-full flex items-center hover:bg-surface-50 rounded-lg p-2 transition-colors ${!isOpen ? 'justify-center' : ''}`}
-            >
-              <div className="w-10 h-10 bg-surface-300 rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-surface-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              </div>
-              {isOpen && (
-                <div className="ml-3 text-left">
-                  <p className="text-sm font-medium text-surface-900">Manager</p>
-                  <p className="text-xs text-surface-600">John Doe</p>
-                </div>
-              )}
-            </button>
-          </div>
         </div>
       </div>
     </>

@@ -1,83 +1,140 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Sidebar from './Sidebar'
 import Header from './Header'
-import InventoryCenter from './modules/InventoryCenter'
-import POS from './modules/POS'
-import PurchaseOrders from './modules/PurchaseOrders'
-import Expenses from './modules/Expenses'
-import MenuBuilder from './modules/MenuBuilder'
-import PaymentMonitoring from './modules/PaymentMonitoring'
+import FallbackComponent from './FallbackComponent'
 import DashboardOverview from './modules/DashboardOverview'
 import TeamManagement from './modules/TeamManagement'
-import LocationManagement from './modules/LocationManagement'
-import BusinessModeConfig from './modules/BusinessModeConfig'
 import DevTools from './DevTools'
-import DemoModeToggle from './testing/DemoModeToggle'
+import ProfessionalFooter from './ProfessionalFooter'
+import ShiftDashboard from './ShiftManagement/ShiftDashboard'
+import InventoryCenter from './modules/InventoryCenter'
+import POS from './modules/POS'
+import Expenses from './modules/Expenses'
+import MenuBuilder from './modules/MenuBuilder'
+import PurchaseOrders from './modules/PurchaseOrders'
+import LocationManagement from './modules/LocationManagement'
+import SettingsPage from '../app/settings/page'
+import FirebaseDebugger from './FirebaseDebugger'
+import ShiftStatusBar from './ShiftManagement/ShiftStatusBar'
+import InventoryDiscrepancy from './modules/InventoryDiscrepancy'
+import { useUser } from '../lib/rbac/UserContext'
+import { hasPermission, getAllowedModules, ModulePermission } from '../lib/rbac/permissions'
+import ConnectionStatus from './ui/ConnectionStatus'
+import { BranchProvider } from '../lib/context/BranchContext'
 
-export type ModuleType = 'dashboard' | 'inventory' | 'pos' | 'purchase-orders' | 'expenses' | 'menu-builder' | 'payment-monitoring' | 'team-management' | 'location-management' | 'business-config'
+export type ModuleType = 'dashboard' | 'inventory' | 'pos' | 'purchase-orders' | 'menu-builder' | 'expenses' | 'team-management' | 'location-management' | 'settings' | 'discrepancy-monitoring'
 
-export default function Dashboard() {
+interface DashboardProps {
+  onLogout?: () => void
+}
+
+export default function Dashboard({ onLogout }: DashboardProps) {
+  const { currentRole, currentUser } = useUser()
   const [activeModule, setActiveModule] = useState<ModuleType>('pos')
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
-  const renderActiveModule = () => {
+  // Get allowed modules for current user role (calculate even if no role yet)
+  const allowedModules = getAllowedModules(currentRole)
+
+  // Auto-redirect to first allowed module if current module is not accessible
+  useEffect(() => {
+    if (currentRole && !hasPermission(currentRole, activeModule as ModulePermission)) {
+      const firstAllowedModule = allowedModules[0]
+      if (firstAllowedModule) {
+        setActiveModule(firstAllowedModule as ModuleType)
+      }
+    }
+  }, [currentRole, activeModule, allowedModules])
+
+  // If no user role is set, show loading or redirect to auth
+  if (!currentRole) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading user data...</p>
+        </div>
+      </div>
+    )
+  }
+
+  const renderModule = () => {
     switch (activeModule) {
-      case 'dashboard':
-        return <DashboardOverview />
-      case 'inventory':
-        return <InventoryCenter />
       case 'pos':
         return <POS />
+      case 'inventory':
+        return <InventoryCenter />
       case 'purchase-orders':
         return <PurchaseOrders />
-      case 'expenses':
-        return <Expenses />
       case 'menu-builder':
         return <MenuBuilder />
-      case 'payment-monitoring':
-        return <PaymentMonitoring />
+      case 'dashboard':
+        return <DashboardOverview />
+      case 'expenses':
+        return <Expenses />
       case 'team-management':
-        return <TeamManagement />
+        return (
+          <div className="space-y-6">
+            <TeamManagement />
+            <ShiftDashboard />
+          </div>
+        )
       case 'location-management':
         return <LocationManagement />
-      case 'business-config':
-        return <BusinessModeConfig />
+      case 'discrepancy-monitoring':
+        return <InventoryDiscrepancy />
+      case 'settings':
+        return <SettingsPage />
       default:
         return <DashboardOverview />
     }
   }
 
   return (
-    <div className="h-screen flex bg-surface-50">
-      <Sidebar 
-        activeModule={activeModule}
-        onModuleChange={setActiveModule}
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(!sidebarOpen)}
-      />
-      
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header 
+    <BranchProvider>
+      <div className="h-screen flex bg-surface-50">
+        <Sidebar 
           activeModule={activeModule}
-          onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
+          onModuleChange={setActiveModule}
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen(!sidebarOpen)}
+          allowedModules={allowedModules}
+          currentRole={currentRole}
         />
         
-        <main className="flex-1 overflow-auto p-6">
-          {renderActiveModule()}
-        </main>
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <Header 
+            activeModule={activeModule}
+            onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
+            onLogout={onLogout}
+          />
+          
+          {/* Shift Status Bar (only for staff) */}
+          <ShiftStatusBar />
+          
+          {/* Connection Status Bar */}
+          <div className="px-6 py-2 bg-white border-b border-surface-200">
+            <div className="flex items-center justify-between">
+              <ConnectionStatus />
+              <div className="text-xs text-surface-500">
+                Logged in as {currentUser?.email} • {currentRole}
+              </div>
+            </div>
+          </div>
+          
+          <main className="flex-1 overflow-auto bg-surface-50 main-scroll">
+            <div className="p-6 pb-8 min-h-full">
+              {renderModule()}
+            </div>
+            {/* Professional Footer */}
+            <ProfessionalFooter />
+          </main>
+        </div>
         
-        {/* Global Footer */}
-        <footer className="px-6 py-4 border-t border-gray-200 bg-white">
-          <p className="text-center text-sm text-gray-500">
-            Developed by: <span className="font-medium text-gray-700">CrmyFrst</span>
-          </p>
-        </footer>
+        <DevTools />
       </div>
-      
-      <DevTools />
-      <DemoModeToggle />
-    </div>
+    </BranchProvider>
   )
 }

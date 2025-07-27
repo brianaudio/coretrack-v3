@@ -61,7 +61,7 @@ export const DemoModeProvider: React.FC<DemoModeProviderProps> = ({ children }) 
     if (enabled) {
       console.log('🧪 Demo Mode Enabled - Role-based permissions are now active');
     } else {
-      console.log('🧪 Demo Mode Disabled - Back to development mode');
+      console.log('🧪 Demo Mode Disabled - Back to production mode');
     }
   };
 

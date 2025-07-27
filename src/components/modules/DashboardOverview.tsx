@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
+import { getCurrentBranch } from '../../lib/utils/branchUtils'
 import Notifications from './Notifications'
 import { 
   getDashboardStats, 
@@ -28,7 +29,7 @@ import {
 } from 'recharts'
 
 export default function DashboardOverview() {
-  const { user } = useAuth()
+  const { profile } = useAuth()
   const [selectedPeriod, setSelectedPeriod] = useState('week')
   const [selectedView, setSelectedView] = useState('overview') // overview, analytics, detailed
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
@@ -44,20 +45,26 @@ export default function DashboardOverview() {
   }, [])
 
   useEffect(() => {
-    if (!user?.uid) return
+    if (!profile?.tenantId) return
 
     const loadDashboardData = async () => {
       try {
         setLoading(true)
         const days = selectedPeriod === 'day' ? 1 : selectedPeriod === 'week' ? 7 : selectedPeriod === 'month' ? 30 : 365
         
+        // Use branch-based location ID
+        const currentBranch = getCurrentBranch()
+        const locationId = `location_${currentBranch.toLowerCase()}`
+        
+        // Load analytics with location filter
         const [stats, inventory, salesChart, topSellingItems] = await Promise.all([
-          getDashboardStats(user.uid),
-          getInventoryAnalytics(user.uid, days),
-          getSalesChartData(user.uid, days),
-          getTopSellingItems(user.uid, days)
+          getDashboardStats(profile.tenantId, locationId), // Pass locationId
+          getInventoryAnalytics(profile.tenantId, days, locationId), // Pass locationId
+          getSalesChartData(profile.tenantId, days),
+          getTopSellingItems(profile.tenantId, days)
         ])
         
+        console.log('Dashboard Debug - Current Branch:', currentBranch)
         console.log('Dashboard Debug - Inventory Analytics:', inventory)
         console.log('Dashboard Debug - Total Value:', inventory?.totalValue, 'Type:', typeof inventory?.totalValue)
         
@@ -73,7 +80,7 @@ export default function DashboardOverview() {
     }
 
     loadDashboardData()
-  }, [user?.uid, selectedPeriod])
+  }, [profile?.tenantId, selectedPeriod])
 
   // Chart colors
   const chartColors = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16']
@@ -116,6 +123,59 @@ export default function DashboardOverview() {
     )
   }
 
+  // Test function to create a location
+  const createTestLocation = async () => {
+    if (!profile?.tenantId) return
+    
+    try {
+      const { createLocation } = await import('../../lib/firebase/locationManagement')
+      const defaultLocation = {
+        tenantId: profile.tenantId,
+        name: 'Branch Store',
+        type: 'branch' as const,
+        status: 'active' as const,
+        address: {
+          street: '456 Branch Street',
+          city: 'Quezon City',
+          state: 'Metro Manila',
+          zipCode: '1100',
+          country: 'Philippines'
+        },
+        contact: {
+          phone: '+63 2 9876 5432',
+          email: 'branch@yourstore.com',
+          manager: 'Branch Manager'
+        },
+        settings: {
+          timezone: 'Asia/Manila',
+          currency: 'PHP',
+          businessHours: {
+            monday: { open: '09:00', close: '22:00', closed: false },
+            tuesday: { open: '09:00', close: '22:00', closed: false },
+            wednesday: { open: '09:00', close: '22:00', closed: false },
+            thursday: { open: '09:00', close: '22:00', closed: false },
+            friday: { open: '09:00', close: '22:00', closed: false },
+            saturday: { open: '09:00', close: '22:00', closed: false },
+            sunday: { open: '10:00', close: '20:00', closed: false }
+          },
+          features: {
+            inventory: true,
+            pos: true,
+            expenses: true
+          }
+        }
+      }
+      
+      const locationId = await createLocation(defaultLocation)
+      console.log('✅ Created test location:', locationId)
+      alert('Test location created! Refresh the page to see location selection.')
+      window.location.reload()
+    } catch (error) {
+      console.error('❌ Error creating test location:', error)
+      alert('Error creating location: ' + error)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-surface-50">
       {/* Modern Header */}
@@ -128,6 +188,14 @@ export default function DashboardOverview() {
             </div>
             
             <div className="flex items-center gap-4">
+              {/* Test Location Button - TEMPORARY */}
+              <button
+                onClick={createTestLocation}
+                className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+              >
+                🧪 Create Test Location
+              </button>
+              
               {/* Period Selector */}
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium text-surface-600">Period:</label>

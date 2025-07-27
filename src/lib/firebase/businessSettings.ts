@@ -41,8 +41,14 @@ export const updateBusinessSettings = async (
 ): Promise<void> => {
   try {
     const settingsRef = doc(db, 'tenants', tenantId, 'settings', 'business');
-    await updateDoc(settingsRef, settings);
-    console.log('✅ Business settings updated');
+    const settingsSnap = await getDoc(settingsRef);
+    if (!settingsSnap.exists()) {
+      await setDoc(settingsRef, { ...DEFAULT_BUSINESS_SETTINGS, ...settings });
+      console.log('✅ Business settings created');
+    } else {
+      await updateDoc(settingsRef, settings);
+      console.log('✅ Business settings updated');
+    }
   } catch (error) {
     console.error('Error updating business settings:', error);
     throw error;

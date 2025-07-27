@@ -75,12 +75,20 @@ export interface UsageAnalytics {
 // Get comprehensive inventory analytics
 export const getInventoryAnalytics = async (
   tenantId: string,
-  days: number = 30
+  days: number = 30,
+  locationId?: string
 ): Promise<InventoryAnalytics> => {
   try {
-    // Get inventory items
+    // Get inventory items with optional location filter
     const inventoryRef = collection(db, `tenants/${tenantId}/inventory`);
-    const inventorySnapshot = await getDocs(inventoryRef);
+    let inventoryQuery = query(inventoryRef);
+    
+    // Add location filter if provided
+    if (locationId) {
+      inventoryQuery = query(inventoryRef, where('locationId', '==', locationId));
+    }
+    
+    const inventorySnapshot = await getDocs(inventoryQuery);
     const inventoryItems: InventoryItem[] = inventorySnapshot.docs.map(doc => {
       const data = doc.data();
       return {

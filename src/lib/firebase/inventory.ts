@@ -28,6 +28,7 @@ export interface InventoryItem {
   lastUpdated: Timestamp;
   status: 'good' | 'low' | 'critical' | 'out';
   tenantId: string; // For multi-tenant support
+  locationId: string; // For separate inventory per branch
   createdAt: Timestamp;
   updatedAt: Timestamp;
   // Expiration tracking fields
@@ -47,6 +48,7 @@ export interface CreateInventoryItem {
   costPerUnit?: number;
   supplier?: string;
   tenantId: string;
+  locationId: string; // For separate inventory per branch
   // Expiration tracking fields
   isPerishable?: boolean;
   expirationDate?: Date;
@@ -68,6 +70,7 @@ export interface InventoryMovement {
   userName?: string;
   timestamp: Timestamp;
   tenantId: string;
+  locationId: string; // For separate inventory per branch
 }
 
 export interface CreateInventoryMovement {
@@ -82,6 +85,7 @@ export interface CreateInventoryMovement {
   userId?: string;
   userName?: string;
   tenantId: string;
+  locationId: string; // For separate inventory per branch
 }
 
 // Get inventory collection reference
@@ -102,8 +106,26 @@ const calculateStatus = (currentStock: number, minStock: number): InventoryItem[
   return 'good';
 };
 
-// Get all inventory items for a tenant
-export const getInventoryItems = async (tenantId: string): Promise<InventoryItem[]> => {
+// Get all inventory items for a tenant and location
+export const getInventoryItems = async (tenantId: string, locationId: string): Promise<InventoryItem[]> => {
+  try {
+    const inventoryRef = getInventoryCollection(tenantId);
+    const q = query(inventoryRef, where('locationId', '==', locationId), orderBy('name'));
+    const snapshot = await getDocs(q);
+    
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      status: calculateStatus(doc.data().currentStock, doc.data().minStock)
+    })) as InventoryItem[];
+  } catch (error) {
+    console.error('Error fetching inventory items:', error);
+    throw new Error('Failed to fetch inventory items');
+  }
+};
+
+// Get all inventory items for a tenant across all locations
+export const getAllInventoryItems = async (tenantId: string): Promise<InventoryItem[]> => {
   try {
     const inventoryRef = getInventoryCollection(tenantId);
     const q = query(inventoryRef, orderBy('name'));
@@ -120,13 +142,14 @@ export const getInventoryItems = async (tenantId: string): Promise<InventoryItem
   }
 };
 
-// Listen to real-time inventory updates
+// Listen to real-time inventory updates for a specific location
 export const subscribeToInventoryItems = (
   tenantId: string, 
+  locationId: string,
   callback: (items: InventoryItem[]) => void
 ) => {
   const inventoryRef = getInventoryCollection(tenantId);
-  const q = query(inventoryRef, orderBy('name'));
+  const q = query(inventoryRef, where('locationId', '==', locationId), orderBy('name'));
   
   return onSnapshot(q, (snapshot) => {
     const items = snapshot.docs.map(doc => ({
@@ -172,7 +195,8 @@ export const addInventoryItem = async (
         reason: 'Initial stock - item created',
         userId,
         userName,
-        tenantId: item.tenantId
+        tenantId: item.tenantId,
+        locationId: item.locationId
       });
     }
     
@@ -236,7 +260,8 @@ export const updateInventoryItem = async (
         reason: 'Manual stock adjustment',
         userId,
         userName,
-        tenantId
+        tenantId,
+        locationId: currentData.locationId
       });
     }
   } catch (error) {
@@ -320,7 +345,8 @@ export const updateStockQuantity = async (
         reason: reason || `Stock ${operation === 'set' ? 'adjusted' : operation === 'add' ? 'increased' : 'decreased'}`,
         userId,
         userName,
-        tenantId
+        tenantId,
+        locationId: currentData.locationId
       });
     }
   } catch (error) {
@@ -332,7 +358,7 @@ export const updateStockQuantity = async (
 // Get low stock items
 export const getLowStockItems = async (tenantId: string): Promise<InventoryItem[]> => {
   try {
-    const items = await getInventoryItems(tenantId);
+    const items = await getAllInventoryItems(tenantId);
     return items.filter(item => item.status === 'low' || item.status === 'critical' || item.status === 'out');
   } catch (error) {
     console.error('Error fetching low stock items:', error);
@@ -346,7 +372,7 @@ export const searchInventoryItems = async (
   searchTerm: string
 ): Promise<InventoryItem[]> => {
   try {
-    const items = await getInventoryItems(tenantId);
+    const items = await getAllInventoryItems(tenantId);
     const lowerSearchTerm = searchTerm.toLowerCase();
     
     return items.filter(item => 
@@ -386,7 +412,7 @@ export const updateInventoryFromDelivery = async (
     };
 
     // Get all current inventory items
-    const inventoryItems = await getInventoryItems(tenantId);
+    const inventoryItems = await getAllInventoryItems(tenantId);
     
     for (const deliveryItem of deliveryItems) {
       if (deliveryItem.quantityReceived <= 0) continue;
@@ -443,7 +469,8 @@ export const updateInventoryFromDelivery = async (
         reason: 'Purchase order delivery received',
         userId,
         userName,
-        tenantId
+        tenantId,
+        locationId: matchingItem.locationId
       });
       
       result.updatedItems.push(matchingItem.name);
@@ -462,7 +489,7 @@ export const findInventoryItemByName = async (
   itemName: string
 ): Promise<InventoryItem | null> => {
   try {
-    const items = await getInventoryItems(tenantId);
+    const items = await getAllInventoryItems(tenantId);
     return items.find(item => 
       item.name.toLowerCase().trim() === itemName.toLowerCase().trim()
     ) || null;

@@ -2,9 +2,11 @@
 
 import React from 'react';
 import { useUserPermissions } from '../../lib/context/UserPermissionsContext';
+import { useUser } from '../../lib/rbac/UserContext';
+import { ModulePermission, UserRole } from '../../lib/rbac/permissions';
 
 interface PermissionGateProps {
-  permission: string;
+  permission: ModulePermission;
   children: React.ReactNode;
   fallback?: React.ReactNode;
   locationId?: string;
@@ -27,7 +29,7 @@ export const PermissionGate: React.FC<PermissionGateProps> = ({
 
   // DEVELOPMENT MODE: Always allow access during testing
   const isDevMode = process.env.NODE_ENV === 'development';
-  const hasAccess = isDevMode || hasPermission(permission, locationId);
+  const hasAccess = isDevMode || hasPermission(permission);
 
   if (hasAccess) {
     return <>{children}</>;
@@ -41,7 +43,7 @@ export const PermissionGate: React.FC<PermissionGateProps> = ({
 };
 
 interface RoleGateProps {
-  roles: string[];
+  roles: UserRole[];
   children: React.ReactNode;
   fallback?: React.ReactNode;
 }
@@ -52,7 +54,8 @@ export const RoleGate: React.FC<RoleGateProps> = ({
   children, 
   fallback 
 }) => {
-  const { member, loading } = useUserPermissions();
+  const { loading } = useUserPermissions();
+  const { currentRole } = useUser();
 
   if (loading) {
     return (
@@ -62,7 +65,7 @@ export const RoleGate: React.FC<RoleGateProps> = ({
 
   // DEVELOPMENT MODE: Always allow access during testing
   const isDevMode = process.env.NODE_ENV === 'development';
-  const hasAccess = isDevMode || (member && roles.includes(member.role));
+  const hasAccess = isDevMode || (currentRole && roles.includes(currentRole));
 
   if (hasAccess) {
     return <>{children}</>;

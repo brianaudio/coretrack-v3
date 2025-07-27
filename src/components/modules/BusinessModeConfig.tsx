@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../lib/context/AuthContext';
 import { useBusinessSettings } from '../../lib/context/BusinessSettingsContext';
 import { updateBusinessSettings } from '../../lib/firebase/businessSettings';
@@ -10,6 +10,28 @@ const BusinessModeConfig: React.FC = () => {
   const { profile } = useAuth();
   const { settings, loading, refreshSettings } = useBusinessSettings();
   const [saving, setSaving] = useState(false);
+  const [businessName, setBusinessName] = useState(settings.businessName);
+
+  // Update local businessName when settings change
+  useEffect(() => {
+    setBusinessName(settings.businessName);
+  }, [settings.businessName]);
+
+  const handleBusinessNameUpdate = async () => {
+    if (!profile?.tenantId || !businessName.trim()) return;
+
+    setSaving(true);
+    try {
+      await updateBusinessSettings(profile.tenantId, { businessName: businessName.trim() });
+      await refreshSettings();
+      console.log(`✅ Business name updated to: ${businessName}`);
+    } catch (error) {
+      console.error('Error updating business name:', error);
+      alert('Failed to update business name');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleBusinessTypeChange = async (businessType: BusinessType) => {
     if (!profile?.tenantId) return;
@@ -80,6 +102,33 @@ const BusinessModeConfig: React.FC = () => {
       </div>
 
       <div className="p-6 space-y-6">
+        {/* Business Name */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Business Name
+          </label>
+          <div className="flex space-x-3">
+            <input
+              type="text"
+              value={businessName}
+              onChange={(e) => setBusinessName(e.target.value)}
+              placeholder="Enter your restaurant/business name"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              disabled={saving}
+            />
+            <button
+              onClick={handleBusinessNameUpdate}
+              disabled={saving || !businessName.trim() || businessName === settings.businessName}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {saving ? 'Saving...' : 'Update'}
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            This name will appear in the footer and throughout your system
+          </p>
+        </div>
+
         {/* Business Type Selection */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-3">

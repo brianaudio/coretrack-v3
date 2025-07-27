@@ -57,9 +57,9 @@ export interface ExpirationAlert {
 }
 
 // Generate low stock alerts
-export const generateLowStockAlerts = async (tenantId: string): Promise<SmartAlert[]> => {
+export const generateLowStockAlerts = async (tenantId: string, locationId: string): Promise<SmartAlert[]> => {
   try {
-    const inventoryItems = await getInventoryItems(tenantId);
+    const inventoryItems = await getInventoryItems(tenantId, locationId);
     const settings = await getNotificationSettings(tenantId);
     const alerts: SmartAlert[] = [];
 
@@ -141,9 +141,9 @@ export const generateLowStockAlerts = async (tenantId: string): Promise<SmartAle
 };
 
 // Generate expiration alerts
-export const generateExpirationAlerts = async (tenantId: string): Promise<ExpirationAlert[]> => {
+export const generateExpirationAlerts = async (tenantId: string, locationId: string): Promise<ExpirationAlert[]> => {
   try {
-    const inventoryItems = await getInventoryItems(tenantId);
+    const inventoryItems = await getInventoryItems(tenantId, locationId);
     const settings = await getNotificationSettings(tenantId);
     const alerts: ExpirationAlert[] = [];
 
@@ -234,17 +234,13 @@ export const generateExpirationAlerts = async (tenantId: string): Promise<Expira
 };
 
 // Generate reorder suggestions
-export const generateReorderSuggestions = async (tenantId: string): Promise<ReorderSuggestion[]> => {
+export const generateReorderSuggestions = async (tenantId: string, locationId: string): Promise<ReorderSuggestion[]> => {
   try {
-    const analytics = await getInventoryAnalytics(tenantId, 30);
-    const settings = await getNotificationSettings(tenantId);
+    const analytics = await getInventoryAnalytics(tenantId);
+    const predictions = analytics.stockPredictions;
     const suggestions: ReorderSuggestion[] = [];
 
-    for (const prediction of analytics.stockPredictions) {
-      if (prediction.status === 'good' || prediction.daysUntilEmpty === Infinity) {
-        continue;
-      }
-
+    for (const prediction of predictions) {
       let urgency: ReorderSuggestion['urgency'];
       let suggestedOrderQuantity: number;
       let reasoning: string;
@@ -252,7 +248,7 @@ export const generateReorderSuggestions = async (tenantId: string): Promise<Reor
       if (prediction.daysUntilEmpty <= 3) {
         urgency = 'critical';
         suggestedOrderQuantity = Math.ceil(prediction.dailyUsageRate * 14); // 2 weeks supply
-        reasoning = 'Critical: Stock will run out in 3 days or less';
+        reasoning = 'Critical: Stock will run out within 3 days';
       } else if (prediction.daysUntilEmpty <= 7) {
         urgency = 'high';
         suggestedOrderQuantity = Math.ceil(prediction.dailyUsageRate * 21); // 3 weeks supply
@@ -268,7 +264,7 @@ export const generateReorderSuggestions = async (tenantId: string): Promise<Reor
       }
 
       // Find the original inventory item to get cost information
-      const inventoryItems = await getInventoryItems(tenantId);
+      const inventoryItems = await getInventoryItems(tenantId, locationId);
       const item = inventoryItems.find(i => i.id === prediction.itemId);
       const costImpact = (item?.costPerUnit || 0) * suggestedOrderQuantity;
 
@@ -282,34 +278,9 @@ export const generateReorderSuggestions = async (tenantId: string): Promise<Reor
         reasoning,
         costImpact
       });
-
-      // Create notification for reorder suggestions
-      if (settings?.reorderSuggestions && urgency !== 'low') {
-        await createNotification({
-          tenantId,
-          type: 'reorder_suggestion',
-          title: 'Reorder Suggestion',
-          message: `${reasoning}: ${prediction.itemName} (${Math.round(prediction.daysUntilEmpty)} days remaining)`,
-          priority: urgency === 'critical' ? 'critical' : urgency === 'high' ? 'high' : 'medium',
-          category: 'inventory',
-          actionRequired: true,
-          actionType: 'reorder',
-          relatedItemId: prediction.itemId,
-          relatedItemName: prediction.itemName,
-          data: {
-            suggestedOrderQuantity,
-            estimatedDaysUntilEmpty: prediction.daysUntilEmpty,
-            costImpact,
-            reasoning
-          }
-        });
-      }
     }
 
-    return suggestions.sort((a, b) => {
-      const urgencyOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-      return urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
-    });
+    return suggestions;
   } catch (error) {
     console.error('Error generating reorder suggestions:', error);
     throw new Error('Failed to generate reorder suggestions');
@@ -317,12 +288,12 @@ export const generateReorderSuggestions = async (tenantId: string): Promise<Reor
 };
 
 // Generate daily inventory report
-export const generateDailyReport = async (tenantId: string): Promise<string> => {
+export const generateDailyReport = async (tenantId: string, locationId: string): Promise<string> => {
   try {
     const [lowStockAlerts, expirationAlerts, reorderSuggestions, analytics] = await Promise.all([
-      generateLowStockAlerts(tenantId),
-      generateExpirationAlerts(tenantId),
-      generateReorderSuggestions(tenantId),
+      generateLowStockAlerts(tenantId, locationId),
+      generateExpirationAlerts(tenantId, locationId),
+      generateReorderSuggestions(tenantId, locationId),
       getInventoryAnalytics(tenantId, 1) // Last 24 hours
     ]);
 
@@ -407,16 +378,16 @@ export const generateDailyReport = async (tenantId: string): Promise<string> => 
 };
 
 // Run all smart alerts
-export const runSmartAlerts = async (tenantId: string): Promise<{
+export const runSmartAlerts = async (tenantId: string, locationId: string): Promise<{
   lowStockAlerts: SmartAlert[];
   expirationAlerts: ExpirationAlert[];
   reorderSuggestions: ReorderSuggestion[];
 }> => {
   try {
     const [lowStockAlerts, expirationAlerts, reorderSuggestions] = await Promise.all([
-      generateLowStockAlerts(tenantId),
-      generateExpirationAlerts(tenantId),
-      generateReorderSuggestions(tenantId)
+      generateLowStockAlerts(tenantId, locationId),
+      generateExpirationAlerts(tenantId, locationId),
+      generateReorderSuggestions(tenantId, locationId)
     ]);
 
     return {
@@ -431,7 +402,7 @@ export const runSmartAlerts = async (tenantId: string): Promise<{
 };
 
 // Send automated reports
-export const sendAutomatedReports = async (tenantId: string, reportType: 'daily' | 'weekly'): Promise<void> => {
+export const sendAutomatedReports = async (tenantId: string, locationId: string, reportType: 'daily' | 'weekly'): Promise<void> => {
   try {
     const settings = await getNotificationSettings(tenantId);
     
@@ -441,7 +412,7 @@ export const sendAutomatedReports = async (tenantId: string, reportType: 'daily'
       return;
     }
 
-    const report = await generateDailyReport(tenantId);
+    const report = await generateDailyReport(tenantId, locationId);
     
     await createNotification({
       tenantId,

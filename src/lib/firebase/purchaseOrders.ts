@@ -58,6 +58,7 @@ export interface PurchaseOrder {
   createdBy: string;
   approvedBy?: string;
   tenantId: string;
+  locationId?: string; // Added for branch-specific purchase orders
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -84,6 +85,7 @@ export interface CreatePurchaseOrder {
   requestor?: string;
   createdBy: string;
   tenantId: string;
+  locationId?: string; // Added for branch-specific purchase orders
 }
 
 // Get suppliers collection reference
@@ -170,17 +172,27 @@ export const deleteSupplier = async (
   }
 };
 
-// Purchase Orders CRUD operations
-export const getPurchaseOrders = async (tenantId: string): Promise<PurchaseOrder[]> => {
+// Purchase Orders CRUD operations (with optional location filtering)
+export const getPurchaseOrders = async (tenantId: string, locationId?: string): Promise<PurchaseOrder[]> => {
   try {
     const ordersRef = getPurchaseOrdersCollection(tenantId);
+    
+    // For now, get all orders and filter client-side to avoid index requirements
     const q = query(ordersRef, orderBy('createdAt', 'desc'));
     const snapshot = await getDocs(q);
     
-    return snapshot.docs.map(doc => ({
+    let orders = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as PurchaseOrder[];
+    
+    // Filter client-side by locationId if specified
+    if (locationId) {
+      orders = orders.filter(order => order.locationId === locationId);
+    }
+    
+    console.log(`📋 PO: Loaded ${orders.length} purchase orders${locationId ? ` for location ${locationId}` : ''}`);
+    return orders;
   } catch (error) {
     console.error('Error fetching purchase orders:', error);
     throw new Error('Failed to fetch purchase orders');
@@ -208,17 +220,26 @@ export const getPurchaseOrderById = async (tenantId: string, orderId: string): P
 
 export const subscribeToPurchaseOrders = (
   tenantId: string, 
-  callback: (orders: PurchaseOrder[]) => void
+  callback: (orders: PurchaseOrder[]) => void,
+  locationId?: string
 ) => {
   const ordersRef = getPurchaseOrdersCollection(tenantId);
+  
+  // For now, get all orders and filter client-side to avoid index requirements
   const q = query(ordersRef, orderBy('createdAt', 'desc'));
   
   return onSnapshot(q, (snapshot) => {
-    const orders = snapshot.docs.map(doc => ({
+    let orders = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as PurchaseOrder[];
     
+    // Filter client-side by locationId if specified
+    if (locationId) {
+      orders = orders.filter(order => order.locationId === locationId);
+    }
+    
+    console.log(`🔄 PO: Real-time update - ${orders.length} purchase orders${locationId ? ` for location ${locationId}` : ''}`);
     callback(orders);
   }, (error) => {
     console.error('Error in purchase orders subscription:', error);

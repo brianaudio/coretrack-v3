@@ -70,12 +70,6 @@ const LocationManagement: React.FC = () => {
       setLocations(locationsData);
     } catch (error) {
       console.error('Error loading locations:', error);
-      // Show user-friendly message for index errors
-      if (error instanceof Error && error.message.includes('index')) {
-        console.warn('Firebase index not ready yet. Using fallback data structure.');
-      }
-      // Set empty locations array as fallback
-      setLocations([]);
     } finally {
       setLoading(false);
     }

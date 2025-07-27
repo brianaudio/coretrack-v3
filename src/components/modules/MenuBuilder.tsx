@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
+import { useBranch } from '../../lib/context/BranchContext'
+import { getBranchLocationId } from '../../lib/utils/branchUtils'
 import { 
   getMenuItems, 
   addMenuItem, 
@@ -25,7 +27,8 @@ import {
 } from '../../lib/firebase/integration'
 
 export default function MenuBuilder() {
-  const { user } = useAuth()
+  const { profile } = useAuth()
+  const { selectedBranch } = useBranch()
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [categories, setCategories] = useState<MenuCategory[]>([])
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
@@ -52,15 +55,16 @@ export default function MenuBuilder() {
 
   // Load menu items and categories
   useEffect(() => {
-    if (!user?.uid) return
+    if (!profile?.tenantId || !selectedBranch) return
 
     const loadData = async () => {
       try {
         setLoading(true)
+        const locationId = getBranchLocationId(selectedBranch.id)
         const [itemsData, categoriesData, inventoryData] = await Promise.all([
-          getMenuItems(user.uid),
-          getMenuCategories(user.uid),
-          getInventoryItems(user.uid)
+          getMenuItems(profile.tenantId, locationId),
+          getMenuCategories(profile.tenantId),
+          getInventoryItems(profile.tenantId, locationId)
         ])
         setMenuItems(itemsData)
         setCategories(categoriesData)
@@ -73,12 +77,14 @@ export default function MenuBuilder() {
     }
 
     loadData()
-  }, [user?.uid])
+  }, [profile?.tenantId, selectedBranch?.id])
 
   const handleCreateMenuItem = async () => {
-    if (!user?.uid || !newItem.name || !newItem.category || !newItem.price) return
+    if (!profile?.tenantId || !newItem.name || !newItem.category || !newItem.price || !selectedBranch) return
 
     try {
+      const locationId = getBranchLocationId(selectedBranch.id)
+      
       const itemData: CreateMenuItem = {
         name: newItem.name,
         description: newItem.description,
@@ -88,13 +94,14 @@ export default function MenuBuilder() {
         preparationTime: 0, // Default value
         calories: 0, // Default value  
         allergens: [], // Default empty array
-        tenantId: user.uid
+        tenantId: profile.tenantId,
+        locationId // Add branch-specific locationId
       }
 
       const newMenuItemId = await addMenuItem(itemData)
       
       // Get the created menu item
-      const updatedItems = await getMenuItems(user.uid)
+      const updatedItems = await getMenuItems(profile.tenantId)
       const createdItem = updatedItems.find(item => item.id === newMenuItemId)
       
       if (createdItem) {
@@ -127,10 +134,10 @@ export default function MenuBuilder() {
   }
 
   const handleUpdateMenuItem = async () => {
-    if (!user?.uid || !editingItem) return
+    if (!profile?.tenantId || !editingItem) return
 
     try {
-      await updateMenuItem(user.uid, editingItem.id!, {
+      await updateMenuItem(profile.tenantId, editingItem.id!, {
         name: editingItem.name,
         description: editingItem.description,
         price: editingItem.price,
@@ -159,14 +166,14 @@ export default function MenuBuilder() {
   }
 
   const handleDeleteMenuItem = async (itemId: string) => {
-    if (!user?.uid || !confirm('Are you sure you want to delete this menu item?')) return
+    if (!profile?.tenantId || !confirm('Are you sure you want to delete this menu item?')) return
 
     try {
-      await deleteMenuItem(user.uid, itemId)
+      await deleteMenuItem(profile.tenantId, itemId)
       
       // Remove from POS system (silent sync)
       try {
-        await handleMenuItemDeletion(user.uid, itemId)
+        await handleMenuItemDeletion(profile.tenantId, itemId)
         console.log('✅ Menu item deleted and removed from POS')
       } catch (syncError) {
         console.error('❌ Error removing from POS:', syncError)
@@ -217,11 +224,11 @@ export default function MenuBuilder() {
   }
 
   const handleBulkStatusChange = async (newStatus: 'active' | 'inactive') => {
-    if (!user?.uid || selectedItems.size === 0) return
+    if (!profile?.tenantId || selectedItems.size === 0) return
     
     try {
       const updatePromises = Array.from(selectedItems).map(itemId =>
-        updateMenuItem(user.uid, itemId, { status: newStatus })
+        updateMenuItem(profile.tenantId, itemId, { status: newStatus })
       )
       
       await Promise.all(updatePromises)
@@ -240,14 +247,14 @@ export default function MenuBuilder() {
   }
 
   const handleBulkDelete = async () => {
-    if (!user?.uid || selectedItems.size === 0) return
+    if (!profile?.tenantId || selectedItems.size === 0) return
     
     const confirmMessage = `Are you sure you want to delete ${selectedItems.size} product(s)?`
     if (!confirm(confirmMessage)) return
     
     try {
       const deletePromises = Array.from(selectedItems).map(itemId =>
-        deleteMenuItem(user.uid, itemId)
+        deleteMenuItem(profile.tenantId, itemId)
       )
       
       await Promise.all(deletePromises)
@@ -288,11 +295,11 @@ export default function MenuBuilder() {
   }
 
   const toggleStatus = async (item: MenuItem) => {
-    if (!user?.uid) return
+    if (!profile?.tenantId) return
 
     try {
       const newStatus = item.status === 'active' ? 'inactive' : 'active'
-      await updateMenuItem(user.uid, item.id!, { status: newStatus })
+      await updateMenuItem(profile.tenantId, item.id!, { status: newStatus })
       
       // Update local state
       setMenuItems(prev => prev.map(menuItem => 
@@ -1364,7 +1371,7 @@ export default function MenuBuilder() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                     </svg>
                     <p className="text-sm">No ingredients added yet</p>
-                    <p className="text-xs text-gray-400">Click "Add Ingredient" to start building your recipe</p>
+                    <p className="text-xs text-gray-400">Click &quot;Add Ingredient&quot; to start building your recipe</p>
                   </div>
                 )}
               </div>

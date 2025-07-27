@@ -83,12 +83,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     await signOut();
   };
 
+  // Function to set demo profile for testing
+  const setDemoProfile = (email: string, role: string) => {
+    const tenantId = email.split('@')[0] || 'demo-tenant';
+    const now = new Date();
+    const demoProfile = {
+      uid: `demo-${Date.now()}`,
+      email: email,
+      role: role as any,
+      tenantId: tenantId,
+      displayName: `${role} User`,
+      createdAt: now as any,
+      updatedAt: now as any,
+      lastLogin: now as any
+    };
+    setProfile(demoProfile);
+    setUser({
+      uid: demoProfile.uid,
+      email: email,
+      displayName: demoProfile.displayName
+    } as any);
+    setLoading(false);
+  };
+
   const value = {
     user,
     profile,
     tenant,
     loading,
     signOut: handleSignOut,
+    setDemoProfile
   };
 
   return (

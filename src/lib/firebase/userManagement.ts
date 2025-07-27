@@ -51,68 +51,54 @@ export const inviteTeamMember = async (
 
 // Get pending invitations for a tenant
 export const getPendingInvitations = async (tenantId: string): Promise<UserInvitation[]> => {
-  try {
-    // Simple query without composite index
-    const q = query(
-      collection(db, 'invitations'),
-      where('tenantId', '==', tenantId),
-      where('status', '==', 'pending')
-    );
+  const q = query(
+    collection(db, 'invitations'),
+    where('tenantId', '==', tenantId),
+    where('status', '==', 'pending'),
+    orderBy('createdAt', 'desc')
+  );
 
-    const snapshot = await getDocs(q);
-    const invitations = snapshot.docs.map(doc => ({ ...doc.data() } as UserInvitation));
-    
-    // Sort by createdAt on the client side
-    return invitations.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
-  } catch (error) {
-    console.error('Error fetching pending invitations:', error);
-    return [];
-  }
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => ({ ...doc.data() } as UserInvitation));
 };
 
 // Accept invitation (called during user signup/signin)
 export const acceptInvitation = async (email: string, userId: string): Promise<UserInvitation | null> => {
-  try {
-    // Simple query without composite index
-    const q = query(
-      collection(db, 'invitations'),
-      where('email', '==', email),
-      where('status', '==', 'pending'),
-      limit(1)
-    );
+  const q = query(
+    collection(db, 'invitations'),
+    where('email', '==', email),
+    where('status', '==', 'pending'),
+    limit(1)
+  );
 
-    const snapshot = await getDocs(q);
-    if (snapshot.empty) return null;
+  const snapshot = await getDocs(q);
+  if (snapshot.empty) return null;
 
-    const invitationDoc = snapshot.docs[0];
-    const invitation = { ...invitationDoc.data() } as UserInvitation;
+  const invitationDoc = snapshot.docs[0];
+  const invitation = { ...invitationDoc.data() } as UserInvitation;
 
-    // Check if invitation is expired
-    if (invitation.expiresAt.toDate() < new Date()) {
-      await updateDoc(doc(db, 'invitations', invitation.id), {
-        status: 'expired'
-      });
-      return null;
-    }
-
-    // Mark invitation as accepted
+  // Check if invitation is expired
+  if (invitation.expiresAt.toDate() < new Date()) {
     await updateDoc(doc(db, 'invitations', invitation.id), {
-      status: 'accepted'
+      status: 'expired'
     });
-
-    // Add user to team members
-    await addTeamMember(invitation.tenantId, userId, {
-      email: invitation.email,
-      role: invitation.role,
-      locationIds: invitation.locationIds || [],
-      invitedBy: invitation.invitedBy
-    });
-
-    return invitation;
-  } catch (error) {
-    console.error('Error accepting invitation:', error);
     return null;
   }
+
+  // Mark invitation as accepted
+  await updateDoc(doc(db, 'invitations', invitation.id), {
+    status: 'accepted'
+  });
+
+  // Add user to team members
+  await addTeamMember(invitation.tenantId, userId, {
+    email: invitation.email,
+    role: invitation.role,
+    locationIds: invitation.locationIds || [],
+    invitedBy: invitation.invitedBy
+  });
+
+  return invitation;
 };
 
 // Add team member

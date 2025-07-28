@@ -5,6 +5,7 @@ import Sidebar from './Sidebar'
 import Header from './Header'
 import FallbackComponent from './FallbackComponent'
 import DashboardOverview from './modules/DashboardOverview'
+import EnhancedAnalytics from './modules/EnhancedAnalytics'
 import TeamManagement from './modules/TeamManagement'
 import DevTools from './DevTools'
 import ProfessionalFooter from './ProfessionalFooter'
@@ -13,6 +14,7 @@ import InventoryCenter from './modules/InventoryCenter'
 import POS from './modules/POS'
 import Expenses from './modules/Expenses'
 import MenuBuilder from './modules/MenuBuilder'
+import EnhancedMenuBuilder from './modules/EnhancedMenuBuilder'
 import PurchaseOrders from './modules/PurchaseOrders'
 import LocationManagement from './modules/LocationManagement'
 import SettingsPage from '../app/settings/page'
@@ -69,9 +71,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       case 'purchase-orders':
         return <PurchaseOrders />
       case 'menu-builder':
-        return <MenuBuilder />
+        return <EnhancedMenuBuilder />
       case 'dashboard':
-        return <DashboardOverview />
+        return <EnhancedAnalytics />
       case 'expenses':
         return <Expenses />
       case 'team-management':

@@ -3,6 +3,7 @@
 import { ModuleType } from './Dashboard'
 import CoreTrackLogo from './CoreTrackLogo'
 import { ModulePermission, UserRole } from '../lib/rbac/permissions'
+import { useBusinessSettings } from '../lib/context/BusinessSettingsContext'
 
 interface SidebarProps {
   activeModule: ModuleType
@@ -43,7 +44,7 @@ const menuItems = [
   },
   {
     id: 'menu-builder' as ModuleType,
-    label: 'Menu Builder',
+    label: 'Product Builder',
     icon: (
       <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
         <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM19 19H5V5H19V19Z"/>
@@ -116,10 +117,24 @@ export default function Sidebar({
   allowedModules, 
   currentRole 
 }: SidebarProps) {
-  // Filter menu items based on user permissions
-  const filteredMenuItems = menuItems.filter(item => 
-    allowedModules.includes(item.id as ModulePermission)
-  )
+  const { settings, isRetail } = useBusinessSettings()
+
+  // Filter menu items based on user permissions AND business type
+  const filteredMenuItems = menuItems.filter(item => {
+    // First check if user has permission for this module
+    if (!allowedModules.includes(item.id as ModulePermission)) {
+      return false
+    }
+
+    // Then check business type specific rules
+    if (item.id === 'menu-builder') {
+      // Hide Menu Builder for retail businesses (they use products, not recipes)
+      return !isRetail
+    }
+
+    // Show all other modules
+    return true
+  })
 
   return (
     <>
@@ -178,22 +193,49 @@ export default function Sidebar({
                 <p className="text-sm font-semibold text-blue-900 capitalize">{currentRole}</p>
               </div>
             )}
+
+            {/* Business Type indicator */}
+            {isOpen && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-xs font-medium text-green-800 uppercase tracking-wide">Business Mode</p>
+                <p className="text-sm font-semibold text-green-900 capitalize">
+                  {settings.businessType === 'restaurant' && '🍽️ Restaurant'}
+                  {settings.businessType === 'retail' && '🏪 Retail'}
+                  {settings.businessType === 'hybrid' && '🔄 Hybrid'}
+                </p>
+                {isRetail && (
+                  <p className="text-xs text-green-600 mt-1">
+                    Product-focused mode
+                  </p>
+                )}
+              </div>
+            )}
             
-            {filteredMenuItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => onModuleChange(item.id)}
-                className={`
-                  sidebar-item w-full text-left
-                  ${activeModule === item.id ? 'active' : ''}
-                  ${!isOpen ? 'justify-center' : ''}
-                `}
-                title={!isOpen ? item.label : ''}
-              >
-                {item.icon}
-                {isOpen && <span className="font-medium">{item.label}</span>}
-              </button>
-            ))}
+            {filteredMenuItems.map((item) => {
+              // Dynamic label based on business type
+              const getItemLabel = (item: any) => {
+                if (item.id === 'menu-builder') {
+                  return settings.businessType === 'retail' ? 'Product Builder' : 'Menu Builder'
+                }
+                return item.label
+              }
+
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => onModuleChange(item.id)}
+                  className={`
+                    sidebar-item w-full text-left
+                    ${activeModule === item.id ? 'active' : ''}
+                    ${!isOpen ? 'justify-center' : ''}
+                  `}
+                  title={!isOpen ? getItemLabel(item) : ''}
+                >
+                  {item.icon}
+                  {isOpen && <span className="font-medium">{getItemLabel(item)}</span>}
+                </button>
+              )
+            })}
           </nav>
         </div>
       </div>

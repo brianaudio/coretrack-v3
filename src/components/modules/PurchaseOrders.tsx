@@ -1,9 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
 import { useBranch } from '../../lib/context/BranchContext'
+import { 
+  notifyOrderStatusChange, 
+  notifyApprovalRequired, 
+  notifyDeliveryReceived 
+} from '../../lib/firebase/notifications'
 import { getBranchLocationId } from '../../lib/utils/branchUtils'
+import { debugTrace, debugStep, debugError, debugSuccess, debugInspect } from '../../lib/utils/debugHelper'
 import { 
   getPurchaseOrders, 
   createPurchaseOrder, 
@@ -18,8 +24,13 @@ import {
 } from '../../lib/firebase/purchaseOrders'
 import { 
   getInventoryItems,
-  type InventoryItem
+  addInventoryItem,
+  resolveUnitMismatch,
+  type InventoryItem,
+  type CreateInventoryItem
 } from '../../lib/firebase/inventory'
+import { generatePurchaseOrderPDF, generatePurchaseOrderSummaryPDF } from '../../lib/utils/pdfGenerator'
+import { Timestamp } from 'firebase/firestore'
 
 export default function PurchaseOrders() {
   const { profile } = useAuth()
@@ -36,6 +47,14 @@ export default function PurchaseOrders() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [showRecentOrders, setShowRecentOrders] = useState(false)
+  const [showUnitMismatchModal, setShowUnitMismatchModal] = useState(false)
+  const [unitMismatches, setUnitMismatches] = useState<Array<{
+    itemName: string;
+    expectedUnit: string;
+    receivedUnit: string;
+    quantity: number;
+  }>>([])
+  const [resolvingMismatch, setResolvingMismatch] = useState(false)
 
   const [newOrder, setNewOrder] = useState({
     supplierId: '',
@@ -53,6 +72,8 @@ export default function PurchaseOrders() {
     unitPrice: number;
   }>>([])
 
+  const [receivedBy, setReceivedBy] = useState('')
+
   const [deliveryResult, setDeliveryResult] = useState<{
     updatedItems: string[];
     notFoundItems: string[];
@@ -62,34 +83,100 @@ export default function PurchaseOrders() {
   const [isDelivering, setIsDelivering] = useState(false)
   const [loadingDelivery, setLoadingDelivery] = useState<string | null>(null)
 
+  // New inventory item notification state
+  const [showInventoryModal, setShowInventoryModal] = useState(false)
+  const [missingItem, setMissingItem] = useState<{
+    itemName: string;
+    itemIndex: number;
+    unit: string;
+    unitPrice: number;
+  } | null>(null)
+
+  // Debounce timer for inventory checking
+  const inventoryCheckTimers = useRef<{ [key: number]: NodeJS.Timeout }>({})
+
   // Load purchase orders and suppliers
   useEffect(() => {
-    if (!profile?.tenantId || !selectedBranch) return
-
+    let timeoutId: NodeJS.Timeout | null = null
+    
     const loadData = async () => {
+      debugStep('Starting data load', {
+        hasProfile: !!profile?.tenantId,
+        hasBranch: !!selectedBranch,
+        branchName: selectedBranch?.name
+      }, { component: 'PurchaseOrders' })
+
+      if (!profile?.tenantId || !selectedBranch) {
+        debugStep('Missing profile or branch - keeping empty state', undefined, { component: 'PurchaseOrders' })
+        setLoading(false)
+        return
+      }
+
       try {
         setLoading(true)
+        
+        // Set timeout to prevent infinite loading
+        timeoutId = setTimeout(() => {
+          debugStep('Loading timeout reached - stopping loading state', undefined, { component: 'PurchaseOrders' })
+          setLoading(false)
+        }, 3000)
+        
         const locationId = getBranchLocationId(selectedBranch.id)
         
-        console.log('🔄 PO - Loading data for branch:', selectedBranch.name, 'locationId:', locationId)
+        debugStep('Loading data for branch', { 
+          branchName: selectedBranch.name, 
+          locationId 
+        }, { component: 'PurchaseOrders' })
         
         const [ordersData, suppliersData, inventoryData] = await Promise.all([
           getPurchaseOrders(profile.tenantId, locationId),
           getSuppliers(profile.tenantId),
           getInventoryItems(profile.tenantId, locationId)
         ])
+        
+        // Clear timeout since data loaded successfully
+        if (timeoutId) clearTimeout(timeoutId)
+        
+        debugSuccess('Data loaded successfully', {
+          ordersCount: ordersData.length,
+          suppliersCount: suppliersData.length,
+          inventoryCount: inventoryData.length
+        }, { component: 'PurchaseOrders' })
+        
         setOrders(ordersData)
         setSuppliers(suppliersData)
         setInventoryItems(inventoryData)
       } catch (error) {
-        console.error('Error loading purchase orders:', error)
+        // Clear timeout on error
+        if (timeoutId) clearTimeout(timeoutId)
+        debugError('Failed to load data', undefined, { component: 'PurchaseOrders' })
+        console.error('Purchase Orders load error:', error)
+        // Ensure empty state on error
+        setOrders([])
+        setSuppliers([])
+        setInventoryItems([])
       } finally {
         setLoading(false)
       }
     }
 
     loadData()
+    
+    // Cleanup timeout on unmount
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId)
+    }
   }, [profile?.tenantId, selectedBranch?.id])
+
+  // Cleanup timers on component unmount
+  useEffect(() => {
+    return () => {
+      // Clear all active timers
+      Object.values(inventoryCheckTimers.current).forEach(timer => {
+        if (timer) clearTimeout(timer)
+      })
+    }
+  }, [])
 
   const calculateTotals = (items: PurchaseOrderItem[]) => {
     const subtotal = items.reduce((sum, item) => sum + item.total, 0)
@@ -156,8 +243,25 @@ export default function PurchaseOrders() {
     if (!profile?.tenantId) return
 
     try {
+      const order = orders.find(o => o.id === orderId)
+      if (!order) return
+
+      const oldStatus = order.status
       const approvedBy = status === 'approved' ? profile.tenantId : undefined
       await updatePurchaseOrderStatus(profile.tenantId, orderId, status, approvedBy)
+      
+      // Send notification for status change
+      await notifyOrderStatusChange(profile.tenantId, order.orderNumber, oldStatus, status)
+      
+      // Send approval notification when order is submitted for approval
+      if (status === 'pending') {
+        await notifyApprovalRequired(
+          profile.tenantId,
+          order.orderNumber,
+          order.requestor || 'Unknown',
+          order.total
+        )
+      }
       
       // Update local state
       setOrders(prev => prev.map(order => 
@@ -211,7 +315,7 @@ export default function PurchaseOrders() {
         return
       }
       
-      if (latestOrder.status !== 'ordered') {
+      if (latestOrder.status !== 'ordered' && latestOrder.status !== 'partially_delivered') {
         alert(`Cannot deliver order. Current status: ${latestOrder.status}`)
         // Update local state
         setOrders(prev => prev.map(o => 
@@ -221,13 +325,21 @@ export default function PurchaseOrders() {
       }
       
       setDeliveringOrder(latestOrder)
-      setDeliveryItems(latestOrder.items.map(item => ({
-        itemName: item.itemName,
-        quantityOrdered: item.quantity,
-        quantityReceived: item.quantity, // Always default to full quantity for new delivery
-        unit: item.unit,
-        unitPrice: item.unitPrice
-      })))
+      setDeliveryItems(latestOrder.items.map(item => {
+        const quantityReceived = item.quantityReceived || 0
+        const remainingQuantity = item.quantity - quantityReceived
+        
+        return {
+          itemName: item.itemName,
+          quantityOrdered: item.quantity,
+          quantityReceived: latestOrder.status === 'partially_delivered' 
+            ? Math.max(0, remainingQuantity) // Default to remaining quantity for partial deliveries
+            : item.quantity, // Default to full quantity for new delivery
+          unit: item.unit,
+          unitPrice: item.unitPrice
+        }
+      }))
+      setReceivedBy('') // Reset received by field
       setDeliveryResult(null)
       setIsDelivering(false)
       setShowDeliveryModal(true)
@@ -251,8 +363,15 @@ export default function PurchaseOrders() {
     try {
       setIsDelivering(true)
       
-      // Check if order is still in 'ordered' status before proceeding
-      if (deliveringOrder.status !== 'ordered') {
+      // Validate required fields
+      if (!receivedBy.trim()) {
+        alert('Please enter the name of the person who received the delivery.')
+        setIsDelivering(false)
+        return
+      }
+      
+      // Check if order is still in 'ordered' or 'partially_delivered' status before proceeding
+      if (deliveringOrder.status !== 'ordered' && deliveringOrder.status !== 'partially_delivered') {
         alert(`Cannot deliver order. Current status: ${deliveringOrder.status}`)
         setShowDeliveryModal(false)
         setDeliveringOrder(null)
@@ -276,38 +395,97 @@ export default function PurchaseOrders() {
           unit: item.unit,
           unitPrice: item.unitPrice
         })),
-        profile.tenantId
+        receivedBy.trim() // Pass the person who received the delivery
       )
 
       if (result.success) {
+        // Calculate updated items with received quantities (accumulating for partial deliveries)
+        const updatedItems = deliveringOrder.items.map(item => {
+          const deliveredItem = itemsToDeliver.find(di => 
+            di.itemName.toLowerCase().trim() === item.itemName.toLowerCase().trim()
+          )
+          
+          if (deliveredItem) {
+            // Accumulate the received quantities for partial deliveries
+            const previouslyReceived = item.quantityReceived || 0
+            const newlyReceived = deliveredItem.quantityReceived
+            const totalReceived = previouslyReceived + newlyReceived
+            
+            return {
+              ...item,
+              quantityReceived: Math.min(totalReceived, item.quantity) // Don't exceed ordered quantity
+            }
+          } else {
+            return {
+              ...item,
+              quantityReceived: item.quantityReceived || 0 // Keep existing received quantity
+            }
+          }
+        })
+
+        // Determine if this is a partial delivery
+        const isPartialDelivery = updatedItems.some(item => {
+          const quantityReceived = item.quantityReceived || 0
+          return quantityReceived > 0 && quantityReceived < item.quantity
+        })
+
+        // Check if all items have been fully delivered
+        const isFullyDelivered = updatedItems.every(item => {
+          const quantityReceived = item.quantityReceived || 0
+          return quantityReceived >= item.quantity
+        })
+
+        // Determine the new status
+        let newStatus: PurchaseOrder['status']
+        if (isFullyDelivered) {
+          newStatus = 'delivered'
+        } else if (isPartialDelivery || updatedItems.some(item => (item.quantityReceived || 0) > 0)) {
+          newStatus = 'partially_delivered'
+        } else {
+          newStatus = 'ordered'
+        }
+
         // Update local state
         setOrders(prev => prev.map(order => 
           order.id === deliveringOrder.id 
             ? { 
                 ...order, 
-                status: 'delivered' as const,
-                deliveredBy: profile.tenantId,
+                status: newStatus,
+                deliveredBy: receivedBy.trim(),
                 deliveredAt: new Date() as any,
-                items: order.items.map(item => {
-                  const deliveredItem = itemsToDeliver.find(di => 
-                    di.itemName.toLowerCase().trim() === item.itemName.toLowerCase().trim()
-                  )
-                  return {
-                    ...item,
-                    quantityReceived: deliveredItem ? deliveredItem.quantityReceived : (item.quantityReceived || 0)
-                  }
-                })
+                items: updatedItems
               } 
             : order
         ))
 
+        // Send delivery notification
+        await notifyDeliveryReceived(
+          profile.tenantId,
+          deliveringOrder.orderNumber,
+          receivedBy.trim(),
+          newStatus === 'partially_delivered'
+        )
+
         setDeliveryResult(result.inventoryUpdateResult || null)
         
-        // Don't close modal immediately if there are issues to show
-        if (result.inventoryUpdateResult && 
-            (result.inventoryUpdateResult.notFoundItems.length > 0 || 
-             result.inventoryUpdateResult.unitMismatches.length > 0)) {
-          // Keep modal open to show results
+        // Check for unit mismatches and show resolution modal
+        if (result.inventoryUpdateResult && result.inventoryUpdateResult.unitMismatches.length > 0) {
+          // Prepare unit mismatch data with quantities for resolution
+          const mismatchesWithQuantity = result.inventoryUpdateResult.unitMismatches.map(mismatch => {
+            const deliveredItem = itemsToDeliver.find(item => 
+              item.itemName.toLowerCase().trim() === mismatch.itemName.toLowerCase().trim()
+            )
+            return {
+              ...mismatch,
+              quantity: deliveredItem?.quantityReceived || 0
+            }
+          })
+          
+          setUnitMismatches(mismatchesWithQuantity)
+          setShowUnitMismatchModal(true)
+          // Keep delivery modal open to show other results
+        } else if (result.inventoryUpdateResult && result.inventoryUpdateResult.notFoundItems.length > 0) {
+          // Keep modal open to show results for not found items
         } else {
           setShowDeliveryModal(false)
           setDeliveringOrder(null)
@@ -337,6 +515,54 @@ export default function PurchaseOrders() {
     }
   }
 
+  const handleResolveUnitMismatch = async (itemName: string, newUnit: string, quantity: number) => {
+    if (!profile?.tenantId || resolvingMismatch) return
+
+    try {
+      setResolvingMismatch(true)
+      
+      const result = await resolveUnitMismatch(
+        profile.tenantId,
+        itemName,
+        newUnit,
+        quantity,
+        profile.tenantId, // userId
+        profile.tenantId  // userName - using tenantId as placeholder
+      )
+
+      if (result.success) {
+        // Remove this mismatch from the list
+        setUnitMismatches(prev => prev.filter(m => m.itemName !== itemName))
+        
+        // Update delivery result to remove this mismatch
+        setDeliveryResult(prev => prev ? {
+          ...prev,
+          updatedItems: [...prev.updatedItems, itemName],
+          unitMismatches: prev.unitMismatches.filter(m => m.itemName !== itemName)
+        } : null)
+        
+        alert(`✅ ${result.message}`)
+        
+        // If no more mismatches, we can close the mismatch modal
+        if (unitMismatches.length === 1) {
+          setShowUnitMismatchModal(false)
+          // Also check if we can close the delivery modal
+          if (deliveryResult && deliveryResult.notFoundItems.length === 0) {
+            setShowDeliveryModal(false)
+            setDeliveringOrder(null)
+          }
+        }
+      } else {
+        alert(`❌ Failed to resolve unit mismatch: ${result.message}`)
+      }
+    } catch (error) {
+      console.error('Error resolving unit mismatch:', error)
+      alert('❌ Failed to resolve unit mismatch. Please try again.')
+    } finally {
+      setResolvingMismatch(false)
+    }
+  }
+
   const addOrderItem = () => {
     setNewOrder(prev => ({
       ...prev,
@@ -357,6 +583,12 @@ export default function PurchaseOrders() {
           updatedItem.total = updatedItem.quantity * updatedItem.unitPrice
         }
         
+        // Check if item exists in inventory when item name changes
+        if (field === 'itemName') {
+          // Use debounced inventory check instead of immediate check
+          debouncedInventoryCheck(value, index, updatedItem.unit, updatedItem.unitPrice)
+        }
+        
         return updatedItem
       })
     }))
@@ -368,6 +600,86 @@ export default function PurchaseOrders() {
         ...prev,
         items: prev.items.filter((_, i) => i !== index)
       }))
+    }
+  }
+
+  // Check if item exists in inventory
+  const checkItemInInventory = (itemName: string): boolean => {
+    if (!itemName.trim()) return true // Don't check empty names
+    return inventoryItems.some(item => 
+      item.name.toLowerCase().trim() === itemName.toLowerCase().trim()
+    )
+  }
+
+  // Get inventory item unit for comparison
+  const getInventoryItemUnit = (itemName: string): string | null => {
+    if (!itemName.trim()) return null
+    const inventoryItem = inventoryItems.find(item => 
+      item.name.toLowerCase().trim() === itemName.toLowerCase().trim()
+    )
+    return inventoryItem?.unit || null
+  }
+
+  // Debounced inventory check - waits 1 second after user stops typing
+  const debouncedInventoryCheck = (itemName: string, index: number, unit: string, unitPrice: number) => {
+    // Clear existing timer for this item index
+    if (inventoryCheckTimers.current[index]) {
+      clearTimeout(inventoryCheckTimers.current[index])
+    }
+
+    // Only check if item name has content and doesn't exist in inventory
+    if (itemName.trim() && !checkItemInInventory(itemName)) {
+      // Set new timer
+      inventoryCheckTimers.current[index] = setTimeout(() => {
+        // Double-check the item still doesn't exist (user might have continued typing)
+        if (!checkItemInInventory(itemName)) {
+          setMissingItem({
+            itemName: itemName,
+            itemIndex: index,
+            unit: unit,
+            unitPrice: unitPrice
+          })
+          setShowInventoryModal(true)
+        }
+      }, 1000) // Wait 1 second after user stops typing
+    }
+  }
+
+  // Handle adding missing item to inventory
+  const handleAddToInventory = async () => {
+    if (!missingItem || !profile?.tenantId || !selectedBranch) return
+
+    try {
+      const locationId = getBranchLocationId(selectedBranch.id)
+      
+      const newInventoryItem: CreateInventoryItem = {
+        name: missingItem.itemName,
+        category: 'General', // Default category
+        currentStock: 0, // Will be updated when purchase order is delivered
+        minStock: 5, // Default minimum stock
+        maxStock: 100, // Default maximum stock
+        unit: missingItem.unit,
+        costPerUnit: missingItem.unitPrice,
+        tenantId: profile.tenantId,
+        locationId: locationId
+      }
+
+      await addInventoryItem(newInventoryItem)
+      
+      // Refresh inventory items
+      const updatedInventoryItems = await getInventoryItems(profile.tenantId, locationId)
+      setInventoryItems(updatedInventoryItems)
+      
+      // Close modal
+      setShowInventoryModal(false)
+      setMissingItem(null)
+      
+      // Show success message
+      alert(`"${missingItem.itemName}" has been added to inventory!`)
+      
+    } catch (error) {
+      console.error('Error adding item to inventory:', error)
+      alert('Failed to add item to inventory. Please try again.')
     }
   }
 
@@ -409,6 +721,7 @@ export default function PurchaseOrders() {
       case 'pending': return 'bg-yellow-100 text-yellow-800'
       case 'approved': return 'bg-blue-100 text-blue-800'
       case 'ordered': return 'bg-purple-100 text-purple-800'
+      case 'partially_delivered': return 'bg-amber-100 text-amber-800'
       case 'delivered': return 'bg-green-100 text-green-800'
       case 'cancelled': return 'bg-red-100 text-red-800'
       default: return 'bg-gray-100 text-gray-800'
@@ -428,12 +741,26 @@ export default function PurchaseOrders() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Purchase Orders</h2>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          New Order
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => {
+              const filteredOrders = statusFilter === 'all' 
+                ? orders 
+                : orders.filter(order => order.status === statusFilter)
+              generatePurchaseOrderSummaryPDF(filteredOrders)
+            }}
+            className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+            disabled={orders.length === 0}
+          >
+            📄 Export PDF
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            New Order
+          </button>
+        </div>
       </div>
 
       {/* Branch Indicator */}
@@ -447,7 +774,7 @@ export default function PurchaseOrders() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="bg-white p-4 rounded-lg shadow">
           <div className="text-sm font-medium text-gray-500">Total Orders</div>
           <div className="text-2xl font-bold text-gray-900">{orders.length}</div>
@@ -462,6 +789,12 @@ export default function PurchaseOrders() {
           <div className="text-sm font-medium text-gray-500">Ordered</div>
           <div className="text-2xl font-bold text-blue-600">
             {orders.filter(o => o.status === 'ordered').length}
+          </div>
+        </div>
+        <div className="bg-white p-4 rounded-lg shadow">
+          <div className="text-sm font-medium text-gray-500">Partial</div>
+          <div className="text-2xl font-bold text-amber-600">
+            {orders.filter(o => o.status === 'partially_delivered').length}
           </div>
         </div>
         <div className="bg-white p-4 rounded-lg shadow">
@@ -513,6 +846,7 @@ export default function PurchaseOrders() {
               <option value="pending">Pending</option>
               <option value="approved">Approved</option>
               <option value="ordered">Ordered</option>
+              <option value="partially_delivered">Partially Delivered</option>
               <option value="delivered">Delivered</option>
               <option value="cancelled">Cancelled</option>
             </select>
@@ -561,24 +895,34 @@ export default function PurchaseOrders() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredOrders.map((order) => (
-                <tr key={order.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {order.orderNumber}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {order.supplierName}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    {order.items.length} item(s)
+              {filteredOrders.length > 0 ? (
+                filteredOrders.map((order) => (
+                  <tr key={order.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {order.orderNumber}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {order.supplierName}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900">
+                      {order.items.length} item(s)
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     ₱{order.total.toFixed(2)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status)}`}>
-                      {order.status}
+                      {order.status === 'partially_delivered' ? 'Partial' : order.status}
                     </span>
+                    {order.status === 'partially_delivered' && (
+                      <div className="text-xs text-amber-600 mt-1">
+                        {(() => {
+                          const receivedItems = order.items.filter(item => (item.quantityReceived || 0) > 0).length
+                          const totalItems = order.items.length
+                          return `${receivedItems}/${totalItems} items received`
+                        })()}
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {order.createdAt?.toDate().toLocaleDateString()}
@@ -598,7 +942,33 @@ export default function PurchaseOrders() {
                     </button>
                   </td>
                 </tr>
-              ))}
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center">
+                    <div className="flex flex-col items-center">
+                      <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mb-4">
+                        <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No Purchase Orders Found</h3>
+                      <p className="text-gray-500 text-center max-w-sm mb-4">
+                        {searchTerm || statusFilter !== 'all' || showRecentOrders
+                          ? 'No orders match your current filters. Try adjusting your search criteria.'
+                          : 'Get started by creating your first purchase order to manage supplier orders and inventory restocking.'
+                        }
+                      </p>
+                      <button
+                        onClick={() => setShowCreateModal(true)}
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        Create Purchase Order
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -712,7 +1082,11 @@ export default function PurchaseOrders() {
                             placeholder="Enter item name"
                             value={item.itemName}
                             onChange={(e) => updateOrderItem(index, 'itemName', e.target.value)}
-                            className="input-field"
+                            className={`input-field ${
+                              item.itemName.trim() && !checkItemInInventory(item.itemName) 
+                                ? 'border-amber-300 bg-amber-50' 
+                                : ''
+                            }`}
                             list={`inventory-items-${index}`}
                           />
                           <datalist id={`inventory-items-${index}`}>
@@ -720,7 +1094,15 @@ export default function PurchaseOrders() {
                               <option key={invItem.id} value={invItem.name} />
                             ))}
                           </datalist>
-                          {inventoryItems.length > 0 && (
+                          {item.itemName.trim() && !checkItemInInventory(item.itemName) && (
+                            <p className="text-xs text-amber-600 mt-1 flex items-center">
+                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                              </svg>
+                              Not found in inventory - will be added automatically
+                            </p>
+                          )}
+                          {inventoryItems.length > 0 && (!item.itemName.trim() || checkItemInInventory(item.itemName)) && (
                             <p className="text-xs text-surface-500 mt-1">
                               Available inventory items: {inventoryItems.slice(0, 3).map(item => item.name).join(', ')}
                               {inventoryItems.length > 3 && ` +${inventoryItems.length - 3} more`}
@@ -803,6 +1185,27 @@ export default function PurchaseOrders() {
                                 <option value="sq m">Square Meter</option>
                               </optgroup>
                             </select>
+                            {/* Unit Mismatch Warning */}
+                            {(() => {
+                              const inventoryUnit = getInventoryItemUnit(item.itemName)
+                              const hasUnitMismatch = inventoryUnit && inventoryUnit.toLowerCase() !== item.unit.toLowerCase()
+                              return hasUnitMismatch && (
+                                <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-sm">
+                                  <div className="flex items-center gap-2 text-amber-800">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                    </svg>
+                                    <span className="font-medium">Unit Mismatch Warning</span>
+                                  </div>
+                                  <p className="text-amber-700 mt-1">
+                                    Inventory unit: <strong>{inventoryUnit}</strong> • PO unit: <strong>{item.unit}</strong>
+                                  </p>
+                                  <p className="text-amber-600 text-xs mt-1">
+                                    This may require unit resolution during delivery.
+                                  </p>
+                                </div>
+                              )
+                            })()}
                           </div>
                         </div>
                         <div>
@@ -835,14 +1238,28 @@ export default function PurchaseOrders() {
 
                       {/* Desktop Layout */}
                       <div className="hidden md:grid grid-cols-12 gap-4 items-center">
-                        <input
-                          type="text"
-                          placeholder="Enter item name"
-                          value={item.itemName}
-                          onChange={(e) => updateOrderItem(index, 'itemName', e.target.value)}
-                          className="col-span-3 input-field"
-                          list={`inventory-items-desktop-${index}`}
-                        />
+                        <div className="col-span-3">
+                          <input
+                            type="text"
+                            placeholder="Enter item name"
+                            value={item.itemName}
+                            onChange={(e) => updateOrderItem(index, 'itemName', e.target.value)}
+                            className={`w-full input-field ${
+                              item.itemName.trim() && !checkItemInInventory(item.itemName) 
+                                ? 'border-amber-300 bg-amber-50' 
+                                : ''
+                            }`}
+                            list={`inventory-items-desktop-${index}`}
+                          />
+                          {item.itemName.trim() && !checkItemInInventory(item.itemName) && (
+                            <p className="text-xs text-amber-600 mt-1 flex items-center">
+                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                              </svg>
+                              Not in inventory
+                            </p>
+                          )}
+                        </div>
                         <datalist id={`inventory-items-desktop-${index}`}>
                           {inventoryItems.map((invItem) => (
                             <option key={invItem.id} value={invItem.name} />
@@ -1007,9 +1424,20 @@ export default function PurchaseOrders() {
                   <p className="text-sm text-surface-600 mt-1">Order #{viewingOrder.orderNumber}</p>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(viewingOrder.status)}`}>
-                    {viewingOrder.status}
-                  </span>
+                  <div className="text-right">
+                    <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(viewingOrder.status)}`}>
+                      {viewingOrder.status === 'partially_delivered' ? 'Partially Delivered' : viewingOrder.status}
+                    </span>
+                    {viewingOrder.status === 'partially_delivered' && (
+                      <div className="text-sm text-amber-600 mt-1">
+                        {(() => {
+                          const receivedItems = viewingOrder.items.filter(item => (item.quantityReceived || 0) > 0).length
+                          const totalItems = viewingOrder.items.length
+                          return `${receivedItems}/${totalItems} items received`
+                        })()}
+                      </div>
+                    )}
+                  </div>
                   <button
                     onClick={() => setViewingOrder(null)}
                     className="text-surface-400 hover:text-surface-600 p-1"
@@ -1052,6 +1480,12 @@ export default function PurchaseOrders() {
                   <div>
                     <label className="block text-sm font-medium text-surface-700 mb-1">Approved By</label>
                     <p className="text-base text-surface-900">{viewingOrder.approvedBy}</p>
+                  </div>
+                )}
+                {viewingOrder.deliveredBy && (viewingOrder.status === 'delivered' || viewingOrder.status === 'partially_delivered') && (
+                  <div>
+                    <label className="block text-sm font-medium text-surface-700 mb-1">Received By</label>
+                    <p className="text-base text-surface-900">{viewingOrder.deliveredBy}</p>
                   </div>
                 )}
               </div>
@@ -1183,16 +1617,25 @@ export default function PurchaseOrders() {
                       Mark as Ordered
                     </button>
                   )}
-                  {viewingOrder.status === 'ordered' && (
+                  {(viewingOrder.status === 'ordered' || viewingOrder.status === 'partially_delivered') && (
                     <button
                       onClick={() => {
                         handleShowDeliveryModal(viewingOrder)
                         setViewingOrder(null)
                       }}
-                      className="btn-primary bg-green-600 hover:bg-green-700"
+                      className={`btn-primary ${
+                        viewingOrder.status === 'partially_delivered' 
+                          ? 'bg-amber-600 hover:bg-amber-700' 
+                          : 'bg-green-600 hover:bg-green-700'
+                      }`}
                       disabled={loadingDelivery === viewingOrder.id}
                     >
-                      {loadingDelivery === viewingOrder.id ? 'Loading...' : 'Mark as Delivered'}
+                      {loadingDelivery === viewingOrder.id 
+                        ? 'Loading...' 
+                        : viewingOrder.status === 'partially_delivered'
+                        ? 'Continue Delivery'
+                        : 'Mark as Delivered'
+                      }
                     </button>
                   )}
                   {(viewingOrder.status === 'draft' || viewingOrder.status === 'pending') && (
@@ -1206,6 +1649,15 @@ export default function PurchaseOrders() {
                       className="btn-secondary text-red-600 border-red-600 hover:bg-red-50"
                     >
                       Delete Order
+                    </button>
+                  )}
+                  {/* PDF Download Button - Only for delivered orders */}
+                  {viewingOrder.status === 'delivered' && (
+                    <button
+                      onClick={() => generatePurchaseOrderPDF(viewingOrder)}
+                      className="btn-secondary bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
+                    >
+                      📄 Download PDF
                     </button>
                   )}
                 </div>
@@ -1303,38 +1755,92 @@ export default function PurchaseOrders() {
                     />
                   </div>
                 )}
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 mb-2">
+                    Received By *
+                  </label>
+                  <input
+                    type="text"
+                    value={receivedBy}
+                    onChange={(e) => setReceivedBy(e.target.value)}
+                    className="input-field"
+                    placeholder="Enter name of person receiving delivery"
+                    required
+                  />
+                  <p className="text-xs text-surface-500 mt-1">
+                    Required for delivery accountability and audit trail
+                  </p>
+                </div>
               </div>
 
               {/* Delivery Items */}
               <div>
                 <h4 className="text-md font-medium text-surface-900 mb-2">Delivery Items</h4>
+                
+                {/* Partial delivery status */}
+                {deliveringOrder.status === 'partially_delivered' && (
+                  <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div className="flex items-center mb-2">
+                      <svg className="w-5 h-5 text-amber-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                      <span className="text-sm font-medium text-amber-800">Continuing Partial Delivery</span>
+                    </div>
+                    <p className="text-sm text-amber-700">
+                      This order has been partially delivered. Enter additional quantities to receive for the remaining items.
+                    </p>
+                  </div>
+                )}
+                
                 <p className="text-sm text-surface-600 mb-4">
                   Enter the actual quantity received for each item. Items with zero quantity received will not update inventory.
                 </p>
                 <div className="space-y-4">
-                  {deliveryItems.map((item, index) => (
-                    <div key={index} className="border border-surface-200 rounded-lg p-4 bg-surface-50">
-                      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-surface-700 mb-1">Item Name</label>
-                          <input
-                            type="text"
-                            value={item.itemName}
-                            readOnly
-                            className="input-field bg-surface-100 cursor-not-allowed"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-surface-700 mb-1">Quantity Ordered</label>
-                          <input
-                            type="number"
-                            value={item.quantityOrdered}
-                            readOnly
-                            className="input-field bg-surface-100 cursor-not-allowed"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-surface-700 mb-1">Unit</label>
+                  {deliveryItems.map((item, index) => {
+                    // Find the original item to check previously received quantities
+                    const originalItem = deliveringOrder.items.find(original => 
+                      original.itemName.toLowerCase().trim() === item.itemName.toLowerCase().trim()
+                    )
+                    const previouslyReceived = originalItem?.quantityReceived || 0
+                    const remainingToReceive = item.quantityOrdered - previouslyReceived
+                    
+                    return (
+                      <div key={index} className="border border-surface-200 rounded-lg p-4 bg-surface-50">
+                        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-surface-700 mb-1">Item Name</label>
+                            <input
+                              type="text"
+                              value={item.itemName}
+                              readOnly
+                              className="input-field bg-surface-100 cursor-not-allowed"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-surface-700 mb-1">Quantity Ordered</label>
+                            <input
+                              type="number"
+                              value={item.quantityOrdered}
+                              readOnly
+                              className="input-field bg-surface-100 cursor-not-allowed"
+                            />
+                          </div>
+                          {deliveringOrder.status === 'partially_delivered' && (
+                            <div>
+                              <label className="block text-sm font-medium text-surface-700 mb-1">Previously Received</label>
+                              <input
+                                type="number"
+                                value={previouslyReceived}
+                                readOnly
+                                className="input-field bg-blue-100 cursor-not-allowed text-blue-800 font-medium"
+                              />
+                              <p className="text-xs text-blue-600 mt-1">
+                                {remainingToReceive} remaining
+                              </p>
+                            </div>
+                          )}
+                          <div>
+                            <label className="block text-sm font-medium text-surface-700 mb-1">Unit</label>
                           <input
                             type="text"
                             value={item.unit}
@@ -1348,10 +1854,28 @@ export default function PurchaseOrders() {
                             type="number"
                             value={item.quantityReceived}
                             onChange={(e) => handleDeliveryQuantityChange(index, parseInt(e.target.value) || 0)}
-                            className="input-field text-xl font-semibold text-center h-12"
+                            className={`input-field text-xl font-semibold text-center h-12 ${
+                              item.quantityReceived > 0 && item.quantityReceived < item.quantityOrdered 
+                                ? 'border-amber-300 bg-amber-50' 
+                                : item.quantityReceived === item.quantityOrdered && item.quantityReceived > 0
+                                ? 'border-green-300 bg-green-50'
+                                : ''
+                            }`}
                             min="0"
                             max={item.quantityOrdered}
                           />
+                          {/* Partial delivery warning */}
+                          {item.quantityReceived > 0 && item.quantityReceived < item.quantityOrdered && (
+                            <p className="text-xs text-amber-600 mt-1 font-medium">
+                              ⚠️ Partial delivery ({item.quantityOrdered - item.quantityReceived} remaining)
+                            </p>
+                          )}
+                          {/* Full delivery confirmation */}
+                          {item.quantityReceived === item.quantityOrdered && item.quantityReceived > 0 && (
+                            <p className="text-xs text-green-600 mt-1 font-medium">
+                              ✅ Full quantity received
+                            </p>
+                          )}
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-surface-700 mb-1">Unit Price</label>
@@ -1365,9 +1889,67 @@ export default function PurchaseOrders() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
+
+              {/* Partial Delivery Summary */}
+              {(() => {
+                const partialItems = deliveryItems.filter(item => item.quantityReceived > 0 && item.quantityReceived < item.quantityOrdered)
+                const fullItems = deliveryItems.filter(item => item.quantityReceived === item.quantityOrdered && item.quantityReceived > 0)
+                const noReceived = deliveryItems.filter(item => item.quantityReceived === 0)
+                
+                return (partialItems.length > 0 || fullItems.length > 0) && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 className="text-md font-medium text-blue-900 mb-3">📋 Delivery Summary</h4>
+                    
+                    {fullItems.length > 0 && (
+                      <div className="mb-3">
+                        <p className="text-sm font-medium text-green-700 mb-1">✅ Fully Received Items ({fullItems.length}):</p>
+                        <ul className="list-disc list-inside text-sm text-green-600 ml-4">
+                          {fullItems.map(item => (
+                            <li key={item.itemName}>{item.itemName} - {item.quantityReceived} {item.unit}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {partialItems.length > 0 && (
+                      <div className="mb-3">
+                        <p className="text-sm font-medium text-amber-700 mb-1">⚠️ Partially Received Items ({partialItems.length}):</p>
+                        <ul className="list-disc list-inside text-sm text-amber-600 ml-4">
+                          {partialItems.map(item => (
+                            <li key={item.itemName}>
+                              {item.itemName} - {item.quantityReceived}/{item.quantityOrdered} {item.unit} 
+                              <span className="font-medium"> ({item.quantityOrdered - item.quantityReceived} remaining)</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {noReceived.length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium text-gray-700 mb-1">⭕ Items Not Received ({noReceived.length}):</p>
+                        <ul className="list-disc list-inside text-sm text-gray-600 ml-4">
+                          {noReceived.map(item => (
+                            <li key={item.itemName}>{item.itemName} - {item.quantityOrdered} {item.unit} (pending)</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {partialItems.length > 0 && (
+                      <div className="mt-3 p-3 bg-amber-100 rounded-lg">
+                        <p className="text-sm font-medium text-amber-800">
+                          🔄 This order will be marked as "Partially Delivered" and can be delivered again for remaining items.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
 
               {/* Delivery Result - Success/Failure Summary */}
               {deliveryResult && (
@@ -1392,15 +1974,34 @@ export default function PurchaseOrders() {
                     </div>
                   )}
                   {deliveryResult.unitMismatches.length > 0 && (
-                    <div className="mt-4">
-                      <p className="font-semibold text-red-600">Unit Mismatches:</p>
-                      <ul className="list-disc list-inside">
+                    <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                      <div className="flex items-center gap-2 mb-3">
+                        <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                        </svg>
+                        <p className="font-semibold text-amber-800">⚠️ Unit Mismatches Detected</p>
+                      </div>
+                      <p className="text-sm text-amber-700 mb-3">
+                        The following items were not added to inventory due to unit mismatches. 
+                        Please resolve these mismatches to complete the delivery.
+                      </p>
+                      <div className="space-y-2">
                         {deliveryResult.unitMismatches.map(({ itemName, expectedUnit, receivedUnit }) => (
-                          <li key={itemName}>
-                            {itemName}: Expected unit - {expectedUnit}, Received unit - {receivedUnit}
-                          </li>
+                          <div key={itemName} className="bg-white p-3 rounded border border-amber-200">
+                            <div className="font-medium text-amber-900">{itemName}</div>
+                            <div className="text-sm text-amber-700">
+                              Inventory unit: <span className="font-semibold">{expectedUnit}</span> • 
+                              Purchase order unit: <span className="font-semibold">{receivedUnit}</span>
+                            </div>
+                          </div>
                         ))}
-                      </ul>
+                      </div>
+                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                        <p className="text-sm text-blue-800">
+                          💡 <strong>Tip:</strong> Use the Unit Mismatch Resolution tool above to fix these issues 
+                          and complete your inventory update.
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1420,12 +2021,197 @@ export default function PurchaseOrders() {
                 {!deliveryResult && (
                   <button
                     onClick={handleConfirmDelivery}
-                    className="btn-primary"
-                    disabled={isDelivering}
+                    className="btn-primary disabled:bg-surface-300 disabled:text-surface-500 disabled:cursor-not-allowed"
+                    disabled={isDelivering || !receivedBy.trim()}
                   >
                     {isDelivering ? 'Processing...' : 'Confirm Delivery'}
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add to Inventory Modal */}
+      {showInventoryModal && missingItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-surface-200">
+              <h3 className="text-lg font-semibold text-surface-900">Item Not Found in Inventory</h3>
+              <p className="text-sm text-surface-600 mt-1">Would you like to add this item to your inventory?</p>
+            </div>
+            
+            {/* Modal Content */}
+            <div className="px-6 py-4 space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="ml-3 flex-1">
+                    <p className="text-sm text-blue-800">
+                      The item <strong>"{missingItem.itemName}"</strong> is not currently in your inventory. 
+                      Adding it will help you track stock levels and manage orders more effectively.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 mb-1">Item Name</label>
+                  <input
+                    type="text"
+                    value={missingItem.itemName}
+                    readOnly
+                    className="w-full px-3 py-2 border border-surface-300 rounded-lg bg-surface-50 text-surface-900"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-surface-700 mb-1">Unit</label>
+                    <input
+                      type="text"
+                      value={missingItem.unit}
+                      readOnly
+                      className="w-full px-3 py-2 border border-surface-300 rounded-lg bg-surface-50 text-surface-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-surface-700 mb-1">Unit Price</label>
+                    <input
+                      type="text"
+                      value={`₱${missingItem.unitPrice.toFixed(2)}`}
+                      readOnly
+                      className="w-full px-3 py-2 border border-surface-300 rounded-lg bg-surface-50 text-surface-900"
+                    />
+                  </div>
+                </div>
+                <div className="text-xs text-surface-500">
+                  Default settings: Category: General, Min Stock: 5, Max Stock: 100, Initial Stock: 0
+                </div>
+              </div>
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-surface-200 flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowInventoryModal(false)
+                  setMissingItem(null)
+                }}
+                className="px-4 py-2 text-surface-700 border border-surface-300 rounded-lg hover:bg-surface-50 transition-colors"
+              >
+                Skip
+              </button>
+              <button
+                onClick={handleAddToInventory}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Add to Inventory
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unit Mismatch Resolution Modal */}
+      {showUnitMismatchModal && unitMismatches.length > 0 && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-surface-200 bg-amber-50">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-amber-900">Unit Mismatch Detected</h3>
+                  <p className="text-sm text-amber-700 mt-1">
+                    The following items have different units between the purchase order and inventory. 
+                    Choose how to resolve each mismatch.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Modal Content */}
+            <div className="px-6 py-4 space-y-4">
+              {unitMismatches.map((mismatch, index) => (
+                <div key={mismatch.itemName} className="border border-amber-200 rounded-lg p-4 bg-amber-50">
+                  <div className="mb-4">
+                    <h4 className="font-medium text-amber-900 mb-2">
+                      📦 {mismatch.itemName}
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div className="bg-white p-3 rounded-lg border">
+                        <div className="text-gray-600">Inventory Unit</div>
+                        <div className="font-semibold text-blue-700">{mismatch.expectedUnit}</div>
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border">
+                        <div className="text-gray-600">Purchase Order Unit</div>
+                        <div className="font-semibold text-amber-700">{mismatch.receivedUnit}</div>
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border">
+                        <div className="text-gray-600">Quantity Received</div>
+                        <div className="font-semibold text-green-700">{mismatch.quantity}</div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <button
+                      onClick={() => handleResolveUnitMismatch(mismatch.itemName, mismatch.receivedUnit, mismatch.quantity)}
+                      disabled={resolvingMismatch}
+                      className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {resolvingMismatch ? 'Updating...' : `Update Inventory to "${mismatch.receivedUnit}"`}
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Remove this mismatch from the list (skip resolution)
+                        setUnitMismatches(prev => prev.filter(m => m.itemName !== mismatch.itemName))
+                        if (unitMismatches.length === 1) {
+                          setShowUnitMismatchModal(false)
+                        }
+                      }}
+                      className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+                    >
+                      Skip This Item
+                    </button>
+                  </div>
+                  
+                  <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      <strong>Recommended:</strong> Update the inventory unit to match your purchase order ("{mismatch.receivedUnit}") 
+                      to maintain consistency and avoid future mismatches.
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-surface-200 bg-gray-50">
+              <div className="flex justify-between items-center">
+                <div className="text-sm text-gray-600">
+                  {unitMismatches.length} unit mismatch{unitMismatches.length !== 1 ? 'es' : ''} remaining
+                </div>
+                <button
+                  onClick={() => {
+                    setShowUnitMismatchModal(false)
+                    setUnitMismatches([])
+                  }}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  Close
+                </button>
               </div>
             </div>
           </div>

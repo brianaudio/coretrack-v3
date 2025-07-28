@@ -195,21 +195,21 @@ const getAllowedModulesForRole = (role: UserRole): string[] => {
   return modules[role] || [];
 };
 
-// Dev mode mock authentication
-export const mockAuthentication = {
+// Dev mode mock authentication (should be removed in production)
+export const mockAuthentication = process.env.NODE_ENV === 'development' ? {
   staff: {
-    email: 'staff@coretrack.dev',
-    password: 'Staff123!',
+    email: process.env.NEXT_PUBLIC_STAFF_EMAIL || 'staff@coretrack.dev',
+    password: process.env.NEXT_PUBLIC_STAFF_PASSWORD || 'Staff123!',
     role: 'staff' as UserRole
   },
   manager: {
-    email: 'manager@coretrack.dev', 
-    password: 'Manager123!',
+    email: process.env.NEXT_PUBLIC_MANAGER_EMAIL || 'manager@coretrack.dev', 
+    password: process.env.NEXT_PUBLIC_MANAGER_PASSWORD || 'Manager123!',
     role: 'manager' as UserRole
   },
   owner: {
-    email: 'owner@coretrack.dev',
-    password: 'Owner123!', 
+    email: process.env.NEXT_PUBLIC_OWNER_EMAIL || 'owner@coretrack.dev',
+    password: process.env.NEXT_PUBLIC_OWNER_PASSWORD || 'Owner123!', 
     role: 'owner' as UserRole
   }
-};
+} : {};

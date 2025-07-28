@@ -3,24 +3,24 @@ import { UserRole } from '../rbac/permissions';
 // Secure credential store with hashed passwords (in production, these would be in a database)
 export const secureCredentials = {
   staff: {
-    email: 'staff@coretrack.dev',
-    password: 'Staff123!',
+    email: process.env.NEXT_PUBLIC_STAFF_EMAIL || 'staff@coretrack.dev',
+    password: process.env.NEXT_PUBLIC_STAFF_PASSWORD || 'Staff123!',
     hashedPassword: 'c7f4e7b3a9f2e1d6c8a5b4f1e7c9d2a6', // In production: bcrypt hash
     role: 'staff' as UserRole,
     maxLoginAttempts: 3,
     lockoutDuration: 15 * 60 * 1000, // 15 minutes
   },
   manager: {
-    email: 'manager@coretrack.dev',
-    password: 'Manager123!',
+    email: process.env.NEXT_PUBLIC_MANAGER_EMAIL || 'manager@coretrack.dev',
+    password: process.env.NEXT_PUBLIC_MANAGER_PASSWORD || 'Manager123!',
     hashedPassword: 'a8e3f9c1b7d4e2f5c9a6b3e1f8d7c4a9',
     role: 'manager' as UserRole,
     maxLoginAttempts: 5,
     lockoutDuration: 10 * 60 * 1000, // 10 minutes
   },
   owner: {
-    email: 'owner@coretrack.dev',
-    password: 'Owner123!',
+    email: process.env.NEXT_PUBLIC_OWNER_EMAIL || 'owner@coretrack.dev',
+    password: process.env.NEXT_PUBLIC_OWNER_PASSWORD || 'Owner123!',
     hashedPassword: 'f9e2c8a5b1d7f3c6e9a2b8f5c1e4d7a3',
     role: 'owner' as UserRole,
     maxLoginAttempts: 5,

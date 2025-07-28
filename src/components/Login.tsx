@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { signIn, signUp, demoLogin } from '../lib/firebase/auth'
+import { signIn, signUp } from '../lib/firebase/auth'
 import CoreTrackLogo from './CoreTrackLogo'
 
 interface LoginProps {
@@ -20,14 +20,51 @@ export default function Login({ onLogin }: LoginProps) {
 
     const form = e.currentTarget
     const formData = new FormData(form)
-    const email = formData.get('email') as string
+    const email = (formData.get('email') as string)?.toLowerCase().trim()
     const password = formData.get('password') as string
+
+    // Input validation
+    if (!email || !password) {
+      setError('Email and password are required')
+      setLoading(false)
+      return
+    }
+
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      setError('Please enter a valid email address')
+      setLoading(false)
+      return
+    }
+
+    // Password strength validation for signup
+    if (isSignUp) {
+      if (password.length < 8) {
+        setError('Password must be at least 8 characters long')
+        setLoading(false)
+        return
+      }
+      
+      if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
+        setError('Password must contain at least one uppercase letter, one lowercase letter, and one number')
+        setLoading(false)
+        return
+      }
+    }
 
     try {
       if (isSignUp) {
-        const displayName = formData.get('displayName') as string
-        const businessName = formData.get('businessName') as string
+        const displayName = (formData.get('displayName') as string)?.trim()
+        const businessName = (formData.get('businessName') as string)?.trim()
         const businessType = formData.get('businessType') as 'restaurant' | 'cafe' | 'food_truck' | 'other'
+        
+        // Additional validation for signup
+        if (!displayName || !businessName) {
+          setError('All fields are required for signup')
+          setLoading(false)
+          return
+        }
         
         await signUp(email, password, displayName, businessName, businessType)
       } else {
@@ -36,7 +73,19 @@ export default function Login({ onLogin }: LoginProps) {
       
       onLogin()
     } catch (err: any) {
-      setError(err.message || 'An error occurred')
+      // Don't expose internal error details
+      if (err.code === 'auth/user-not-found') {
+        setError('No account found with this email address')
+      } else if (err.code === 'auth/wrong-password') {
+        setError('Incorrect password')
+      } else if (err.code === 'auth/too-many-requests') {
+        setError('Too many failed login attempts. Please try again later.')
+      } else if (err.code === 'auth/email-already-in-use') {
+        setError('An account with this email already exists')
+      } else {
+        setError('Login failed. Please check your credentials and try again.')
+        console.error('Login error:', err) // Log for debugging, don't expose to user
+      }
     } finally {
       setLoading(false)
     }
@@ -47,10 +96,18 @@ export default function Login({ onLogin }: LoginProps) {
     setError('')
     
     try {
-      await demoLogin()
+      // Demo credentials should be environment variables in production
+      const demoEmail = process.env.NEXT_PUBLIC_DEMO_EMAIL || 'demo@coretrack.dev'
+      const demoPassword = process.env.NEXT_PUBLIC_DEMO_PASSWORD || 'demo123'
+      
+      await signIn(demoEmail, demoPassword)
       onLogin()
     } catch (err: any) {
-      setError(err.message || 'Demo login failed')
+      if (err.code === 'auth/user-not-found') {
+        setError('Demo account not available')
+      } else {
+        setError('Demo login failed. Please try manual login.')
+      }
     } finally {
       setLoading(false)
     }

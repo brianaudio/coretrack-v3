@@ -22,7 +22,7 @@ import {
 } from '../../lib/firebase/cashManagement'
 
 export default function PaymentMonitoring() {
-  const { profile } = useAuth()
+  const { user, profile } = useAuth()
   const [loading, setLoading] = useState(true)
   const [cashDrawerBalance, setCashDrawerBalance] = useState(0)
   const [paymentSummary, setPaymentSummary] = useState<PaymentMethodSummary | null>(null)
@@ -101,7 +101,7 @@ export default function PaymentMonitoring() {
       await addCashCount(profile.tenantId, {
         amount: parseFloat(newCashCount.amount),
         notes: newCashCount.notes,
-        countedBy: user.email || 'Unknown User'
+        countedBy: user?.email || 'Unknown User'
       })
 
       // Refresh data

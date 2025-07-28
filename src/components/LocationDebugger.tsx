@@ -9,61 +9,9 @@ export default function LocationDebugger() {
   const [loading, setLoading] = useState(false)
 
   const testLocations = async () => {
-    if (!profile?.tenantId) {
-      alert('Please log in first to test locations')
-      return
-    }
-
-    setLoading(true)
-    try {
-      // Test creating a location
-      const { createLocation } = await import('../lib/firebase/locationManagement')
-      const testLocation = {
-        tenantId: profile.tenantId,
-        name: 'Test Location ' + Math.random().toString(36).substr(2, 5),
-        type: 'branch' as const,
-        status: 'active' as const,
-        address: {
-          street: '123 Test Street',
-          city: 'Test City',
-          state: 'Test State',
-          zipCode: '12345',
-          country: 'Philippines'
-        },
-        contact: {
-          phone: '+63 2 1234 5678',
-          email: 'test@test.com',
-          manager: 'Test Manager'
-        },
-        settings: {
-          timezone: 'Asia/Manila',
-          currency: 'PHP',
-          businessHours: {
-            monday: { open: '09:00', close: '22:00', closed: false }
-          },
-          features: {
-            inventory: true,
-            pos: true,
-            expenses: true
-          }
-        }
-      }
-
-      const locationId = await createLocation(testLocation)
-      console.log('Created location:', locationId)
-      
-      // Now fetch all locations
-      const { getLocations } = await import('../lib/firebase/locationManagement')
-      const allLocations = await getLocations(profile.tenantId)
-      setLocations(allLocations)
-      
-      alert(`Created location! Total locations: ${allLocations.length}`)
-    } catch (error) {
-      console.error('Error:', error)
-      alert('Error: ' + error)
-    } finally {
-      setLoading(false)
-    }
+    // Test location creation disabled - use branch management instead
+    alert('Test location creation has been disabled. Use the branch management system instead.')
+    return
   }
 
   const fetchLocations = async () => {
@@ -114,10 +62,10 @@ export default function LocationDebugger() {
       <div className="mt-3 space-y-2">
         <button
           onClick={testLocations}
-          disabled={loading || !profile}
-          className="w-full bg-blue-600 text-white px-3 py-1 rounded text-sm disabled:bg-gray-400"
+          disabled={true}
+          className="w-full bg-gray-400 text-white px-3 py-1 rounded text-sm cursor-not-allowed"
         >
-          {loading ? 'Creating...' : 'Create Test Location'}
+          Test Location Creation (Disabled)
         </button>
         
         <button

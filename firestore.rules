@@ -1,9 +1,33 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow read/write access on all documents to any user signed in to the application
+    // Users can only access their own profile
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Tenant-based security: Users can only access their tenant's data
+    match /tenants/{tenantId} {
+      allow read, write: if request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.tenantId == tenantId;
+    }
+    
+    // Nested tenant collections (inventory, orders, etc.)
+    match /tenants/{tenantId}/{document=**} {
+      allow read, write: if request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.tenantId == tenantId;
+    }
+    
+    // Public collections (if any) - be very specific
+    match /public/{document} {
+      allow read: if request.auth != null;
+    }
+    
+    // Deny all other access
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if false;
     }
   }
 }

@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
+import { useBranch } from '../../lib/context/BranchContext'
+import { getBranchLocationId } from '../../lib/utils/branchUtils'
 import Notifications from './Notifications'
 import { 
   getDashboardStats, 
@@ -28,7 +30,8 @@ import {
 } from 'recharts'
 
 export default function DashboardOverview() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
+  const { selectedBranch } = useBranch()
   const [selectedPeriod, setSelectedPeriod] = useState('week')
   const [selectedView, setSelectedView] = useState('overview') // overview, analytics, detailed
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
@@ -49,15 +52,17 @@ export default function DashboardOverview() {
   }, [user, selectedPeriod])
 
   const fetchData = async () => {
-    if (!user) return
+    if (!user || !profile?.tenantId || !selectedBranch) return
+    
+    const locationId = getBranchLocationId(selectedBranch.id)
     
     try {
       setLoading(true)
       const [stats, salesChartData, topSellingItems, invAnalytics] = await Promise.all([
-        getDashboardStats('default'), // Using default tenant for now
-        getSalesChartData('default', selectedPeriod),
-        getTopSellingItems('default', '10'),
-        getInventoryAnalytics('default')
+        getDashboardStats(profile.tenantId, locationId),
+        getSalesChartData(profile.tenantId, 7), // Convert period to number
+        getTopSellingItems(profile.tenantId, 10), // Convert to number
+        getInventoryAnalytics(profile.tenantId)
       ])
 
       setDashboardStats(stats)
@@ -147,7 +152,7 @@ export default function DashboardOverview() {
                 <div>
                   <p className="text-sm text-surface-600">Total Revenue</p>
                   <p className="text-2xl font-bold text-surface-900">
-                    ₱{dashboardStats?.totalRevenue?.toLocaleString() || 0}
+                    ₱{dashboardStats?.todaysSales?.revenue?.toLocaleString() || 0}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
@@ -155,7 +160,7 @@ export default function DashboardOverview() {
                 </div>
               </div>
               <p className="text-xs text-green-600 mt-2">
-                +{dashboardStats?.revenueGrowth || 0}% from last period
+                +{dashboardStats?.thisWeekSales?.growth || 0}% from last period
               </p>
             </div>
 
@@ -164,7 +169,7 @@ export default function DashboardOverview() {
                 <div>
                   <p className="text-sm text-surface-600">Total Orders</p>
                   <p className="text-2xl font-bold text-surface-900">
-                    {dashboardStats?.totalOrders?.toLocaleString() || 0}
+                    {dashboardStats?.todaysSales?.orders?.toLocaleString() || 0}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
@@ -172,7 +177,7 @@ export default function DashboardOverview() {
                 </div>
               </div>
               <p className="text-xs text-blue-600 mt-2">
-                +{dashboardStats?.ordersGrowth || 0}% from last period
+                +{dashboardStats?.thisWeekSales?.growth || 0}% from last period
               </p>
             </div>
 
@@ -181,7 +186,7 @@ export default function DashboardOverview() {
                 <div>
                   <p className="text-sm text-surface-600">Avg Order Value</p>
                   <p className="text-2xl font-bold text-surface-900">
-                    ₱{dashboardStats?.avgOrderValue?.toFixed(2) || 0}
+                    ₱{dashboardStats?.todaysSales?.avgOrderValue?.toFixed(2) || 0}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
@@ -189,7 +194,7 @@ export default function DashboardOverview() {
                 </div>
               </div>
               <p className="text-xs text-purple-600 mt-2">
-                +{dashboardStats?.aovGrowth || 0}% from last period
+                +{dashboardStats?.thisMonthSales?.growth || 0}% from last period
               </p>
             </div>
 
@@ -198,7 +203,7 @@ export default function DashboardOverview() {
                 <div>
                   <p className="text-sm text-surface-600">Active Items</p>
                   <p className="text-2xl font-bold text-surface-900">
-                    {inventoryAnalytics?.totalActiveItems || 0}
+                    {inventoryAnalytics?.totalItems || 0}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
@@ -260,7 +265,7 @@ export default function DashboardOverview() {
               <h3 className="text-lg font-medium text-surface-900 mb-4">Top Selling Items</h3>
               <div className="space-y-3">
                 {topItems.slice(0, 8).map((item, index) => (
-                  <div key={item.id} className="flex items-center justify-between">
+                  <div key={`${item.name}-${index}`} className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
                         <span className="text-primary-600 text-sm font-medium">#{index + 1}</span>
@@ -328,7 +333,7 @@ export default function DashboardOverview() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-surface-600">Total Items</span>
-                  <span className="font-medium">{inventoryAnalytics?.totalActiveItems || 0}</span>
+                  <span className="font-medium">{inventoryAnalytics?.totalItems || 0}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-surface-600">Low Stock</span>
@@ -353,7 +358,7 @@ export default function DashboardOverview() {
                 <span className="text-green-600 text-2xl">📈</span>
               </div>
               <h4 className="text-lg font-medium text-surface-900">Revenue Growth</h4>
-              <p className="text-2xl font-bold text-green-600 mt-2">+{dashboardStats?.revenueGrowth || 0}%</p>
+              <p className="text-2xl font-bold text-green-600 mt-2">+{dashboardStats?.thisWeekSales?.growth || 0}%</p>
               <p className="text-sm text-surface-500 mt-1">vs. last period</p>
             </div>
 
@@ -362,7 +367,7 @@ export default function DashboardOverview() {
                 <span className="text-blue-600 text-2xl">📦</span>
               </div>
               <h4 className="text-lg font-medium text-surface-900">Order Growth</h4>
-              <p className="text-2xl font-bold text-blue-600 mt-2">+{dashboardStats?.ordersGrowth || 0}%</p>
+              <p className="text-2xl font-bold text-blue-600 mt-2">+{dashboardStats?.thisWeekSales?.growth || 0}%</p>
               <p className="text-sm text-surface-500 mt-1">vs. last period</p>
             </div>
 
@@ -371,7 +376,7 @@ export default function DashboardOverview() {
                 <span className="text-purple-600 text-2xl">💳</span>
               </div>
               <h4 className="text-lg font-medium text-surface-900">AOV Growth</h4>
-              <p className="text-2xl font-bold text-purple-600 mt-2">+{dashboardStats?.aovGrowth || 0}%</p>
+              <p className="text-2xl font-bold text-purple-600 mt-2">+{dashboardStats?.thisMonthSales?.growth || 0}%</p>
               <p className="text-sm text-surface-500 mt-1">vs. last period</p>
             </div>
           </div>
@@ -417,7 +422,7 @@ export default function DashboardOverview() {
                   </thead>
                   <tbody className="bg-white divide-y divide-surface-200">
                     {topItems.map((item, index) => (
-                      <tr key={item.id}>
+                      <tr key={`${item.name}-${index}`}>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center mr-3">

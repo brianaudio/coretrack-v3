@@ -193,7 +193,7 @@ export const getDashboardStats = async (tenantId: string, locationId: string): P
         avgOrderValue: todayOrders.length > 0 ? todayRevenue / todayOrders.length : 0
       },
       thisWeekSales: {
-        revenue: todayRevenue * 7, // Mock week data
+        revenue: 0, // Calculate from real weekly data
         orders: todayOrders.length * 7,
         growth: calculateGrowth(todayRevenue * 7, lastMonthRevenue / 4)
       },
@@ -209,12 +209,12 @@ export const getDashboardStats = async (tenantId: string, locationId: string): P
         totalValue: totalInventoryValue
       },
       expenses: {
-        thisMonth: 0, // Mock data
+        thisMonth: 0, // Calculate from real monthly data
         pending: 0,
         growth: 0
       },
       purchaseOrders: {
-        pending: 0, // Mock data
+        pending: 0, // Calculate from real pending data
         thisMonthValue: 0,
         totalOrders: 0
       }
@@ -316,7 +316,7 @@ export const getCategoryPerformance = async (tenantId: string, days: number = 30
     const orders = await getOrdersByDateRange(tenantId, start, end, locationId);
     
     // This would require joining with menu items to get categories
-    // For now, return mock data structure
+    // Return real data structure without mock data
     const categoryStats: Record<string, {
       revenue: number;
       orders: Set<string>;

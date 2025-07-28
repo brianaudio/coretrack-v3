@@ -171,7 +171,7 @@ export default function FirebaseDebugger() {
             
             <div className="bg-gray-100 p-4 rounded-lg">
               <p className="text-sm text-gray-600">
-                Click "Debug All Collections" to see detailed console output of all your Firestore data. 
+                Click &quot;Debug All Collections&quot; to see detailed console output of all your Firestore data. 
                 Open browser DevTools → Console to see the results.
               </p>
             </div>
@@ -184,14 +184,14 @@ export default function FirebaseDebugger() {
           <div className="text-blue-700 space-y-2">
             <p><strong>If your Firebase is empty:</strong></p>
             <ol className="list-decimal list-inside space-y-1">
-              <li>Go to Settings → "Restore Default Data" to get sample menu items</li>
+              <li>Go to Settings → &quot;Restore Default Data&quot; to get sample menu items</li>
               <li>Use Menu Builder to create your actual menu items</li>
               <li>Use Inventory Center to set up your inventory</li>
               <li>Your data will be automatically saved to Firebase</li>
             </ol>
             <p className="mt-4"><strong>If you had data before:</strong></p>
             <ul className="list-disc list-inside space-y-1">
-              <li>Check if you're logged into the correct account</li>
+              <li>Check if you&apos;re logged into the correct account</li>
               <li>Verify your Firebase project settings</li>
               <li>Look for data in different collection paths</li>
             </ul>

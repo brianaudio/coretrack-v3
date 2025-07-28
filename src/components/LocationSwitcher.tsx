@@ -12,11 +12,6 @@ export default function LocationSwitcher() {
   console.log('🏢 LocationSwitcher: Rendering with', locations.length, 'locations, current:', currentLocation?.name)
 
   // Don't render if no locations
-  if (!locations || locations.length === 0) {
-    console.log('🏢 LocationSwitcher: No locations available, not rendering')
-    return null
-  }
-
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -28,6 +23,11 @@ export default function LocationSwitcher() {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  if (!locations || locations.length === 0) {
+    console.log('🏢 LocationSwitcher: No locations available, not rendering')
+    return null
+  }
 
   const handleLocationChange = (location: Location) => {
     setCurrentLocation(location)

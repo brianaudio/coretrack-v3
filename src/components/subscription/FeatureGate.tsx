@@ -20,15 +20,21 @@ export const FeatureGate: React.FC<FeatureGateProps> = ({
 }) => {
   const { hasFeature, loading } = useSubscription();
 
+  // DEVELOPMENT MODE: Always allow access during testing
+  const isDevMode = process.env.NODE_ENV === 'development';
+  
+  // In development, skip loading check and always allow access
+  if (isDevMode) {
+    return <>{children}</>;
+  }
+
   if (loading) {
     return (
       <div className="animate-pulse bg-gray-200 rounded-lg h-20 w-full"></div>
     );
   }
 
-  // DEVELOPMENT MODE: Always allow access during testing
-  const isDevMode = process.env.NODE_ENV === 'development';
-  const hasAccess = isDevMode || hasFeature(feature);
+  const hasAccess = hasFeature(feature);
 
   if (hasAccess) {
     return <>{children}</>;

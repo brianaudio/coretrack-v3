@@ -1,0 +1,13 @@
+{
+  "scripts": {
+    "dev": "next dev",
+    "dev:turbo": "next dev --turbo", 
+    "dev:fast": "NODE_OPTIONS='--max-old-space-size=4096' next dev --turbo",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "clean": "rm -rf .next dist build .turbo node_modules/.cache",
+    "reset": "npm run clean && npm install",
+    "optimize": "./scripts/optimize-performance.sh"
+  }
+}

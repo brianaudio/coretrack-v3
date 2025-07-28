@@ -15,13 +15,8 @@ export const setCurrentBranch = (branchId: string): void => {
 }
 
 export const getBranchName = (branchId: string): string => {
-  // This now serves as a fallback - the actual branch names should come from BranchContext
-  const branches: Record<string, string> = {
-    'main': 'Main Branch',
-    'downtown': 'Downtown Store', 
-    'mall': 'Mall Location'
-  }
-  return branches[branchId] || branchId
+  // Fallback function - actual branch names should come from BranchContext/Firebase
+  return branchId.charAt(0).toUpperCase() + branchId.slice(1)
 }
 
 // New utility functions for the enhanced branch system
@@ -34,10 +29,6 @@ export const isMainBranch = (branchId: string): boolean => {
 }
 
 export const getBranchIcon = (branchId: string): string => {
-  const icons: Record<string, string> = {
-    'main': '🏢',
-    'downtown': '🏪',
-    'mall': '🛒'
-  }
-  return icons[branchId] || '🏪'
+  // Return default icon - actual icons should be stored in Firebase branch data
+  return branchId === 'main' ? '🏢' : '🏪'
 }

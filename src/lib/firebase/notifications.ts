@@ -20,17 +20,18 @@ import { db } from '../firebase';
 export interface Notification {
   id: string;
   tenantId: string;
-  type: 'low_stock' | 'out_of_stock' | 'expiration' | 'reorder_suggestion' | 'system' | 'critical';
+  type: 'low_stock' | 'out_of_stock' | 'expiration' | 'reorder_suggestion' | 'system' | 'critical' | 'approval' | 'delivery' | 'order_status' | 'general';
   title: string;
   message: string;
-  priority: 'low' | 'medium' | 'high' | 'critical';
-  category: 'inventory' | 'sales' | 'system' | 'alert';
+  priority: 'low' | 'medium' | 'high' | 'critical' | 'urgent';
+  category: 'inventory' | 'sales' | 'system' | 'alert' | 'orders' | 'approvals';
   isRead: boolean;
   isEmailSent: boolean;
   relatedItemId?: string;
   relatedItemName?: string;
   actionRequired: boolean;
-  actionType?: 'reorder' | 'check_expiry' | 'update_stock' | 'review';
+  actionType?: 'reorder' | 'check_expiry' | 'update_stock' | 'review' | 'approve' | 'deliver';
+  actionUrl?: string; // URL to navigate to when notification is clicked
   data?: Record<string, any>; // Additional notification data
   createdAt: Timestamp;
   readAt?: Timestamp;
@@ -48,6 +49,7 @@ export interface CreateNotification {
   actionType?: Notification['actionType'];
   relatedItemId?: string;
   relatedItemName?: string;
+  actionUrl?: string;
   data?: Record<string, any>;
   expiresAt?: Date;
 }
@@ -353,3 +355,108 @@ export const cleanupExpiredNotifications = async (tenantId: string): Promise<voi
     console.error('Error cleaning up expired notifications:', error);
   }
 };
+
+// Helper functions for common notification types
+export const notifyOrderStatusChange = async (
+  tenantId: string, 
+  orderNumber: string, 
+  oldStatus: string, 
+  newStatus: string
+) => {
+  const priority = newStatus === 'delivered' ? 'medium' : newStatus === 'cancelled' ? 'high' : 'low'
+  
+  await createNotification({
+    tenantId,
+    type: 'order_status',
+    title: 'Order Status Updated',
+    message: `Purchase Order #${orderNumber} status changed from ${oldStatus} to ${newStatus}`,
+    priority,
+    category: 'orders',
+    actionRequired: false,
+    actionUrl: '/purchase-orders'
+  })
+}
+
+export const notifyApprovalRequired = async (
+  tenantId: string,
+  orderNumber: string,
+  requestedBy: string,
+  totalAmount: number
+) => {
+  await createNotification({
+    tenantId,
+    type: 'approval',
+    title: 'Approval Required',
+    message: `Purchase Order #${orderNumber} (₱${totalAmount.toLocaleString()}) from ${requestedBy} needs approval`,
+    priority: totalAmount > 50000 ? 'high' : 'medium',
+    category: 'approvals',
+    actionRequired: true,
+    actionType: 'approve',
+    actionUrl: '/purchase-orders'
+  })
+}
+
+// Helper function for delivery notifications
+export const notifyDeliveryReceived = async (
+  tenantId: string,
+  orderId: string,
+  supplierName: string,
+  receivedBy: string,
+  isPartialDelivery: boolean = false
+) => {
+  const message = isPartialDelivery 
+    ? `Partial delivery from ${supplierName} received by ${receivedBy}`
+    : `Full delivery from ${supplierName} received by ${receivedBy}`
+  
+  return createNotification({
+    tenantId,
+    type: 'delivery',
+    title: 'Delivery Received',
+    message,
+    priority: 'medium',
+    category: 'system',
+    data: { orderId, supplierName, receivedBy, isPartialDelivery },
+    actionUrl: `/purchase-orders/${orderId}`
+  })
+}
+
+// Helper function for inventory notifications
+export const notifyLowStock = async (
+  tenantId: string,
+  itemName: string,
+  currentStock: number,
+  reorderPoint: number,
+  locationId?: string
+) => {
+  return createNotification({
+    tenantId,
+    type: 'general',
+    title: 'Low Stock Alert',
+    message: `${itemName} is running low (${currentStock} remaining, reorder at ${reorderPoint})`,
+    priority: 'high',
+    category: 'alert',
+    data: { itemName, currentStock, reorderPoint, locationId },
+    actionUrl: '/inventory'
+  })
+}
+
+// Helper function for inventory update notifications
+export const notifyInventoryUpdate = async (
+  tenantId: string,
+  itemName: string,
+  action: 'added' | 'updated' | 'deleted',
+  updatedBy: string
+) => {
+  const message = `${itemName} was ${action} by ${updatedBy}`
+  
+  return createNotification({
+    tenantId,
+    type: 'general',
+    title: 'Inventory Update',
+    message,
+    priority: 'low',
+    category: 'inventory',
+    data: { itemName, action, updatedBy },
+    actionUrl: '/inventory'
+  })
+}

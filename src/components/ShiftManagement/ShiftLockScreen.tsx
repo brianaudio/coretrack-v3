@@ -404,7 +404,7 @@ export default function ShiftLockScreen({ children }: ShiftLockScreenProps) {
                   </div>
                   <div>
                     <p className="font-medium text-gray-900">Staff Accountability</p>
-                    <p className="text-sm text-gray-600">Track who's responsible for today's operations</p>
+                    <p className="text-sm text-gray-600">Track who&apos;s responsible for today&apos;s operations</p>
                   </div>
                 </div>
                 

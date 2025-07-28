@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useAuth } from '../lib/context/AuthContext'
-import { seedInventoryData } from '../lib/firebase/seedData'
 
 export default function DevTools() {
   const { profile } = useAuth()
@@ -16,11 +15,11 @@ export default function DevTools() {
 
     setIsSeeding(true)
     try {
-      await seedInventoryData(profile.tenantId)
-      alert('Sample inventory data has been added successfully!')
+      // Sample data seeding removed - implement actual data creation features
+      alert('Data seeding feature has been removed. Use the regular interface to add data.')
     } catch (error) {
-      console.error('Error seeding data:', error)
-      alert('Failed to seed data. Please check the console for errors.')
+      console.error('Error:', error)
+      alert('Feature not available.')
     } finally {
       setIsSeeding(false)
     }

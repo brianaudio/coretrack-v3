@@ -4,7 +4,8 @@ import {
   getDocs, 
   getDoc,
   addDoc, 
-  updateDoc, 
+  updateDoc,
+  setDoc, 
   deleteDoc, 
   onSnapshot, 
   query, 
@@ -147,8 +148,8 @@ export const subscribeToPOSItems = (
       items = items.filter(item => item.locationId === locationId);
     }
     
-    console.log(`🔄 POS: Real-time update - ${items.length} items${locationId ? ` for location ${locationId}` : ''}`);
-    callback(items);
+    // Real-time update received
+    callback(items)
   }, (error) => {
     console.error('Error in POS items subscription:', error);
   });
@@ -229,10 +230,94 @@ export const createPOSOrder = async (order: CreatePOSOrder): Promise<string> => 
       updatedAt: now
     });
     
+    // If order is completed, trigger business logic integrations
+    if (order.status === 'completed') {
+      await handleCompletedOrder(order.tenantId, docRef.id, order);
+    }
+    
     return docRef.id;
   } catch (error) {
     console.error('Error creating POS order:', error);
     throw new Error('Failed to create POS order');
+  }
+};
+
+// Handle completed order business logic
+const handleCompletedOrder = async (tenantId: string, orderId: string, order: CreatePOSOrder) => {
+  try {
+    // 1. Update analytics (sales, revenue, popular items)
+    await updateSalesAnalytics(tenantId, order);
+    
+    // 2. Process inventory deductions
+    const { processInventoryDeduction } = require('./integration');
+    await processInventoryDeduction(tenantId, order.items);
+    
+    // 3. Update financial records
+    await updateFinancialRecords(tenantId, orderId, order);
+    
+  } catch (error) {
+    console.error('Error handling completed order business logic:', error);
+    // Don't throw here - order is already created, just log the issue
+  }
+};
+
+// Update sales analytics
+const updateSalesAnalytics = async (tenantId: string, order: CreatePOSOrder) => {
+  try {
+    const analyticsRef = doc(db, `tenants/${tenantId}/analytics`, 'sales');
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    // Get existing analytics or create new
+    const analyticsDoc = await getDoc(analyticsRef);
+    const currentData = analyticsDoc.exists() ? analyticsDoc.data() : {};
+    
+    // Update daily totals
+    const dailyData = currentData.daily || {};
+    const todayData = dailyData[today] || { sales: 0, orders: 0, items: {} };
+    
+    todayData.sales += order.total;
+    todayData.orders += 1;
+    
+    // Update popular items
+    order.items.forEach(item => {
+      if (!todayData.items[item.itemId]) {
+        todayData.items[item.itemId] = { name: item.name, quantity: 0, revenue: 0 };
+      }
+      todayData.items[item.itemId].quantity += item.quantity;
+      todayData.items[item.itemId].revenue += item.total;
+    });
+    
+    dailyData[today] = todayData;
+    
+    // Update analytics document (create if doesn't exist)
+    await setDoc(analyticsRef, {
+      daily: dailyData,
+      lastUpdated: Timestamp.now()
+    }, { merge: true });
+    
+  } catch (error) {
+    console.error('Error updating sales analytics:', error);
+  }
+};
+
+// Update financial records
+const updateFinancialRecords = async (tenantId: string, orderId: string, order: CreatePOSOrder) => {
+  try {
+    const financialRef = collection(db, `tenants/${tenantId}/financialTransactions`);
+    
+    await addDoc(financialRef, {
+      type: 'sale',
+      orderId: orderId,
+      amount: order.total,
+      description: `POS Sale - ${order.items.length} items`,
+      date: Timestamp.now(),
+      tenantId: tenantId,
+      locationId: order.locationId,
+      createdAt: Timestamp.now()
+    });
+    
+  } catch (error) {
+    console.error('Error updating financial records:', error);
   }
 };
 
@@ -285,7 +370,7 @@ export const subscribeToPOSOrders = (
       orders = orders.filter(order => order.locationId === locationId);
     }
     
-    console.log(`🔄 POS: Real-time orders update - ${orders.length} orders${locationId ? ` for location ${locationId}` : ''}`);
+    // Real-time orders update received
     callback(orders);
   }, (error) => {
     console.error('Error in POS orders subscription:', error);

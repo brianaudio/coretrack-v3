@@ -47,7 +47,7 @@ const SecurityAudit: React.FC = () => {
 
   if (!sessionInfo) return null;
 
-  const security = getSecurityLevel(currentRole);
+  const security = getSecurityLevel(currentRole || 'staff');
 
   return (
     <div className="fixed bottom-4 left-4 z-50">

@@ -10,6 +10,7 @@ import { PermissionGate, NoPermissionMessage } from '../permissions/PermissionGa
 import { useFeatureAccess } from '../../lib/hooks/useFeatureAccess'
 import { POSItemSkeleton } from '../ui/Skeleton'
 import CoreTrackLogo from '../CoreTrackLogo'
+import { debugTrace, debugStep, debugError, debugSuccess, debugInspect } from '../../lib/utils/debugHelper'
 import { 
   getPOSItems, 
   createPOSOrder, 
@@ -23,9 +24,6 @@ import {
 } from '../../lib/firebase/pos'
 import { collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, orderBy, where, Timestamp } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
-import {
-  processInventoryDeduction
-} from '../../lib/firebase/integration'
 import { getPaymentMethods, initializeDefaultPaymentMethods, getCashDrawers, updateCashDrawer, addPaymentTransaction, initializeDefaultCashDrawer, type PaymentMethod as PaymentMethodType } from '../../lib/firebase/cashManagement'
 
 interface CartItem {
@@ -71,9 +69,12 @@ export default function POS() {
   const { canAccessPOS } = useFeatureAccess()
   const { selectedBranch } = useBranch()
   
-  // Simple message function instead of toast for now
+  // Message function for user feedback
   const showMessage = (message: string, type: string = 'info') => {
-    console.log(`📱 POS ${type.toUpperCase()}:`, message)
+    // TODO: Implement proper toast notification system
+    if (type === 'error') {
+      console.error('POS Error:', message);
+    }
   }
   
   const [selectedCategory, setSelectedCategory] = useState('All')
@@ -133,16 +134,6 @@ export default function POS() {
     loadFavorites()
   }, [profile?.tenantId])
 
-  // Debug favorites and menu items
-  useEffect(() => {
-    console.log('🌟 Favorites Debug:', {
-      favoritesCount: favorites.length,
-      favorites: favorites,
-      menuItemsCount: menuItems.length,
-      favoriteItems: menuItems.filter(item => favorites.includes(item.id)).map(item => ({ id: item.id, name: item.name }))
-    })
-  }, [favorites, menuItems])
-
   // Quick Actions & Shortcuts - now editable
   const [quickActions, setQuickActions] = useState<QuickAction[]>([
     { id: 'mod1', name: 'Extra Cheese', type: 'modifier', price: 25, icon: '🧀' },
@@ -179,115 +170,152 @@ export default function POS() {
 
   // Load sales dashboard data
   useEffect(() => {
-    // Mock data - in real app, this would fetch from Firebase
-    const generateMockSalesData = () => {
-      // No mock popular items - will show empty state
-      const mockPopularItems: Array<{name: string, quantity: number, revenue: number}> = []
-
-      const mockHourlyData = [
-        { hour: '6AM', orders: 2, revenue: 150 },
-        { hour: '7AM', orders: 8, revenue: 420 },
-        { hour: '8AM', orders: 15, revenue: 780 },
-        { hour: '9AM', orders: 12, revenue: 650 },
-        { hour: '10AM', orders: 18, revenue: 920 },
-        { hour: '11AM', orders: 25, revenue: 1340 },
-        { hour: '12PM', orders: 42, revenue: 2180 },
-        { hour: '1PM', orders: 38, revenue: 1950 },
-        { hour: '2PM', orders: 28, revenue: 1420 },
-        { hour: '3PM', orders: 22, revenue: 1100 },
-        { hour: '4PM', orders: 15, revenue: 780 },
-        { hour: '5PM', orders: 32, revenue: 1680 }
-      ]
-
-      const mockLowStockItems = [
-        { name: 'Beef Patties', stock: 5, category: 'Meat' },
-        { name: 'Tomatoes', stock: 8, category: 'Vegetables' },
-        { name: 'Cheese Slices', stock: 12, category: 'Dairy' }
-      ]
-
-      const todaysOrders = mockHourlyData.reduce((sum, hour) => sum + hour.orders, 0)
-      const todaysSales = mockHourlyData.reduce((sum, hour) => sum + hour.revenue, 0)
+    // Initialize empty analytics data
+    const generateEmptyAnalytics = () => {
+      const emptyPopularItems: Array<{name: string, quantity: number, revenue: number}> = []
+      const emptyHourlyData = Array.from({ length: 12 }, (_, i) => ({
+        hour: `${i + 6}${i < 6 ? 'AM' : 'PM'}`,
+        orders: 0,
+        revenue: 0
+      }))
+      const emptyLowStockItems: Array<{name: string, stock: number, category: string}> = []
 
       setSalesData({
-        todaysSales,
-        todaysOrders,
-        averageOrderValue: todaysSales / todaysOrders,
-        popularItems: mockPopularItems,
-        hourlyData: mockHourlyData,
-        lowStockItems: mockLowStockItems
+        todaysSales: 0,
+        todaysOrders: 0,
+        averageOrderValue: 0,
+        popularItems: emptyPopularItems,
+        hourlyData: emptyHourlyData,
+        lowStockItems: emptyLowStockItems
       })
     }
 
-    generateMockSalesData()
+    generateEmptyAnalytics()
   }, [])
 
   // Load menu items and categories with real-time updates
   useEffect(() => {
-    if (!user?.uid || !selectedBranch) return
+    debugTrace('POS Data Loading Effect', {
+      hasUser: !!user?.uid,
+      hasSelectedBranch: !!selectedBranch,
+      hasTenantId: !!profile?.tenantId,
+      branchId: selectedBranch?.id,
+      tenantId: profile?.tenantId
+    }, { component: 'POS', sensitive: true })
+
+    if (!user?.uid || !selectedBranch || !profile?.tenantId) {
+      debugStep('POS Loading Cancelled - Missing Requirements', {
+        userUid: !!user?.uid,
+        selectedBranch: !!selectedBranch,
+        tenantId: !!profile?.tenantId
+      }, { component: 'POS', level: 'warn' })
+      return
+    }
 
     // Use branch-based location ID for filtering
     const locationId = getBranchLocationId(selectedBranch.id)
+    debugStep('Location ID Generated', { 
+      branchId: selectedBranch.id, 
+      locationId 
+    }, { component: 'POS' })
 
     const loadData = async () => {
       try {
         setLoading(true)
-        console.log('🔄 POS - Loading data for tenant:', profile?.tenantId, 'branch:', selectedBranch.name)
+        debugStep('Starting POS Data Load', { 
+          tenantId: profile.tenantId, 
+          locationId 
+        }, { component: 'POS' })
         
+        debugStep('Fetching POS Data from Firebase', {
+          operations: ['getPOSItems', 'getPOSCategories', 'getPaymentMethods']
+        }, { component: 'POS' })
+
         const [items, cats, methods] = await Promise.all([
           getPOSItems(profile.tenantId, locationId),
           getPOSCategories(profile.tenantId),
           getPaymentMethods(profile.tenantId)
         ])
         
-        console.log('📦 POS Items loaded:', items.length)
-        console.log('📂 POS Categories loaded:', cats.length)
-        console.log('💳 Payment Methods loaded:', methods.length)
-        console.log('🏢 Branch locationId:', locationId)
-        console.log('🔍 First few items:', items.slice(0, 3))
+        debugStep('POS Data Fetched Successfully', {
+          itemCount: items?.length || 0,
+          categoryCount: cats?.length || 0,
+          paymentMethodCount: methods?.length || 0
+        }, { component: 'POS', level: 'success' })
+
+        debugInspect(items, 'POS Items', { component: 'POS' })
+        debugInspect(cats, 'POS Categories', { component: 'POS' })
+        debugInspect(methods, 'Payment Methods', { component: 'POS' })
         
-        setMenuItems(items)
-        setCategories(['All', ...cats])
-        setPaymentMethods(methods)
+        setMenuItems(items || [])
+        setCategories(['All', ...(cats || [])])
+        setPaymentMethods(methods || [])
         
         // Initialize default payment methods if none exist
-        if (methods.length === 0) {
-          console.log('No payment methods found, initializing defaults...')
+        if (!methods || methods.length === 0) {
+          debugStep('Initializing Default Payment Methods', {
+            reason: 'No payment methods found'
+          }, { component: 'POS' })
+
           await initializeDefaultPaymentMethods(profile.tenantId)
           // Refresh payment methods after initialization
           const updatedMethods = await getPaymentMethods(profile.tenantId)
-          setPaymentMethods(updatedMethods)
+          setPaymentMethods(updatedMethods || [])
+          
+          debugStep('Default Payment Methods Initialized', {
+            newMethodCount: updatedMethods?.length || 0
+          }, { component: 'POS', level: 'success' })
           
           // Set default payment method to the first active method or 'cash'
-          if (updatedMethods.length > 0) {
+          if (updatedMethods && updatedMethods.length > 0) {
             const defaultMethod = updatedMethods.find(m => m.isActive && m.type === 'cash') || updatedMethods.find(m => m.isActive) || updatedMethods[0]
             setPaymentMethod(defaultMethod.id)
+            debugStep('Default Payment Method Set', { methodId: defaultMethod.id, methodType: defaultMethod.type }, { component: 'POS' })
           }
         } else {
           // Set default payment method to the first active method or 'cash'
           const defaultMethod = methods.find(m => m.isActive && m.type === 'cash') || methods.find(m => m.isActive) || methods[0]
-          setPaymentMethod(defaultMethod.id)
+          if (defaultMethod) {
+            setPaymentMethod(defaultMethod.id)
+            debugStep('Existing Payment Method Set', { methodId: defaultMethod.id, methodType: defaultMethod.type }, { component: 'POS' })
+          }
         }
-      } catch (error) {
-        console.error('❌ Error loading POS data:', error)
+      } catch (error: any) {
+        debugError(error, {
+          operation: 'Loading POS data',
+          tenantId: profile.tenantId,
+          locationId
+        }, { component: 'POS' })
+        console.error('Error loading POS data:', error)
       } finally {
         setLoading(false)
+        debugStep('POS Data Loading Complete', { loading: false }, { component: 'POS' })
       }
     }
 
     loadData()
 
-    // Set up real-time subscription for POS items
+    // Set up real-time subscription for POS items  
+    debugStep('Setting Up Real-time POS Subscription', { tenantId: profile.tenantId }, { component: 'POS' })
     const { subscribeToPOSItems } = require('../../lib/firebase/pos')
     const unsubscribe = subscribeToPOSItems(profile.tenantId, (items: POSItem[]) => {
-      console.log('🔄 POS - Real-time update:', items.length, 'items')
-      setMenuItems(items)
+      debugStep('Real-time POS Items Update', { 
+        itemCount: items?.length || 0 
+      }, { component: 'POS' })
+      setMenuItems(items || [])
       setLoading(false)
     }, locationId)
 
+    // Set loading to false after a timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      setLoading(false)
+    }, 3000)
+
     return () => {
       if (unsubscribe) unsubscribe()
+      clearTimeout(timeoutId)
     }
-  }, [profile?.tenantId, selectedBranch?.id])
+  }, [profile?.tenantId, selectedBranch?.id, user?.uid])
 
   // Load recent orders
   useEffect(() => {
@@ -299,8 +327,6 @@ export default function POS() {
     const loadRecentOrders = async () => {
       try {
         setLoadingOrders(true)
-        
-        console.log('🔄 POS - Loading recent orders for branch:', selectedBranch.name, 'locationId:', locationId)
         
         const orders = await getPOSOrders(profile.tenantId, locationId)
         // Get today's orders only
@@ -314,7 +340,7 @@ export default function POS() {
         
         setRecentOrders(todaysOrders)
       } catch (error) {
-        console.error('❌ Error loading recent orders:', error)
+        console.error('Error loading recent orders:', error)
       } finally {
         setLoadingOrders(false)
       }
@@ -415,6 +441,7 @@ export default function POS() {
         createdAt: Timestamp.now(),
         userId: user?.uid
       })
+      showMessage('Added to favorites', 'success')
     } catch (error) {
       console.error('Error saving favorites to Firebase:', error)
     }
@@ -434,6 +461,7 @@ export default function POS() {
       snapshot.docs.forEach(async (docSnapshot) => {
         await deleteDoc(doc(db, `tenants/${profile.tenantId}/posFavorites`, docSnapshot.id))
       })
+      showMessage('Removed from favorites', 'success')
     } catch (error) {
       console.error('Error removing favorites from Firebase:', error)
     }
@@ -458,6 +486,7 @@ export default function POS() {
         createdAt: Timestamp.now(),
         userId: user?.uid
       })
+      showMessage(`Quick modifier "${modifier.name}" added`, 'success')
     } catch (error) {
       console.error('Error saving quick modifiers to Firebase:', error)
     }
@@ -479,6 +508,7 @@ export default function POS() {
       snapshot.docs.forEach(async (docSnapshot) => {
         await updateDoc(doc(db, `tenants/${profile.tenantId}/posQuickModifiers`, docSnapshot.id), updates)
       })
+      showMessage('Quick modifier updated', 'success')
     } catch (error) {
       console.error('Error updating quick modifiers in Firebase:', error)
     }
@@ -498,6 +528,7 @@ export default function POS() {
       snapshot.docs.forEach(async (docSnapshot) => {
         await deleteDoc(doc(db, `tenants/${profile.tenantId}/posQuickModifiers`, docSnapshot.id))
       })
+      showMessage('Quick modifier deleted', 'success')
     } catch (error) {
       console.error('Error deleting quick modifiers from Firebase:', error)
     }
@@ -597,6 +628,11 @@ export default function POS() {
       return
     }
 
+    if (!profile?.tenantId) {
+      showMessage('User profile not loaded! Please try again.', 'error')
+      return
+    }
+
     if (!selectedBranch) {
       showMessage('No branch selected! Please select a branch.', 'error')
       return
@@ -637,15 +673,10 @@ export default function POS() {
         locationId // Add branch-specific locationId
       }
 
-      // Create the order
+      // Create the order (this will update analytics and inventory automatically)
       const orderId = await createPOSOrder(orderData)
-      console.log('✅ Order created:', orderId)
       
-      // Process inventory deductions
-      await processInventoryDeduction(profile.tenantId, orderItems)
-      console.log('✅ Inventory updated for sold items')
-      
-      // Handle cash payment and drawer updates
+      // Handle cash payment and drawer updates (this will update finances)
       if (isCashPayment() && selectedPaymentMethod) {
         try {
           const receivedAmount = parseFloat(cashReceived) || 0
@@ -665,9 +696,6 @@ export default function POS() {
               cashOnHand: activeCashDrawer.cashOnHand + netCashAdded,
               expectedCash: activeCashDrawer.expectedCash + netCashAdded,
             })
-            console.log(`💰 Cash drawer updated: +₱${netCashAdded}`)
-          } else {
-            console.warn('⚠️ No active cash drawer found, cash not tracked')
           }
           
           // Record the payment transaction
@@ -681,10 +709,9 @@ export default function POS() {
             changeGiven: changeGiven,
             tenantId: profile.tenantId,
           })
-          console.log('📝 Payment transaction recorded')
           
         } catch (cashError) {
-          console.error('⚠️ Error updating cash management:', cashError)
+          console.error('Error updating cash management:', cashError)
           // Don't fail the order if cash management fails
         }
       } else if (selectedPaymentMethod) {
@@ -698,9 +725,8 @@ export default function POS() {
             amount: totalAmount,
             tenantId: profile.tenantId,
           })
-          console.log('📝 Payment transaction recorded')
         } catch (paymentError) {
-          console.error('⚠️ Error recording payment transaction:', paymentError)
+          console.error('Error recording payment transaction:', paymentError)
         }
       }
       
@@ -714,7 +740,7 @@ export default function POS() {
       if (isCashPayment() && changeAmount > 0) {
         showMessage(`Order completed! Change: ₱${changeAmount.toFixed(2)}`, 'success')
       } else {
-        showMessage('Order completed successfully! Inventory updated.', 'success')
+        showMessage('Order completed successfully! Inventory and finances updated.', 'success')
       }
     } catch (error) {
       console.error('Error processing order:', error)
@@ -726,29 +752,26 @@ export default function POS() {
 
   const voidOrder = async (order: POSOrder, reason: string) => {
     if (!user?.uid) return
+    if (!profile?.tenantId) {
+      showMessage('User profile not loaded! Please try again.', 'error')
+      return
+    }
 
     try {
       setVoidingOrder(order.id)
       
-      console.log('🚨 Voiding order:', order.id, order.orderNumber)
-      console.log('📋 Order items to restore:', order.items)
-      
       // Restore inventory quantities
       const { restoreInventoryFromVoid } = require('../../lib/firebase/integration')
-      console.log('🔄 Starting inventory restoration...')
       await restoreInventoryFromVoid(profile.tenantId, order.items)
-      console.log('✅ Inventory restoration completed')
       
       // Update order status to voided
       const { updatePOSOrder } = require('../../lib/firebase/pos')
-      console.log('📝 Updating order status to voided...')
       await updatePOSOrder(profile.tenantId, order.id, {
         status: 'voided',
         voidReason: reason,
         voidedAt: new Date(),
         voidedBy: user.email || 'Unknown'
       })
-      console.log('✅ Order status updated to voided')
       
       // Refresh the recent orders list to show the updated status
       if (profile?.tenantId) {
@@ -762,11 +785,10 @@ export default function POS() {
         setRecentOrders(sortedOrders.slice(0, 10))
       }
       
-      console.log('✅ Order voided and inventory restored:', order.id)
-      alert('Order voided successfully! Inventory has been restored.')
+      showMessage('Order voided successfully! Inventory has been restored.', 'success')
     } catch (error) {
       console.error('Error voiding order:', error)
-      alert('Error voiding order. Please try again.')
+      showMessage('Error voiding order. Please try again.', 'error')
     } finally {
       setVoidingOrder(null)
     }
@@ -778,139 +800,169 @@ export default function POS() {
         permission="pos"
         fallback={<NoPermissionMessage permission="pos" action="access the Point of Sale system" />}
       >
-        <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Professional Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
-        <div className="px-6 py-3">
-          <div className="flex items-center justify-between">
-            {/* Logo & Title */}
-            <div className="flex items-center gap-4">
-              <CoreTrackLogo size="lg" />
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">Point of Sale</h1>
-                <p className="text-gray-500 text-sm">Professional POS System</p>
-              </div>
-            </div>
+        <div className="min-h-screen bg-surface-50 flex flex-col">
+          {/* Enterprise Header */}
+          <div className="bg-white border-b border-surface-200 sticky top-0 z-20 shadow-sm">
+            {/* Top Header Bar */}
+            <div className="border-b border-surface-100">
+              <div className="px-6 py-3">
+                <div className="flex items-center justify-between">
+                  {/* Left - Logo & Title */}
+                  <div className="flex items-center gap-3">
+                    <CoreTrackLogo size="sm" />
+                    <div className="border-l border-surface-300 pl-3">
+                      <h1 className="text-lg font-semibold text-surface-900">Point of Sale</h1>
+                      <div className="flex items-center gap-2 text-xs text-surface-500">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                        <span className="font-medium">{selectedBranch?.name || 'Main Branch'}</span>
+                        <span className="text-surface-400">|</span>
+                        <span>Terminal ID: {user?.uid?.slice(-8).toUpperCase()}</span>
+                      </div>
+                    </div>
+                  </div>
 
-            {/* Branch Indicator */}
-            <div className="flex items-center bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
-              <svg className="w-4 h-4 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
-              <span className="font-medium">{selectedBranch?.name || 'Main Branch'}</span>
-              <span className="mx-2">•</span>
-              <span>POS Terminal</span>
-            </div>
-            
-            {/* Search Bar */}
-            <div className="flex-1 max-w-lg mx-8">
-              <div className="relative">
-                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Search menu items..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all"
-                />
-              </div>
-            </div>
+                  {/* Center - Search */}
+                  <div className="flex-1 max-w-md mx-8">
+                    <div className="relative">
+                      <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <input
+                        type="text"
+                        placeholder="Search menu items..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 bg-surface-50 border border-surface-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:bg-white transition-all text-sm"
+                      />
+                    </div>
+                  </div>
 
-            {/* Action Center */}
-            <div className="flex items-center gap-2">
-              {/* Cart Summary */}
-              <div className="bg-gray-50 rounded-lg px-3 py-2 border border-gray-200">
-                <div className="flex items-center gap-2 text-sm">
-                  <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l-1 12H6L5 9z" />
-                  </svg>
-                  <span className="text-gray-600 font-medium">
-                    {cart.length === 0 ? 'Empty' : `${cart.reduce((sum, item) => sum + item.quantity, 0)} items • ₱${totalAmount.toFixed(2)}`}
-                  </span>
+                  {/* Right - Cart & Actions */}
+                  <div className="flex items-center gap-3">
+                    {/* Cart Summary */}
+                    <div className="flex items-center bg-surface-50 border border-surface-200 rounded-lg px-3 py-2">
+                      <svg className="w-4 h-4 text-surface-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-2.293 2.293a1 1 0 001.414 1.414L9 14m-2-1V9a4 4 0 118 0m0 0v2a4 4 0 11-8 0" />
+                      </svg>
+                      <div className="text-sm">
+                        {cart.length === 0 ? (
+                          <span className="text-surface-500 font-medium">Empty Cart</span>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className="text-surface-700 font-medium">
+                              {cart.reduce((sum, item) => sum + item.quantity, 0)} items
+                            </span>
+                            <span className="text-surface-400">•</span>
+                            <span className="text-primary-600 font-semibold">₱{totalAmount.toFixed(2)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Cart Toggle */}
+                    <button
+                      onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                      className="w-9 h-9 bg-primary-50 hover:bg-primary-100 border border-primary-200 rounded-lg flex items-center justify-center transition-colors group"
+                      title={sidebarCollapsed ? 'Show Cart' : 'Hide Cart'}
+                    >
+                      <svg 
+                        className={`w-4 h-4 text-primary-600 transition-transform duration-200 ${sidebarCollapsed ? 'rotate-180' : ''}`} 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </div>
-              
-              {/* Cart Toggle */}
-              <button
-                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                className="w-9 h-9 bg-blue-100 hover:bg-blue-200 rounded-lg flex items-center justify-center transition-colors"
-                title={sidebarCollapsed ? 'Show Cart' : 'Hide Cart'}
-              >
-                <svg 
-                  className={`w-4 h-4 text-blue-600 transition-transform duration-200 ${sidebarCollapsed ? 'rotate-180' : ''}`} 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-                </svg>
-              </button>
+            </div>
+
+            {/* Bottom Navigation Bar */}
+            <div className="px-6 py-2 bg-surface-25">
+              <div className="flex items-center justify-between">
+                {/* View Controls */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowQuickActions(!showQuickActions)}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
+                      showQuickActions 
+                        ? 'bg-amber-100 text-amber-700 border border-amber-200' 
+                        : 'text-surface-600 hover:bg-surface-100'
+                    }`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Quick Actions
+                  </button>
+
+                  <button
+                    onClick={() => setShowDashboard(!showDashboard)}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
+                      showDashboard 
+                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
+                        : 'text-surface-600 hover:bg-surface-100'
+                    }`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    Analytics
+                  </button>
+
+                  <button
+                    onClick={() => setShowRecentOrders(!showRecentOrders)}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
+                      showRecentOrders 
+                        ? 'bg-blue-100 text-blue-700 border border-blue-200' 
+                        : 'text-surface-600 hover:bg-surface-100'
+                    }`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Recent Orders
+                  </button>
+                </div>
+
+                {/* Status Indicators */}
+                <div className="flex items-center gap-4">
+                  {/* Session Info */}
+                  <div className="flex items-center gap-2 text-xs text-surface-500">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span>Session Active</span>
+                    <span className="text-surface-400">|</span>
+                    <span>{new Date().toLocaleTimeString()}</span>
+                  </div>
+
+                  {/* User Info */}
+                  <div className="flex items-center gap-2 text-xs text-surface-600">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    <span className="font-medium">{user?.displayName || 'User'}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Control Bar */}
-        <div className="bg-gray-50 border-t border-gray-200 px-6 py-3">
-          <div className="flex items-center justify-between">
-            {/* View Controls */}
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setShowQuickActions(!showQuickActions)}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
-                  showQuickActions 
-                    ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200' 
-                    : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-                }`}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                Quick Actions
-              </button>
+          {/* Main Content Area */}
+          <div className="flex-1 flex overflow-hidden">
 
-              <button
-                onClick={() => setShowDashboard(!showDashboard)}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
-                  showDashboard 
-                    ? 'bg-green-100 text-green-700 hover:bg-green-200' 
-                    : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-                }`}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                Analytics
-              </button>
+            {/* Sales Dashboard */}
+            {showDashboard && (
+              <div className="bg-white border-b border-surface-200 px-6 py-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold text-surface-900">📈 Business Intelligence Dashboard</h2>
+                  <div className="text-xs text-surface-500">Live Data • Updated in real-time</div>
+                </div>
 
-              <button
-                onClick={() => setShowRecentOrders(!showRecentOrders)}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
-                  showRecentOrders 
-                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
-                    : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-                }`}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Recent Orders
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Sales Dashboard */}
-      {showDashboard && (
-        <div className="bg-white border-b border-surface-200 px-6 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-surface-900">📈 Business Intelligence Dashboard</h2>
-            <div className="text-xs text-surface-500">Live Data • Updated in real-time</div>
-          </div>
-
-          {/* Key Metrics Row */}
+                {/* Key Metrics Row */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border border-green-200">
               <div className="flex items-center justify-between mb-2">
@@ -1273,7 +1325,7 @@ export default function POS() {
                   <button
                     onClick={async () => {
                       // Refresh orders
-                      if (user?.uid) {
+                      if (user?.uid && profile?.tenantId) {
                         setLoadingOrders(true);
                         try {
                           const orders = await getPOSOrders(profile.tenantId);
@@ -1535,12 +1587,11 @@ export default function POS() {
                       <div>Search term: &quot;{searchTerm}&quot;</div>
                     </div>
                     {menuItems.length === 0 && (
-                      <button
-                        onClick={() => window.open('/menu', '_blank')}
-                        className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                      >
-                        Go to Product Builder
-                      </button>
+                      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-sm text-blue-700 font-medium">
+                          📝 Use the <strong>Product Builder</strong> tab in the sidebar to create menu items first.
+                        </p>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -2309,6 +2360,8 @@ export default function POS() {
           </div>
         </div>
       )}
+
+        </div>
 
       {/* Customer Management Modal */}
       {showCustomerModal && (

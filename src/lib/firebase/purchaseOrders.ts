@@ -48,7 +48,7 @@ export interface PurchaseOrder {
   subtotal: number;
   tax: number;
   total: number;
-  status: 'draft' | 'pending' | 'approved' | 'ordered' | 'delivered' | 'cancelled';
+  status: 'draft' | 'pending' | 'approved' | 'ordered' | 'partially_delivered' | 'delivered' | 'cancelled';
   expectedDelivery: Timestamp;
   actualDelivery?: Timestamp;
   deliveredAt?: Timestamp;
@@ -367,9 +367,9 @@ export const deliverPurchaseOrder = async (
       throw new Error('Purchase order has already been delivered');
     }
     
-    // Check if order can be delivered (must be in 'ordered' status)
-    if (orderData.status !== 'ordered') {
-      throw new Error(`Cannot deliver purchase order. Current status: ${orderData.status}. Order must be in 'ordered' status to be delivered.`);
+    // Check if order can be delivered (must be in 'ordered' or 'partially_delivered' status)
+    if (orderData.status !== 'ordered' && orderData.status !== 'partially_delivered') {
+      throw new Error(`Cannot deliver purchase order. Current status: ${orderData.status}. Order must be in 'ordered' or 'partially_delivered' status to be delivered.`);
     }
     
     // Update the purchase order items with received quantities
@@ -378,10 +378,22 @@ export const deliverPurchaseOrder = async (
         di.itemName.toLowerCase().trim() === item.itemName.toLowerCase().trim()
       );
       
-      return {
-        ...item,
-        quantityReceived: deliveryItem ? deliveryItem.quantityReceived : (item.quantityReceived || 0)
-      };
+      if (deliveryItem) {
+        // For partial deliveries, accumulate the received quantities
+        const previouslyReceived = item.quantityReceived || 0;
+        const newlyReceived = deliveryItem.quantityReceived;
+        const totalReceived = previouslyReceived + newlyReceived;
+        
+        return {
+          ...item,
+          quantityReceived: Math.min(totalReceived, item.quantity) // Don't exceed ordered quantity
+        };
+      } else {
+        return {
+          ...item,
+          quantityReceived: item.quantityReceived || 0 // Keep existing received quantity
+        };
+      }
     });
     
     // Update inventory
@@ -391,10 +403,32 @@ export const deliverPurchaseOrder = async (
       undefined, // userId - can be undefined since it's optional
       deliveredBy || 'System' // userName - use deliveredBy or 'System' as fallback
     );
+
+    // Check if this is a partial delivery
+    const isPartialDelivery = updatedItems.some(item => {
+      const quantityReceived = item.quantityReceived || 0;
+      return quantityReceived > 0 && quantityReceived < item.quantity;
+    });
+
+    // Check if all items have been fully delivered (considering previous partial deliveries)
+    const isFullyDelivered = updatedItems.every(item => {
+      const quantityReceived = item.quantityReceived || 0;
+      return quantityReceived >= item.quantity;
+    });
+
+    // Determine the status based on delivery completion
+    let newStatus: PurchaseOrder['status'];
+    if (isFullyDelivered) {
+      newStatus = 'delivered';
+    } else if (isPartialDelivery || updatedItems.some(item => (item.quantityReceived || 0) > 0)) {
+      newStatus = 'partially_delivered';
+    } else {
+      newStatus = 'ordered'; // No items received, keep as ordered
+    }
     
     // Update purchase order status and items
     const updateData: any = {
-      status: 'delivered' as const,
+      status: newStatus,
       items: updatedItems,
       deliveredAt: Timestamp.now(),
       updatedAt: Timestamp.now()

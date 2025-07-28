@@ -69,7 +69,6 @@ export const syncMenuItemToPOS = async (menuItem: MenuItem): Promise<void> => {
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now()
       });
-      console.log(`✅ POS: Created "${menuItem.name}" (${docRef.id})`);
     } else {
       // Update existing POS item
       const existingDoc = existingDocs.docs[0];
@@ -78,10 +77,9 @@ export const syncMenuItemToPOS = async (menuItem: MenuItem): Promise<void> => {
         menuItemId: menuItem.id,
         updatedAt: Timestamp.now()
       });
-      console.log(`✅ POS: Updated "${menuItem.name}" (${existingDoc.id})`);
     }
   } catch (error) {
-    console.error(`❌ POS Sync Error for "${menuItem.name}":`, error);
+    console.error('POS sync error:', error);
     throw error;
   }
 };
@@ -133,6 +131,7 @@ export const removePOSItem = async (tenantId: string, menuItemId: string): Promi
 
 /**
  * Process inventory deductions after a sale
+ * Enhanced to handle direct inventory deduction by item name if no menu item link exists
  */
 export const processInventoryDeduction = async (
   tenantId: string,
@@ -146,7 +145,7 @@ export const processInventoryDeduction = async (
     const batch = writeBatch(db);
     
     for (const orderItem of orderItems) {
-      // Get the menu item to find its ingredients
+      // Try to get the menu item to find its ingredients
       const menuItem = await getMenuItemByPOSItemId(tenantId, orderItem.itemId);
       
       if (menuItem && menuItem.ingredients) {
@@ -160,6 +159,9 @@ export const processInventoryDeduction = async (
             totalQuantityUsed
           );
         }
+      } else {
+        // Fallback: Try to find inventory item by matching name
+        await deductInventoryByName(batch, tenantId, orderItem.name, orderItem.quantity);
       }
     }
     
@@ -174,6 +176,49 @@ export const processInventoryDeduction = async (
 };
 
 /**
+ * Deduct inventory by matching item name (fallback method)
+ */
+const deductInventoryByName = async (
+  batch: any,
+  tenantId: string,
+  itemName: string,
+  quantitySold: number
+): Promise<void> => {
+  try {
+    // Find inventory item by name (case-insensitive)
+    const inventoryRef = collection(db, `tenants/${tenantId}/inventory`);
+    const inventoryQuery = query(inventoryRef);
+    const inventorySnapshot = await getDocs(inventoryQuery);
+    
+    // Find matching inventory item
+    const matchingItem = inventorySnapshot.docs.find(doc => {
+      const data = doc.data();
+      return data.name?.toLowerCase() === itemName.toLowerCase();
+    });
+    
+    if (matchingItem) {
+      const inventoryData = matchingItem.data();
+      const currentStock = inventoryData.currentStock || 0;
+      const newStock = Math.max(0, currentStock - quantitySold);
+      
+      // Update the inventory item
+      const inventoryItemRef = doc(db, `tenants/${tenantId}/inventory`, matchingItem.id);
+      batch.update(inventoryItemRef, {
+        currentStock: newStock,
+        lastUpdated: Timestamp.now(),
+        status: newStock === 0 ? 'out' : 
+                newStock <= (inventoryData.minStock * 0.25) ? 'critical' : 
+                newStock <= inventoryData.minStock ? 'low' : 'good'
+      });
+    } else {
+      // No matching inventory item found
+    }
+  } catch (error) {
+    console.error(`Error deducting inventory for ${itemName}:`, error);
+  }
+};
+
+/**
  * Get menu item by POS item ID
  */
 const getMenuItemByPOSItemId = async (
@@ -181,22 +226,17 @@ const getMenuItemByPOSItemId = async (
   posItemId: string
 ): Promise<MenuItem | null> => {
   try {
-    console.log(`🔍 Looking for menu item with POS item ID: ${posItemId}`);
-    
     // First get the POS item to find the menu item ID
     const posItemDoc = await getDoc(doc(db, `tenants/${tenantId}/posItems`, posItemId));
     
     if (!posItemDoc.exists()) {
-      console.log(`❌ POS item not found: ${posItemId}`);
       return null;
     }
     
     const posItemData = posItemDoc.data();
-    console.log(`📋 POS item data:`, posItemData);
     const menuItemId = posItemData.menuItemId;
     
     if (!menuItemId) {
-      console.log(`🔗 No direct menu item ID link, searching by name and category...`);
       // If no direct link, try to find by name and category
       const menuItemsRef = collection(db, `tenants/${tenantId}/menuItems`);
       const menuQuery = query(
@@ -208,24 +248,19 @@ const getMenuItemByPOSItemId = async (
       const menuSnapshot = await getDocs(menuQuery);
       if (!menuSnapshot.empty) {
         const menuDoc = menuSnapshot.docs[0];
-        console.log(`✅ Found menu item by name/category:`, menuDoc.id);
         return { id: menuDoc.id, ...menuDoc.data() } as MenuItem;
       }
       
-      console.log(`❌ No menu item found by name "${posItemData.name}" and category "${posItemData.category}"`);
       return null;
     }
     
-    console.log(`🔗 Direct menu item ID found: ${menuItemId}`);
     // Get menu item by ID
     const menuItemDoc = await getDoc(doc(db, `tenants/${tenantId}/menuItems`, menuItemId));
     
     if (!menuItemDoc.exists()) {
-      console.log(`❌ Menu item not found with ID: ${menuItemId}`);
       return null;
     }
-    
-    console.log(`✅ Menu item found:`, menuItemDoc.id);
+
     return { id: menuItemDoc.id, ...menuItemDoc.data() } as MenuItem;
   } catch (error) {
     console.error('Error getting menu item by POS item ID:', error);
@@ -247,7 +282,6 @@ const deductInventoryQuantity = async (
     const inventoryItemDoc = await getDoc(inventoryItemRef);
     
     if (!inventoryItemDoc.exists()) {
-      console.warn(`Inventory item ${inventoryItemId} not found`);
       return;
     }
     

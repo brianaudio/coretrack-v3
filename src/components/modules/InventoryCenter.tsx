@@ -8,6 +8,7 @@ import { PermissionGate, NoPermissionMessage } from '../permissions/PermissionGa
 import { useFeatureAccess } from '../../lib/hooks/useFeatureAccess'
 import { useBranch } from '../../lib/context/BranchContext'
 import { getBranchLocationId } from '../../lib/utils/branchUtils'
+import { debugTrace, debugStep, debugError, debugSuccess, debugInspect } from '../../lib/utils/debugHelper'
 import { 
   InventoryItem, 
   InventoryMovement,
@@ -22,6 +23,9 @@ import {
 import { Timestamp } from 'firebase/firestore'
 import { getAffectedMenuItems } from '../../lib/firebase/integration'
 import { MenuItem } from '../../lib/firebase/menuBuilder'
+import AdvancedSearch from '../AdvancedSearch'
+import BulkOperations, { SelectableItem } from '../BulkOperations'
+import { notifyLowStock, notifyInventoryUpdate } from '../../lib/firebase/notifications'
 
 export default function InventoryCenter() {
   const { profile } = useAuth()
@@ -29,6 +33,7 @@ export default function InventoryCenter() {
   const { canAddProduct, blockActionWithLimit } = useFeatureAccess()
   const { selectedBranch } = useBranch()
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
+  const [selectedInventoryItems, setSelectedInventoryItems] = useState<InventoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [searchTerm, setSearchTerm] = useState('')
@@ -47,6 +52,7 @@ export default function InventoryCenter() {
   const [loadingAffectedItems, setLoadingAffectedItems] = useState<Set<string>>(new Set())
   const [showLowStock, setShowLowStock] = useState(false)
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table')
+  const [searchFilters, setSearchFilters] = useState<any>({})
   
   // Get unique categories from existing inventory items
   const getCategories = () => {
@@ -56,22 +62,59 @@ export default function InventoryCenter() {
 
   // Firebase real-time subscription
   useEffect(() => {
-    if (!profile?.tenantId || !selectedBranch) return
+    debugTrace('Inventory Data Loading Effect', {
+      hasTenantId: !!profile?.tenantId,
+      hasSelectedBranch: !!selectedBranch,
+      branchId: selectedBranch?.id,
+      tenantId: profile?.tenantId
+    }, { component: 'InventoryCenter', sensitive: true })
+
+    if (!profile?.tenantId || !selectedBranch) {
+      debugStep('Inventory Loading Cancelled - Missing Requirements', {
+        tenantId: !!profile?.tenantId,
+        selectedBranch: !!selectedBranch
+      }, { component: 'InventoryCenter', level: 'warn' })
+      return
+    }
 
     // Use branch-based location ID
     const locationId = getBranchLocationId(selectedBranch.id)
+    debugStep('Location ID Generated for Inventory', { 
+      branchId: selectedBranch.id, 
+      locationId 
+    }, { component: 'InventoryCenter' })
+
+    debugStep('Setting Up Inventory Subscription', {
+      tenantId: profile.tenantId,
+      locationId
+    }, { component: 'InventoryCenter' })
 
     const unsubscribe = subscribeToInventoryItems(
       profile.tenantId,
       locationId,
       (items: InventoryItem[]) => {
-        setInventoryItems(items)
+        debugStep('Inventory Items Updated', {
+          itemCount: items?.length || 0,
+          hasItems: (items?.length || 0) > 0
+        }, { component: 'InventoryCenter', level: 'success' })
+        
+        debugInspect(items, 'Inventory Items', { component: 'InventoryCenter' })
+        
+        setInventoryItems(items || [])
         setLoading(false)
       }
     )
 
-    return unsubscribe
-  }, [profile?.tenantId, selectedBranch?.id])
+    // Set loading to false after a timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      setLoading(false)
+    }, 3000)
+
+    return () => {
+      if (unsubscribe) unsubscribe()
+      clearTimeout(timeoutId)
+    }
+  }, [profile?.tenantId, selectedBranch])
 
   // Listen for branch changes and reload inventory
   useEffect(() => {
@@ -85,12 +128,184 @@ export default function InventoryCenter() {
     return () => window.removeEventListener('branchChanged', handleBranchChange)
   }, [selectedBranch?.id])
 
+  // Enhanced filtering with advanced search
   const filteredItems = inventoryItems.filter(item => {
+    // Basic filters
     const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesLowStock = !showLowStock || item.currentStock <= item.minStock
-    return matchesCategory && matchesSearch && matchesLowStock
+    
+    // Advanced search filters
+    let matchesAdvancedFilters = true
+    
+    if (Object.keys(searchFilters).length > 0) {
+      // Category filter
+      if (searchFilters.category && searchFilters.category !== 'all') {
+        matchesAdvancedFilters = matchesAdvancedFilters && item.category === searchFilters.category
+      }
+      
+      // Stock status filter
+      if (searchFilters.stockStatus && searchFilters.stockStatus !== 'all') {
+        const stockStatus = item.currentStock <= 0 ? 'out' : 
+                           item.currentStock <= item.minStock ? 'low' : 'good'
+        matchesAdvancedFilters = matchesAdvancedFilters && stockStatus === searchFilters.stockStatus
+      }
+      
+      // Price range filter
+      if (searchFilters.priceMin !== undefined && searchFilters.priceMin !== '' && item.costPerUnit) {
+        matchesAdvancedFilters = matchesAdvancedFilters && item.costPerUnit >= parseFloat(searchFilters.priceMin)
+      }
+      if (searchFilters.priceMax !== undefined && searchFilters.priceMax !== '' && item.costPerUnit) {
+        matchesAdvancedFilters = matchesAdvancedFilters && item.costPerUnit <= parseFloat(searchFilters.priceMax)
+      }
+      
+      // Stock range filter
+      if (searchFilters.stockMin !== undefined && searchFilters.stockMin !== '') {
+        matchesAdvancedFilters = matchesAdvancedFilters && item.currentStock >= parseInt(searchFilters.stockMin)
+      }
+      if (searchFilters.stockMax !== undefined && searchFilters.stockMax !== '') {
+        matchesAdvancedFilters = matchesAdvancedFilters && item.currentStock <= parseInt(searchFilters.stockMax)
+      }
+      
+      // Date range filter (last updated)
+      if (searchFilters.dateFrom) {
+        const fromDate = new Date(searchFilters.dateFrom)
+        matchesAdvancedFilters = matchesAdvancedFilters && item.updatedAt.toDate() >= fromDate
+      }
+      if (searchFilters.dateTo) {
+        const toDate = new Date(searchFilters.dateTo)
+        toDate.setHours(23, 59, 59, 999) // End of day
+        matchesAdvancedFilters = matchesAdvancedFilters && item.updatedAt.toDate() <= toDate
+      }
+    }
+    
+    return matchesCategory && matchesSearch && matchesLowStock && matchesAdvancedFilters
   })
+
+  // Check for low stock and notify
+  useEffect(() => {
+    if (!profile?.tenantId) return
+    
+    const lowStockItems = inventoryItems.filter(item => 
+      item.currentStock <= item.minStock && item.currentStock > 0
+    )
+    
+    lowStockItems.forEach(item => {
+      notifyLowStock(
+        profile.tenantId,
+        item.name,
+        item.currentStock,
+        item.minStock,
+        selectedBranch?.id
+      ).catch(error => {
+        console.error('Failed to send low stock notification:', error)
+      })
+    })
+  }, [inventoryItems, profile?.tenantId, selectedBranch?.id])
+
+  // Bulk operations for inventory
+  const bulkOperations = [
+    {
+      id: 'adjust-stock',
+      label: 'Adjust Stock',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2h4a1 1 0 011 1v1a1 1 0 01-1 1h-1v11a3 3 0 01-3 3H7a3 3 0 01-3-3V7H3a1 1 0 01-1-1V5a1 1 0 011-1h4zM9 3v1h6V3H9zm0 4v8h6V7H9z" />
+        </svg>
+      ),
+      action: async (items: InventoryItem[]) => {
+        setShowBulkStockModal(true)
+      },
+      color: 'primary' as const
+    },
+    {
+      id: 'update-reorder-points',
+      label: 'Update Reorder Points',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+        </svg>
+      ),
+      action: async (items: InventoryItem[]) => {
+        const newReorderPoint = prompt('Enter new minimum stock level:')
+        if (!newReorderPoint || isNaN(parseInt(newReorderPoint))) return
+        
+        const promises = items.map(item => 
+          updateInventoryItem(profile!.tenantId, item.id, {
+            minStock: parseInt(newReorderPoint)
+          })
+        )
+        
+        await Promise.all(promises)
+        
+        if (profile?.tenantId) {
+          notifyInventoryUpdate(
+            profile.tenantId,
+            `${items.length} items`,
+            'updated',
+            profile.displayName || 'User'
+          )
+        }
+      },
+      color: 'secondary' as const
+    },
+    {
+      id: 'export-selected',
+      label: 'Export Selected',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
+      action: async (items: InventoryItem[]) => {
+        const csvContent = [
+          ['Name', 'Category', 'Current Stock', 'Min Stock', 'Cost Per Unit', 'Last Updated'].join(','),
+          ...items.map(item => [
+            item.name,
+            item.category,
+            item.currentStock,
+            item.minStock,
+            item.costPerUnit || 0,
+            item.updatedAt.toDate().toLocaleDateString()
+          ].join(','))
+        ].join('\n')
+        
+        const blob = new Blob([csvContent], { type: 'text/csv' })
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `inventory-export-${new Date().toISOString().split('T')[0]}.csv`
+        a.click()
+        window.URL.revokeObjectURL(url)
+      },
+      color: 'success' as const
+    },
+    {
+      id: 'delete-selected',
+      label: 'Delete Selected',
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+      ),
+      action: async (items: InventoryItem[]) => {
+        const promises = items.map(item => deleteInventoryItem(profile!.tenantId, item.id))
+        await Promise.all(promises)
+        
+        if (profile?.tenantId) {
+          notifyInventoryUpdate(
+            profile.tenantId,
+            `${items.length} items`,
+            'deleted',
+            profile.displayName || 'User'
+          )
+        }
+      },
+      confirmMessage: 'Are you sure you want to delete {count} selected items? This action cannot be undone.',
+      color: 'danger' as const,
+      disabled: (items: InventoryItem[]) => !hasPermission('inventory')
+    }
+  ]
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -116,6 +331,7 @@ export default function InventoryCenter() {
 
   const handleAddItem = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+
     if (!profile?.tenantId) return
 
     // DEVELOPMENT MODE: Skip limit checks during testing
@@ -156,6 +372,7 @@ export default function InventoryCenter() {
 
   const handleUpdateItem = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+
     if (!profile?.tenantId || !editingItem) return
 
     const form = e.currentTarget
@@ -650,115 +867,64 @@ export default function InventoryCenter() {
       </div>
 
       {/* Search and Actions */}
-      <div className="card p-6">
-        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
-          {/* Search Section */}
-          <div className="flex-1 max-w-lg">
-            <label className="block text-sm font-medium text-surface-700 mb-2">Search Inventory</label>
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search by item name, category, or SKU..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-11 pr-4 py-3 border border-surface-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200 text-surface-900 placeholder-surface-500"
-              />
-              <svg className="w-5 h-5 text-surface-400 absolute left-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-          </div>
+        {/* Advanced Search and Filters */}
+        <AdvancedSearch
+          onSearch={(term, filters) => {
+            setSearchTerm(term)
+            setSearchFilters(filters)
+          }}
+          placeholder="Search inventory by name, category, or SKU..."
+          filters={[
+            {
+              key: 'category',
+              label: 'Category',
+              type: 'select',
+              options: getCategories().map(cat => ({ value: cat.toLowerCase(), label: cat }))
+            },
+            {
+              key: 'stockStatus',
+              label: 'Stock Status',
+              type: 'select',
+              options: [
+                { value: 'all', label: 'All Status' },
+                { value: 'good', label: 'Good Stock' },
+                { value: 'low', label: 'Low Stock' },
+                { value: 'out', label: 'Out of Stock' }
+              ]
+            },
+            {
+              key: 'priceRange',
+              label: 'Cost Per Unit Range',
+              type: 'range',
+              min: 0,
+              max: 1000
+            },
+            {
+              key: 'stockRange',
+              label: 'Stock Quantity Range',
+              type: 'range',
+              min: 0,
+              max: 1000
+            },
+            {
+              key: 'lowStockOnly',
+              label: 'Show Low Stock Only',
+              type: 'boolean'
+            }
+          ]}
+        />
 
-          {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-3">
-            {bulkMode ? (
-              <>
-                {selectedItems.size > 0 && (
-                  <>
-                    <div className="flex items-center text-sm text-primary-700 bg-primary-50 px-4 py-2 rounded-xl border border-primary-200">
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      {selectedItems.size} selected
-                    </div>
-                    <button
-                      onClick={() => setShowBulkStockModal(true)}
-                      className="inline-flex items-center px-4 py-2 text-sm bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium"
-                    >
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m0 0h4a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V5a1 1 0 011-1h4m0 0v3a1 1 0 001 1h6a1 1 0 001-1V4" />
-                      </svg>
-                      Adjust Stock
-                    </button>
-                    <button
-                      onClick={handleBulkDelete}
-                      className="inline-flex items-center px-4 py-2 text-sm bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium"
-                    >
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                      Delete
-                    </button>
-                  </>
-                )}
-                {selectedItems.size === 0 && (
-                  <div className="flex items-center text-sm text-surface-500 bg-surface-50 px-4 py-2 rounded-xl border border-surface-200">
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Select items to perform bulk actions
-                  </div>
-                )}
-                <button
-                  onClick={() => {
-                    setBulkMode(false)
-                    setSelectedItems(new Set())
-                  }}
-                  className="inline-flex items-center px-4 py-2 text-sm border border-surface-300 text-surface-700 rounded-xl hover:bg-surface-50 transition-colors font-medium"
-                >
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  Cancel Selection
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => setBulkMode(true)}
-                  className="inline-flex items-center px-4 py-2 text-sm border border-surface-300 text-surface-700 rounded-xl hover:bg-surface-50 transition-colors font-medium"
-                >
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  Select Items
-                </button>
-                <PermissionGate 
-                  permission="inventory"
-                  fallback={
-                    <div className="text-sm text-surface-500 px-4 py-2 bg-surface-50 rounded-xl border border-surface-200">
-                      No permission to add items
-                    </div>
-                  }
-                >
-                  <button 
-                    onClick={() => setShowAddModal(true)}
-                    className="inline-flex items-center px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm"
-                  >
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    Add Item
-                  </button>
-                </PermissionGate>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
+        {/* Bulk Operations */}
+        <BulkOperations
+          items={filteredItems}
+          selectedItems={selectedInventoryItems}
+          onSelectionChange={setSelectedInventoryItems}
+          operations={bulkOperations}
+          idField="id"
+        />
 
-      {/* Inventory Table */}
-      <div className="card overflow-hidden">
+        {/* Inventory Table */}
+        <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-surface-50 border-b border-surface-200">
@@ -789,43 +955,66 @@ export default function InventoryCenter() {
             <tbody className="divide-y divide-surface-200">
               {filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={bulkMode ? 10 : 9} className="px-6 py-8 text-center text-surface-500">
+                  <td colSpan={9} className="px-6 py-8 text-center text-surface-500">
                     {inventoryItems.length === 0 ? 'No inventory items found. Add your first item!' : 'No items match your filters.'}
                   </td>
                 </tr>
               ) : (
-                filteredItems.flatMap((item) => [
+                filteredItems.flatMap((item) => {
+                  const isSelected = selectedInventoryItems.some(selected => selected.id === item.id)
+                  return [
                   // Main row
-                  <tr key={item.id} className="hover:bg-surface-50">
-                    {/* Expand button */}
+                  <tr 
+                    key={item.id} 
+                    className={`hover:bg-surface-50 transition-colors cursor-pointer ${
+                      isSelected ? 'bg-primary-50 border-primary-200' : ''
+                    }`}
+                    onClick={() => {
+                      if (isSelected) {
+                        setSelectedInventoryItems(selectedInventoryItems.filter(selected => selected.id !== item.id))
+                      } else {
+                        setSelectedInventoryItems([...selectedInventoryItems, item])
+                      }
+                    }}
+                  >
+                    {/* Selection indicator */}
                     <td className="px-6 py-4">
-                      <button
-                        onClick={() => toggleItemExpansion(item.id)}
-                        className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-surface-100 transition-colors"
-                      >
-                        <svg 
-                          className={`w-4 h-4 text-surface-600 transition-transform ${
-                            expandedItems.has(item.id) ? 'rotate-180' : ''
-                          }`} 
-                          fill="none" 
-                          stroke="currentColor" 
-                          viewBox="0 0 24 24"
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`
+                            w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all
+                            ${isSelected 
+                              ? 'bg-primary-600 border-primary-600' 
+                              : 'border-surface-300 bg-white hover:border-surface-400'
+                            }
+                          `}
                         >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
+                          {isSelected && (
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleItemExpansion(item.id)
+                          }}
+                          className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-surface-100 transition-colors"
+                        >
+                          <svg 
+                            className={`w-4 h-4 text-surface-600 transition-transform ${
+                              expandedItems.has(item.id) ? 'rotate-180' : ''
+                            }`} 
+                            fill="none" 
+                            stroke="currentColor" 
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                      </div>
                     </td>
-                    
-                    {bulkMode && (
-                      <td className="px-6 py-4">
-                        <input
-                          type="checkbox"
-                          checked={selectedItems.has(item.id)}
-                          onChange={() => handleSelectItem(item.id)}
-                          className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                        />
-                      </td>
-                    )}
                     
                     <td className="px-6 py-4">
                       <div className="font-medium text-surface-900">{item.name}</div>
@@ -856,7 +1045,7 @@ export default function InventoryCenter() {
                   // Expanded details row (conditionally rendered)
                   ...(expandedItems.has(item.id) ? [
                     <tr key={`${item.id}-expanded`} className="bg-surface-25">
-                      <td colSpan={bulkMode ? 10 : 9} className="px-6 py-0">
+                      <td colSpan={9} className="px-6 py-0">
                         <div className="py-4">
                           <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-sm">
                             {/* Header */}
@@ -1087,7 +1276,8 @@ export default function InventoryCenter() {
                       </td>
                     </tr>
                   ] : [])
-                ])
+                ]
+                })
               )}
             </tbody>
           </table>

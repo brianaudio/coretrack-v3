@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { AuthProvider } from '../lib/context/AuthContext'
+import { BranchProvider } from '../lib/context/BranchContext'
 import { SubscriptionProvider } from '../lib/context/SubscriptionContext'
 import { UserPermissionsProvider } from '../lib/context/UserPermissionsContext'
 import { BusinessSettingsProvider } from '../lib/context/BusinessSettingsContext'
@@ -41,17 +42,19 @@ export default function RootLayout({
         <DataInitializer />
         <ErrorBoundary>
           <AuthProvider>
-            <UserProvider>
-              <BusinessSettingsProvider>
-                <SubscriptionProvider>
-                  <UserPermissionsProvider>
-                    <ToastProvider>
-                      {children}
-                    </ToastProvider>
-                  </UserPermissionsProvider>
-                </SubscriptionProvider>
-              </BusinessSettingsProvider>
-            </UserProvider>
+            <BranchProvider>
+              <UserProvider>
+                <BusinessSettingsProvider>
+                  <SubscriptionProvider>
+                    <UserPermissionsProvider>
+                      <ToastProvider>
+                        {children}
+                      </ToastProvider>
+                    </UserPermissionsProvider>
+                  </SubscriptionProvider>
+                </BusinessSettingsProvider>
+              </UserProvider>
+            </BranchProvider>
           </AuthProvider>
         </ErrorBoundary>
       </body>

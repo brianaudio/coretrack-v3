@@ -64,8 +64,7 @@ export default function DashboardOverview() {
           getTopSellingItems(profile.tenantId, days)
         ])
         
-        console.log('Dashboard Debug - Current Branch:', currentBranch)
-        console.log('Dashboard Debug - Inventory Analytics:', inventory)
+      // Current branch and inventory analytics loaded
         console.log('Dashboard Debug - Total Value:', inventory?.totalValue, 'Type:', typeof inventory?.totalValue)
         
         setDashboardStats(stats)
@@ -123,59 +122,6 @@ export default function DashboardOverview() {
     )
   }
 
-  // Test function to create a location
-  const createTestLocation = async () => {
-    if (!profile?.tenantId) return
-    
-    try {
-      const { createLocation } = await import('../../lib/firebase/locationManagement')
-      const defaultLocation = {
-        tenantId: profile.tenantId,
-        name: 'Branch Store',
-        type: 'branch' as const,
-        status: 'active' as const,
-        address: {
-          street: '456 Branch Street',
-          city: 'Quezon City',
-          state: 'Metro Manila',
-          zipCode: '1100',
-          country: 'Philippines'
-        },
-        contact: {
-          phone: '+63 2 9876 5432',
-          email: 'branch@yourstore.com',
-          manager: 'Branch Manager'
-        },
-        settings: {
-          timezone: 'Asia/Manila',
-          currency: 'PHP',
-          businessHours: {
-            monday: { open: '09:00', close: '22:00', closed: false },
-            tuesday: { open: '09:00', close: '22:00', closed: false },
-            wednesday: { open: '09:00', close: '22:00', closed: false },
-            thursday: { open: '09:00', close: '22:00', closed: false },
-            friday: { open: '09:00', close: '22:00', closed: false },
-            saturday: { open: '09:00', close: '22:00', closed: false },
-            sunday: { open: '10:00', close: '20:00', closed: false }
-          },
-          features: {
-            inventory: true,
-            pos: true,
-            expenses: true
-          }
-        }
-      }
-      
-      const locationId = await createLocation(defaultLocation)
-      console.log('✅ Created test location:', locationId)
-      alert('Test location created! Refresh the page to see location selection.')
-      window.location.reload()
-    } catch (error) {
-      console.error('❌ Error creating test location:', error)
-      alert('Error creating location: ' + error)
-    }
-  }
-
   return (
     <div className="min-h-screen bg-surface-50">
       {/* Modern Header */}
@@ -184,18 +130,10 @@ export default function DashboardOverview() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-surface-900">Dashboard</h1>
-              <p className="text-surface-500 text-sm mt-1">Welcome back! Here's what's happening with your business today.</p>
+              <p className="text-surface-500 text-sm mt-1">Welcome back! Here&apos;s what&apos;s happening with your business today.</p>
             </div>
             
             <div className="flex items-center gap-4">
-              {/* Test Location Button - TEMPORARY */}
-              <button
-                onClick={createTestLocation}
-                className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
-              >
-                🧪 Create Test Location
-              </button>
-              
               {/* Period Selector */}
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium text-surface-600">Period:</label>
@@ -250,7 +188,7 @@ export default function DashboardOverview() {
                   <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">+12%</span>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-green-700 mb-1">Today's Revenue</p>
+                  <p className="text-sm font-medium text-green-700 mb-1">Today&apos;s Revenue</p>
                   <p className="text-3xl font-bold text-green-900 mb-2">
                     ₱{dashboardStats?.todaysSales?.revenue?.toLocaleString() || '0'}
                   </p>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
+import { useBranch } from '../../lib/context/BranchContext'
 import Notifications from './Notifications'
 import { 
   getDashboardStats, 
@@ -29,6 +30,7 @@ import {
 
 export default function DashboardOverview() {
   const { user } = useAuth()
+  const { selectedBranch } = useBranch()
   const [selectedPeriod, setSelectedPeriod] = useState('week')
   const [selectedView, setSelectedView] = useState('overview') // overview, analytics, detailed
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
@@ -52,10 +54,10 @@ export default function DashboardOverview() {
         const days = selectedPeriod === 'day' ? 1 : selectedPeriod === 'week' ? 7 : selectedPeriod === 'month' ? 30 : 365
         
         const [stats, inventory, salesChart, topSellingItems] = await Promise.all([
-          getDashboardStats(user.uid),
-          getInventoryAnalytics(user.uid, days),
-          getSalesChartData(user.uid, days),
-          getTopSellingItems(user.uid, days)
+          getDashboardStats(user.uid, selectedBranch?.id || ''),
+          getInventoryAnalytics(user.uid, days, selectedBranch?.id),
+          getSalesChartData(user.uid, days, selectedBranch?.id),
+          getTopSellingItems(user.uid, days, undefined, selectedBranch?.id)
         ])
         
         setDashboardStats(stats)
@@ -121,7 +123,7 @@ export default function DashboardOverview() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-surface-900">Dashboard</h1>
-              <p className="text-surface-500 text-sm mt-1">Welcome back! Here's what's happening with your business today.</p>
+              <p className="text-surface-500 text-sm mt-1">Welcome back! Here&apos;s what&apos;s happening with your business today.</p>
             </div>
             
             <div className="flex items-center gap-4">
@@ -179,7 +181,7 @@ export default function DashboardOverview() {
                   <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">+12%</span>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-green-700 mb-1">Today's Revenue</p>
+                  <p className="text-sm font-medium text-green-700 mb-1">Today&apos;s Revenue</p>
                   <p className="text-3xl font-bold text-green-900 mb-2">
                     ₱{dashboardStats?.todaysSales?.revenue?.toLocaleString() || '0'}
                   </p>

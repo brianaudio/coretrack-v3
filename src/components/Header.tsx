@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { ModuleType } from './Dashboard'
 import { useAuth } from '../lib/context/AuthContext'
 import { useUser } from '../lib/rbac/UserContext'
-import { subscribeToNotifications } from '../lib/firebase/notifications'
 import BranchSelector from './BranchSelector'
+import NotificationCenter from './NotificationCenter'
 
 interface HeaderProps {
   activeModule: ModuleType
@@ -29,22 +29,6 @@ const moduleNames: Record<ModuleType, string> = {
 export default function Header({ activeModule, onSidebarToggle, onLogout }: HeaderProps) {
   const { profile, tenant, signOut } = useAuth()
   const { currentUser, currentRole } = useUser()
-  const [unreadCount, setUnreadCount] = useState(0)
-
-  // Subscribe to real-time notification count
-  useEffect(() => {
-    if (!profile?.tenantId) return
-
-    const unsubscribe = subscribeToNotifications(
-      profile.tenantId,
-      (notifications) => {
-        setUnreadCount(notifications.filter(n => !n.isRead).length)
-      },
-      { unreadOnly: true, limit: 50 }
-    )
-
-    return unsubscribe
-  }, [profile?.tenantId])
 
   const handleLogout = async () => {
     if (confirm('Are you sure you want to log out?')) {
@@ -93,20 +77,8 @@ export default function Header({ activeModule, onSidebarToggle, onLogout }: Head
           <BranchSelector />
 
           {/* Notifications */}
-          <button 
-            onClick={() => window.location.hash = '#notifications'}
-            className="p-2 rounded-lg hover:bg-surface-100 transition-colors relative"
-            title={`${unreadCount} unread notifications`}
-          >
-            <svg className="w-5 h-5 text-surface-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM11 21H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v6.5" />
-            </svg>
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] bg-red-500 rounded-full text-xs text-white flex items-center justify-center font-medium">
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
-            )}
-          </button>
+          {/* Notification Center */}
+          <NotificationCenter />
 
           {/* Divider */}
           <div className="h-6 w-px bg-surface-200 hidden sm:block"></div>

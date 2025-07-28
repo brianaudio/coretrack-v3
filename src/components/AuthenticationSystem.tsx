@@ -10,6 +10,7 @@ import { UserRole } from '../lib/rbac/permissions'
 import CoreTrackLogo from './CoreTrackLogo'
 import LoadingScreen from './LoadingScreen'
 import NotificationSystem, { useNotifications } from './NotificationSystem'
+import { debugTrace, debugStep, debugValidation, debugError, debugSuccess, debugTimer } from '../lib/utils/debugHelper'
 
 interface AuthenticationSystemProps {
   onLoginSuccess: () => void
@@ -100,12 +101,34 @@ const AuthenticationSystem: React.FC<AuthenticationSystemProps> = ({ onLoginSucc
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
+    
+    // 🔍 DEBUGGING: Log input changes (be careful with sensitive data)
+    console.log('📝 Form input changed:', {
+      field: name,
+      hasValue: !!value,
+      valueLength: value.length,
+      timestamp: new Date().toISOString()
+    })
+    
     setFormData(prev => ({ ...prev, [name]: value }))
     setError('') // Clear error on input change
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // 🔍 Start debugging with timer
+    const stopTimer = debugTimer('Authentication Process');
+    
+    debugTrace('handleSubmit', {
+      hasEmail: !!formData.email,
+      hasPassword: !!formData.password,
+      passwordLength: formData.password?.length || 0
+    }, { 
+      component: 'AuthenticationSystem',
+      sensitive: true 
+    })
+    
     setLoading(true)
     setIsAuthenticating(true)
     setError('')
@@ -115,13 +138,26 @@ const AuthenticationSystem: React.FC<AuthenticationSystemProps> = ({ onLoginSucc
       // Show loading screen for better UX
       await new Promise(resolve => setTimeout(resolve, 500))
 
+      debugStep('Validating form data', {
+        emailProvided: !!formData.email,
+        passwordProvided: !!formData.password
+      }, { component: 'AuthenticationSystem' })
+
       // For production, this would integrate with Firebase Auth or another auth service
       // For now, we'll use a simple validation
       if (!formData.email || !formData.password) {
+        debugValidation(false, {
+          email: !!formData.email,
+          password: !!formData.password
+        }, { component: 'AuthenticationSystem' })
         throw new Error('Please enter both email and password.')
       }
 
-      // Determine user role based on email domain or other business logic
+      debugValidation(true, { 
+        message: 'Form data validation passed' 
+      }, { component: 'AuthenticationSystem' })
+
+      // 🔍 Determine and log user role
       let userRole: UserRole = 'staff' // Default role
       
       if (formData.email.includes('owner') || formData.email.includes('admin')) {
@@ -130,6 +166,16 @@ const AuthenticationSystem: React.FC<AuthenticationSystemProps> = ({ onLoginSucc
         userRole = 'manager'
       }
 
+      debugStep('User role determined', {
+        detectedRole: userRole,
+        logic: formData.email.includes('owner') ? 'owner keyword' : 
+               formData.email.includes('manager') ? 'manager keyword' : 'default staff'
+      }, { component: 'AuthenticationSystem', sensitive: true })
+
+      debugStep('Starting security validation', {
+        role: userRole
+      }, { component: 'AuthenticationSystem', sensitive: true })
+
       // Validate credentials with security manager
       const result = await securityManager.validateCredentials(
         formData.email, 
@@ -137,12 +183,23 @@ const AuthenticationSystem: React.FC<AuthenticationSystemProps> = ({ onLoginSucc
         userRole
       )
       
+      debugStep('Security validation completed', {
+        success: result.success,
+        hasWarnings: (result.securityWarnings?.length ?? 0) > 0,
+        warningCount: result.securityWarnings?.length ?? 0
+      }, { component: 'AuthenticationSystem', level: result.success ? 'success' : 'error' })
+      
       if (!result.success) {
+        debugError(result.message, {
+          email: formData.email,
+          role: userRole
+        }, { component: 'AuthenticationSystem', sensitive: true })
         throw new Error(result.message)
       }
 
       // Show security warnings if any
       if (result.securityWarnings && result.securityWarnings.length > 0) {
+        console.warn('⚠️ Security warnings detected:', result.securityWarnings)
         setSecurityWarnings(result.securityWarnings)
         notifications.showWarning(
           'Security Alert',
@@ -151,12 +208,28 @@ const AuthenticationSystem: React.FC<AuthenticationSystemProps> = ({ onLoginSucc
         )
       }
 
+      // 🔍 DEBUGGING STEP 6: Session creation
+      console.log('🎫 Creating user session...', {
+        email: formData.email,
+        role: userRole,
+        timestamp: new Date().toISOString()
+      })
+
       // Create secure session
       const sessionId = sessionManager.createSession(
         `user-${userRole}-${Date.now()}`,
         formData.email,
         userRole
       )
+      
+      console.log('✅ Session created successfully:', {
+        sessionId: sessionId.substring(0, 8) + '...', // Only show first 8 chars for security
+        role: userRole,
+        email: formData.email
+      })
+
+      // 🔍 DEBUGGING STEP 7: Update user context
+      console.log('👤 Updating user context...', { role: userRole, email: formData.email })
       
       // Update user context
       setCurrentRole(userRole)
@@ -166,7 +239,10 @@ const AuthenticationSystem: React.FC<AuthenticationSystemProps> = ({ onLoginSucc
         role: userRole
       })
 
-      // Auto-start shift for staff members
+      // 🔍 DEBUGGING STEP 8: Auto-start shift for staff
+      if (userRole === 'staff') {
+        console.log('⏰ Starting shift for staff member...', formData.email)
+      }
       await startShiftForStaff(formData.email, userRole);
 
       // Show success notification
@@ -176,7 +252,12 @@ const AuthenticationSystem: React.FC<AuthenticationSystemProps> = ({ onLoginSucc
         2000
       )
 
-      console.log(`✅ Authentication successful: ${formData.email} (${userRole})`)
+      console.log(`✅ Authentication completed successfully:`, {
+        email: formData.email,
+        role: userRole,
+        timestamp: new Date().toISOString(),
+        shiftStarted: userRole === 'staff'
+      })
       
       // Brief delay to show success notification
       setTimeout(() => {
@@ -185,14 +266,36 @@ const AuthenticationSystem: React.FC<AuthenticationSystemProps> = ({ onLoginSucc
       }, 1500)
 
     } catch (err: any) {
-      setError(err.message || 'Authentication failed. Please try again.')
+      // 🔍 DEBUGGING STEP 9: Comprehensive error logging
+      console.error('❌ Authentication failed:', {
+        error: err.message,
+        errorType: err.name,
+        stack: err.stack?.split('\n')[0], // First line of stack trace
+        email: formData.email,
+        timestamp: new Date().toISOString(),
+        formData: {
+          hasEmail: !!formData.email,
+          hasPassword: !!formData.password,
+          emailLength: formData.email?.length || 0,
+          passwordLength: formData.password?.length || 0
+        }
+      })
+
+      const errorMessage = err.message || 'Authentication failed. Please try again.'
+      setError(errorMessage)
+      
       notifications.showError(
         'Authentication Failed',
-        err.message || 'Please check your credentials and try again.',
+        errorMessage,
         4000
       )
       setIsAuthenticating(false)
     } finally {
+      // 🔍 DEBUGGING STEP 10: Cleanup logging
+      console.log('🧹 Authentication process cleanup:', {
+        timestamp: new Date().toISOString(),
+        finalLoadingState: false
+      })
       setLoading(false)
     }
   }

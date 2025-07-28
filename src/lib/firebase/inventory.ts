@@ -427,13 +427,18 @@ export const updateInventoryFromDelivery = async (
         continue;
       }
       
-      // Check unit compatibility (optional - log mismatch but still update)
+      // Check unit compatibility and handle mismatches
       if (matchingItem.unit.toLowerCase() !== deliveryItem.unit.toLowerCase()) {
         result.unitMismatches.push({
           itemName: deliveryItem.itemName,
           expectedUnit: matchingItem.unit,
           receivedUnit: deliveryItem.unit
         });
+        
+        // For now, skip updating items with unit mismatches to avoid confusion
+        // The user will need to resolve the unit mismatch first
+        console.warn(`Unit mismatch for ${deliveryItem.itemName}: expected ${matchingItem.unit}, received ${deliveryItem.unit}. Skipping inventory update.`);
+        continue;
       }
       
       // Instead of using updateInventoryItem, we'll log a specific receiving movement
@@ -496,6 +501,62 @@ export const findInventoryItemByName = async (
   } catch (error) {
     console.error('Error finding inventory item by name:', error);
     return null;
+  }
+};
+
+// Resolve unit mismatch by updating inventory item unit
+export const resolveUnitMismatch = async (
+  tenantId: string,
+  itemName: string,
+  newUnit: string,
+  deliveryQuantity: number,
+  userId?: string,
+  userName?: string
+): Promise<{ success: boolean; message: string }> => {
+  try {
+    // Find the inventory item
+    const inventoryItem = await findInventoryItemByName(tenantId, itemName);
+    
+    if (!inventoryItem) {
+      return { success: false, message: 'Inventory item not found' };
+    }
+    
+    // Update the inventory item with new unit and add the delivery quantity
+    const newStock = inventoryItem.currentStock + deliveryQuantity;
+    const itemRef = doc(db, `tenants/${tenantId}/inventory`, inventoryItem.id);
+    const now = Timestamp.now();
+    
+    await updateDoc(itemRef, {
+      unit: newUnit,
+      currentStock: newStock,
+      status: calculateStatus(newStock, inventoryItem.minStock),
+      updatedAt: now,
+      lastUpdated: now
+    });
+    
+    // Log the movement with unit change
+    await logInventoryMovement({
+      itemId: inventoryItem.id,
+      itemName: inventoryItem.name,
+      movementType: 'receiving',
+      quantity: deliveryQuantity,
+      previousStock: inventoryItem.currentStock,
+      newStock: newStock,
+      unit: newUnit,
+      reason: `Purchase order delivery received (unit changed from ${inventoryItem.unit} to ${newUnit})`,
+      userId,
+      userName,
+      tenantId,
+      locationId: inventoryItem.locationId
+    });
+    
+    return { 
+      success: true, 
+      message: `Successfully updated ${itemName} unit from "${inventoryItem.unit}" to "${newUnit}" and added ${deliveryQuantity} to inventory.` 
+    };
+  } catch (error) {
+    console.error('Error resolving unit mismatch:', error);
+    return { success: false, message: 'Failed to resolve unit mismatch' };
   }
 };
 

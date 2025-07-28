@@ -1,8 +1,9 @@
-'use client';
+'use client'
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User } from 'firebase/auth';
-import { UserProfile, TenantInfo, onAuthStateChange, getUserProfile, getTenantInfo } from '../firebase/auth';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { User } from 'firebase/auth'
+import { onAuthStateChange, getUserProfile, getTenantInfo, UserProfile, TenantInfo } from '../firebase/auth'
+import { UserRole } from '../rbac/permissions'
 
 interface AuthContextType {
   user: User | null;
@@ -10,6 +11,7 @@ interface AuthContextType {
   tenant: TenantInfo | null;
   loading: boolean;
   signOut: () => void;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,53 +29,47 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  console.log('🔥 AuthProvider: Component initializing...');
-  
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [tenant, setTenant] = useState<TenantInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
-  console.log('🔥 AuthProvider: State initialized, loading:', loading);
-
   useEffect(() => {
-    console.log('🔥 AuthProvider: useEffect starting...');
-    
-    const unsubscribe = onAuthStateChange(async (firebaseUser) => {
-      console.log('🔥 AuthProvider: Auth state changed:', firebaseUser?.email || 'No user');
-      
+    // Safety timeout to ensure loading doesn't get stuck
+    const safetyTimeout = setTimeout(() => {
+      setLoading(false);
+    }, 10000); // 10 seconds max
+
+    const unsubscribe = onAuthStateChange(async (firebaseUser: User | null) => {
       try {
         if (firebaseUser) {
-          console.log('🔥 AuthProvider: User found, fetching profile...');
+          // User is signed in
+          setUser(firebaseUser);
           
           const userProfile = await getUserProfile(firebaseUser.uid);
-          console.log('🔥 AuthProvider: Profile fetched:', userProfile);
+          setProfile(userProfile);
           
           if (userProfile?.tenantId) {
-            console.log('🔥 AuthProvider: Fetching tenant info...');
             const tenantInfo = await getTenantInfo(userProfile.tenantId);
-            console.log('🔥 AuthProvider: Tenant info fetched:', tenantInfo);
             setTenant(tenantInfo);
+          } else {
+            setTenant(null);
           }
-          
-          setUser(firebaseUser);
-          setProfile(userProfile);
         } else {
-          console.log('🔥 AuthProvider: No user, clearing state...');
+          // User is signed out
           setUser(null);
           setProfile(null);
           setTenant(null);
         }
       } catch (error) {
-        console.error('🔥 AuthProvider: Error in auth state change:', error);
+        console.error('Auth state change error:', error);
       } finally {
-        console.log('🔥 AuthProvider: Setting loading to false');
         setLoading(false);
       }
     });
 
     return () => {
-      console.log('🔥 AuthProvider: Cleanup - unsubscribing...');
+      clearTimeout(safetyTimeout);
       unsubscribe();
     };
   }, []);
@@ -83,27 +79,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     await signOut();
   };
 
-  // Function to set demo profile for testing
-  const setDemoProfile = (email: string, role: string) => {
-    const tenantId = email.split('@')[0] || 'demo-tenant';
-    const now = new Date();
-    const demoProfile = {
-      uid: `demo-${Date.now()}`,
-      email: email,
-      role: role as any,
-      tenantId: tenantId,
-      displayName: `${role} User`,
-      createdAt: now as any,
-      updatedAt: now as any,
-      lastLogin: now as any
-    };
-    setProfile(demoProfile);
-    setUser({
-      uid: demoProfile.uid,
-      email: email,
-      displayName: demoProfile.displayName
-    } as any);
-    setLoading(false);
+  const handleRefreshProfile = async () => {
+    if (user?.uid) {
+      try {
+        const userProfile = await getUserProfile(user.uid);
+        setProfile(userProfile);
+        
+        if (userProfile?.tenantId) {
+          const tenantInfo = await getTenantInfo(userProfile.tenantId);
+          setTenant(tenantInfo);
+        }
+      } catch (error) {
+        console.error('Error refreshing profile:', error);
+      }
+    }
   };
 
   const value = {
@@ -112,7 +101,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     tenant,
     loading,
     signOut: handleSignOut,
-    setDemoProfile
+    refreshProfile: handleRefreshProfile
   };
 
   return (

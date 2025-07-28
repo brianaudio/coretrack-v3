@@ -10,7 +10,7 @@ export class NotificationService {
     // Run smart alerts every 15 minutes
     const alertInterval = setInterval(async () => {
       try {
-        await runSmartAlerts(tenantId)
+        await runSmartAlerts(tenantId, 'main') // Use default location
         console.log(`Smart alerts processed for tenant: ${tenantId}`)
       } catch (error) {
         console.error('Error running smart alerts:', error)
@@ -32,7 +32,7 @@ export class NotificationService {
       const now = new Date()
       if (now.getHours() === 9 && now.getMinutes() === 0) {
         try {
-          await sendAutomatedReports(tenantId, 'daily')
+          await sendAutomatedReports(tenantId, 'main', 'daily')
           console.log(`Daily report sent for tenant: ${tenantId}`)
         } catch (error) {
           console.error('Error sending daily report:', error)
@@ -45,7 +45,7 @@ export class NotificationService {
       const now = new Date()
       if (now.getDay() === 1 && now.getHours() === 9 && now.getMinutes() === 0) { // Monday
         try {
-          await sendAutomatedReports(tenantId, 'weekly')
+          await sendAutomatedReports(tenantId, 'main', 'weekly')
           console.log(`Weekly report sent for tenant: ${tenantId}`)
         } catch (error) {
           console.error('Error sending weekly report:', error)

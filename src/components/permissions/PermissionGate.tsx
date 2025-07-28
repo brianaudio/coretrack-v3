@@ -21,15 +21,21 @@ export const PermissionGate: React.FC<PermissionGateProps> = ({
 }) => {
   const { hasPermission, loading } = useUserPermissions();
 
+  // DEVELOPMENT MODE: Always allow access during testing
+  const isDevMode = process.env.NODE_ENV === 'development';
+  
+  // In development, skip loading check and always allow access
+  if (isDevMode) {
+    return <>{children}</>;
+  }
+
   if (loading) {
     return (
       <div className="animate-pulse bg-gray-200 rounded-lg h-8 w-32"></div>
     );
   }
 
-  // DEVELOPMENT MODE: Always allow access during testing
-  const isDevMode = process.env.NODE_ENV === 'development';
-  const hasAccess = isDevMode || hasPermission(permission);
+  const hasAccess = hasPermission(permission);
 
   if (hasAccess) {
     return <>{children}</>;

@@ -23,6 +23,7 @@ export interface UserProfile {
   displayName: string;
   tenantId: string;
   role: 'owner' | 'manager' | 'staff';
+  selectedBranchId?: string; // Store user's selected branch
   createdAt: Timestamp;
   updatedAt: Timestamp;
   lastLogin: Timestamp;
@@ -228,6 +229,21 @@ export const resetPassword = async (email: string): Promise<void> => {
     await sendPasswordResetEmail(auth, email);
   } catch (error) {
     console.error('Error sending password reset email:', error);
+    throw error;
+  }
+};
+
+// Update user's selected branch
+export const updateUserSelectedBranch = async (uid: string, branchId: string): Promise<void> => {
+  try {
+    const userRef = doc(db, 'users', uid);
+    await updateDoc(userRef, {
+      selectedBranchId: branchId,
+      updatedAt: Timestamp.now()
+    });
+    console.log('✅ User selected branch updated in Firebase:', { uid, branchId });
+  } catch (error) {
+    console.error('❌ Error updating user selected branch:', error);
     throw error;
   }
 };

@@ -102,7 +102,7 @@ export default function SimpleTheftPrevention() {
       {/* Today's Status */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-          <h3 className="text-sm font-medium text-green-800">Today's Checks</h3>
+          <h3 className="text-sm font-medium text-green-800">Today&apos;s Checks</h3>
           <p className="text-2xl font-bold text-green-900">{completedChecks.length}</p>
           <p className="text-xs text-green-600">Completed this shift</p>
         </div>

@@ -36,6 +36,23 @@ export default function BranchAssignmentManager({ branches, onClose }: BranchAss
   const [selectedUser, setSelectedUser] = useState<UserBranchAssignment | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
 
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const loadUsers = async () => {
+    try {
+      setLoading(true);
+      // TODO: Implement actual user loading from Firebase
+      // This would fetch all users in the tenant and their branch assignments
+      setUsers([]);
+    } catch (error) {
+      console.error('Error loading users:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Only owners and managers can access this component
   if (!isOwner() && !isManager()) {
     return (
@@ -55,23 +72,6 @@ export default function BranchAssignmentManager({ branches, onClose }: BranchAss
       </div>
     );
   }
-
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
-  const loadUsers = async () => {
-    try {
-      setLoading(true);
-      // TODO: Implement actual user loading from Firebase
-      // This would fetch all users in the tenant and their branch assignments
-      setUsers([]);
-    } catch (error) {
-      console.error('Error loading users:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleEditUser = (user: UserBranchAssignment) => {
     setSelectedUser(user);

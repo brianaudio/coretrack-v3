@@ -254,6 +254,7 @@ const getRolePermissions = (role: UserRole): string[] => {
   const permissions: Record<UserRole, string[]> = {
     owner: ['read', 'write', 'delete', 'admin', 'manage_users', 'manage_locations'],
     manager: ['read', 'write', 'manage_staff', 'view_reports'],
+    cashier: ['read', 'pos_access', 'basic_inventory'],
     staff: ['read', 'limited_write', 'pos_access']
   };
   return permissions[role] || [];
@@ -263,6 +264,7 @@ const getAllowedModulesForRole = (role: UserRole): string[] => {
   const modules: Record<UserRole, string[]> = {
     owner: ['all'],
     manager: ['all'],
+    cashier: ['pos', 'inventory'],
     staff: ['pos', 'purchase-orders', 'inventory']
   };
   return modules[role] || [];
@@ -274,6 +276,11 @@ export const mockAuthentication = process.env.NODE_ENV === 'development' ? {
     email: process.env.NEXT_PUBLIC_STAFF_EMAIL || 'staff@coretrack.dev',
     password: process.env.NEXT_PUBLIC_STAFF_PASSWORD || 'Staff123!',
     role: 'staff' as UserRole
+  },
+  cashier: {
+    email: process.env.NEXT_PUBLIC_CASHIER_EMAIL || 'cashier@coretrack.dev',
+    password: process.env.NEXT_PUBLIC_CASHIER_PASSWORD || 'Cashier123!',
+    role: 'cashier' as UserRole
   },
   manager: {
     email: process.env.NEXT_PUBLIC_MANAGER_EMAIL || 'manager@coretrack.dev', 

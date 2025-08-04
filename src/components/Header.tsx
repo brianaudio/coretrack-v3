@@ -54,11 +54,36 @@ export default function Header({ activeModule, onSidebarToggle, onLogout }: Head
   }
 
   const handleEndShiftAndLogout = async () => {
-    const action = isShiftActive ? 'end your shift and sign out' : 'sign out';
+    // Safety check: Determine if current user can safely end the shift
+    const isShiftOwner = currentShift?.createdBy === user?.uid
+    const isManagerOrOwner = currentRole === 'manager' || currentRole === 'owner'
+    const isCashier = currentRole === 'cashier'
+    
+    // Determine the appropriate action
+    let action: string
+    let canEndShift = false
+    
+    if (!isShiftActive) {
+      action = 'sign out'
+      canEndShift = false
+    } else if (isShiftOwner || isCashier) {
+      // User owns the shift or is a cashier (typically owns shifts)
+      action = 'end your shift and sign out'
+      canEndShift = true
+    } else if (isManagerOrOwner) {
+      // Manager/Owner but someone else's shift is active
+      action = `sign out (${currentShift?.createdBy || 'Unknown'} shift will continue)`
+      canEndShift = false
+    } else {
+      // Default case
+      action = 'sign out'
+      canEndShift = false
+    }
+    
     if (confirm(`Are you sure you want to ${action}?`)) {
       try {
-        // If shift is active, end it first
-        if (isShiftActive) {
+        // Only end shift if user is authorized to do so
+        if (isShiftActive && canEndShift) {
           await performReset({
             resetReason: 'shift_end',
             shiftId: currentShift?.id,
@@ -66,7 +91,7 @@ export default function Header({ activeModule, onSidebarToggle, onLogout }: Head
           });
         }
         
-        // Then sign out
+        // Always sign out regardless
         if (onLogout) {
           onLogout()
         } else {
@@ -131,32 +156,62 @@ export default function Header({ activeModule, onSidebarToggle, onLogout }: Head
 
               {/* Action Buttons */}
               <div className="flex items-center space-x-2">
-                {/* Combined End Shift & Sign Out Button */}
+                {/* Smart End Shift & Sign Out Button */}
                 <button 
                   onClick={handleEndShiftAndLogout}
                   disabled={loading || isResetting}
-                  className={`${isShiftActive 
-                    ? 'bg-red-600 hover:bg-red-700 text-white' 
-                    : 'text-surface-500 hover:text-red-600 hover:bg-red-50'
+                  className={`${
+                    isShiftActive 
+                      ? (currentShift?.createdBy === user?.uid || currentRole === 'cashier')
+                        ? 'bg-red-600 hover:bg-red-700 text-white' // Can end shift
+                        : 'bg-orange-500 hover:bg-orange-600 text-white' // Sign out only
+                      : 'text-surface-500 hover:text-red-600 hover:bg-red-50' // Normal sign out
                   } disabled:bg-gray-300 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5`}
-                  title={isShiftActive ? "End Shift & Sign Out" : "Sign Out"}
+                  title={
+                    isShiftActive
+                      ? (currentShift?.createdBy === user?.uid || currentRole === 'cashier')
+                        ? "End Shift & Sign Out"
+                        : `Sign Out Only (${currentShift?.createdBy || 'Active'} shift continues)`
+                      : "Sign Out"
+                  }
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     {isShiftActive ? (
-                      // End shift icon
-                      <>
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10l6 6m0-6l-6 6" />
-                      </>
+                      (currentShift?.createdBy === user?.uid || currentRole === 'cashier') ? (
+                        // End shift icon - user can end shift
+                        <>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10l6 6m0-6l-6 6" />
+                        </>
+                      ) : (
+                        // Sign out only icon - someone else's shift
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      )
                     ) : (
-                      // Sign out icon
+                      // Normal sign out icon
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                     )}
                   </svg>
                   <span className="hidden md:inline">
-                    {loading || isResetting ? 'Ending...' : (isShiftActive ? 'End Shift' : 'Sign Out')}
+                    {loading || isResetting ? 'Ending...' : 
+                      isShiftActive
+                        ? (currentShift?.createdBy === user?.uid || currentRole === 'cashier')
+                          ? 'End Shift'
+                          : 'Sign Out'
+                        : 'Sign Out'
+                    }
                   </span>
                 </button>
+                
+                {/* Active Shift Indicator for Non-Owners */}
+                {isShiftActive && currentShift?.createdBy !== user?.uid && currentRole !== 'cashier' && (
+                  <div className="hidden lg:flex items-center text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded">
+                    <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    </svg>
+                    Active Shift
+                  </div>
+                )}
               </div>
             </div>
           </div>

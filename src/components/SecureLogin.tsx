@@ -124,6 +124,12 @@ const SecureLogin: React.FC<SecureLoginProps> = ({ onLoginSuccess }) => {
       color: 'bg-green-100 border-green-300 text-green-800',
       icon: '👔'
     },
+    cashier: {
+      title: 'Cashier',
+      description: 'Access to POS and basic inventory viewing',
+      color: 'bg-yellow-100 border-yellow-300 text-yellow-800',
+      icon: '💰'
+    },
     staff: {
       title: 'Staff Member',
       description: 'Access to POS, Inventory, and Purchase Orders',

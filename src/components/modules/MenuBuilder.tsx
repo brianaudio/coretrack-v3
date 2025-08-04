@@ -1169,7 +1169,7 @@ export default function MenuBuilder() {
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">No Menu Available</h3>
                   <p className="text-gray-600 text-center mb-6 max-w-sm">
-                    You haven't created any menu items yet. Start building your menu by adding your first item.
+                    You haven&apos;t created any menu items yet. Start building your menu by adding your first item.
                   </p>
                   <button
                     onClick={() => setShowCreateModal(true)}
@@ -1328,7 +1328,7 @@ export default function MenuBuilder() {
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">No Add-ons Available</h3>
                   <p className="text-gray-600 text-center mb-6 max-w-sm">
-                    You haven't created any add-ons yet. Add-ons are extras like sauces, drinks, or sides that customers can add to their orders.
+                    You haven&apos;t created any add-ons yet. Add-ons are extras like sauces, drinks, or sides that customers can add to their orders.
                   </p>
                   <button
                     onClick={() => setShowCreateAddonModal(true)}
@@ -2232,7 +2232,7 @@ export default function MenuBuilder() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                     </svg>
                     <p className="text-sm">No ingredients added yet</p>
-                    <p className="text-xs text-gray-400">Click "Add Ingredient" to start building your add-on recipe</p>
+                    <p className="text-xs text-gray-400">Click &quot;Add Ingredient&quot; to start building your add-on recipe</p>
                   </div>
                 )}
               </div>

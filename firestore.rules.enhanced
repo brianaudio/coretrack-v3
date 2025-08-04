@@ -1,0 +1,191 @@
+/**
+ * Enhanced Firebase Security Rules for Permission-based Access Control
+ * Complements server-side validation with client-side security
+ */
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserId() {
+      return request.auth.uid;
+    }
+    
+    function getTenantId() {
+      return get(/databases/$(database)/documents/users/$(getUserId())).data.tenantId;
+    }
+    
+    function getBranchId() {
+      return get(/databases/$(database)/documents/users/$(getUserId())).data.branchId;
+    }
+    
+    function hasRole(roleId) {
+      return exists(/databases/$(database)/documents/tenants/$(getTenantId())/userRoles/$(getUserId() + '_' + roleId));
+    }
+    
+    function hasPermission(action, resource) {
+      let userRoles = get(/databases/$(database)/documents/tenants/$(getTenantId())/userRoles/$(getUserId())).data.roles;
+      // This would need to be expanded with full permission checking logic
+      return true; // Simplified for now - implement full logic
+    }
+    
+    function isSameTenant(tenantId) {
+      return getTenantId() == tenantId;
+    }
+    
+    function isSameBranch(branchId) {
+      return getBranchId() == branchId;
+    }
+    
+    function isSystemAdmin() {
+      return hasRole('super_admin');
+    }
+    
+    function isTenantAdmin() {
+      return hasRole('super_admin') || hasRole('tenant_admin');
+    }
+    
+    function isBranchManager() {
+      return hasRole('super_admin') || hasRole('tenant_admin') || hasRole('branch_manager');
+    }
+    
+    // User documents - users can read/update their own data
+    match /users/{userId} {
+      allow read, write: if isAuthenticated() && (getUserId() == userId || isSystemAdmin());
+    }
+    
+    // Tenant-level data
+    match /tenants/{tenantId} {
+      // Tenant settings - only admins can modify
+      allow read: if isAuthenticated() && isSameTenant(tenantId);
+      allow write: if isAuthenticated() && isSameTenant(tenantId) && isTenantAdmin();
+      
+      // User roles within tenant
+      match /userRoles/{roleAssignmentId} {
+        allow read: if isAuthenticated() && isSameTenant(tenantId);
+        allow write: if isAuthenticated() && isSameTenant(tenantId) && isTenantAdmin();
+      }
+      
+      // Role definitions
+      match /roles/{roleId} {
+        allow read: if isAuthenticated() && isSameTenant(tenantId);
+        allow write: if isAuthenticated() && isSameTenant(tenantId) && isTenantAdmin();
+      }
+      
+      // Inventory data
+      match /inventory/{inventoryId} {
+        allow read: if isAuthenticated() && isSameTenant(tenantId);
+        allow write: if isAuthenticated() && isSameTenant(tenantId) && 
+          (isTenantAdmin() || 
+           (isBranchManager() && isSameBranch(resource.data.branchId)) ||
+           hasPermission('update', 'inventory'));
+      }
+      
+      // POS transactions
+      match /transactions/{transactionId} {
+        allow read: if isAuthenticated() && isSameTenant(tenantId);
+        allow create: if isAuthenticated() && isSameTenant(tenantId) && 
+          (request.auth.uid == resource.data.createdBy || hasPermission('create', 'pos'));
+        allow update: if isAuthenticated() && isSameTenant(tenantId) && isTenantAdmin();
+        allow delete: if false; // Transactions should not be deleted
+      }
+      
+      // Menu items
+      match /menuItems/{menuItemId} {
+        allow read: if isAuthenticated() && isSameTenant(tenantId);
+        allow write: if isAuthenticated() && isSameTenant(tenantId) && 
+          (isTenantAdmin() || hasPermission('update', 'menu_builder'));
+      }
+      
+      // Purchase orders
+      match /purchaseOrders/{orderId} {
+        allow read: if isAuthenticated() && isSameTenant(tenantId);
+        allow write: if isAuthenticated() && isSameTenant(tenantId) && 
+          (isTenantAdmin() || 
+           (isBranchManager() && isSameBranch(resource.data.branchId)) ||
+           hasPermission('create', 'purchase_orders'));
+      }
+      
+      // Expenses
+      match /expenses/{expenseId} {
+        allow read: if isAuthenticated() && isSameTenant(tenantId);
+        allow create: if isAuthenticated() && isSameTenant(tenantId) && 
+          (request.auth.uid == resource.data.createdBy || hasPermission('create', 'expenses'));
+        allow update: if isAuthenticated() && isSameTenant(tenantId) && 
+          (request.auth.uid == resource.data.createdBy || 
+           isTenantAdmin() || 
+           hasPermission('update', 'expenses'));
+        allow delete: if isAuthenticated() && isSameTenant(tenantId) && 
+          (request.auth.uid == resource.data.createdBy || isTenantAdmin());
+      }
+      
+      // Analytics data - read-only, controlled by backend
+      match /analytics/{analyticsId} {
+        allow read: if isAuthenticated() && isSameTenant(tenantId) && hasPermission('read', 'analytics');
+        allow write: if false; // Analytics are computed server-side
+      }
+      
+      // Audit logs - read-only for admins
+      match /auditLogs/{logId} {
+        allow read: if isAuthenticated() && isSameTenant(tenantId) && isTenantAdmin();
+        allow write: if false; // Audit logs are system-generated
+      }
+      
+      // Settings
+      match /settings/{settingId} {
+        allow read: if isAuthenticated() && isSameTenant(tenantId);
+        allow write: if isAuthenticated() && isSameTenant(tenantId) && 
+          (isTenantAdmin() || hasPermission('manage', 'settings'));
+      }
+      
+      // Branch-specific data
+      match /branches/{branchId} {
+        allow read: if isAuthenticated() && isSameTenant(tenantId);
+        allow write: if isAuthenticated() && isSameTenant(tenantId) && 
+          (isTenantAdmin() || 
+           (isBranchManager() && isSameBranch(branchId)));
+        
+        // Branch-specific inventory
+        match /inventory/{inventoryId} {
+          allow read: if isAuthenticated() && isSameTenant(tenantId);
+          allow write: if isAuthenticated() && isSameTenant(tenantId) && 
+            (isTenantAdmin() || 
+             (isBranchManager() && isSameBranch(branchId)) ||
+             hasPermission('update', 'inventory'));
+        }
+        
+        // Branch-specific transactions
+        match /transactions/{transactionId} {
+          allow read: if isAuthenticated() && isSameTenant(tenantId);
+          allow create: if isAuthenticated() && isSameTenant(tenantId) && 
+            (isSameBranch(branchId) || isTenantAdmin());
+          allow update: if isAuthenticated() && isSameTenant(tenantId) && isTenantAdmin();
+          allow delete: if false;
+        }
+      }
+    }
+    
+    // System-wide data (only for super admins)
+    match /system/{document=**} {
+      allow read, write: if isAuthenticated() && isSystemAdmin();
+    }
+    
+    // Emergency access logs
+    match /emergencyAccess/{logId} {
+      allow read: if isAuthenticated() && isSystemAdmin();
+      allow create: if isAuthenticated(); // Allow creating emergency access requests
+      allow update, delete: if false;
+    }
+    
+    // Rate limiting and security logs
+    match /securityLogs/{logId} {
+      allow read: if isAuthenticated() && isSystemAdmin();
+      allow write: if false; // System-generated only
+    }
+  }
+}

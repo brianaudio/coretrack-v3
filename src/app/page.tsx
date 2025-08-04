@@ -20,11 +20,7 @@ export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [hasInitialized, setHasInitialized] = useState(false)
 
-  // Debug mode changes
-  useEffect(() => {
-    console.log('🔧 Mode changed to:', mode)
-  }, [mode])
-
+  // Initialize auth state tracking
   useEffect(() => {
     // Wait for auth to initialize
     if (loading) {
@@ -34,9 +30,10 @@ export default function Home() {
     // Mark as initialized after auth loads
     if (!hasInitialized) {
       setHasInitialized(true)
+      return // Exit early to prevent race conditions
     }
 
-    // Only auto-redirect if user exists AND we're in a non-user mode AND this is not initial load
+    // Handle authenticated user state
     if (user && hasInitialized) {
       setIsAuthenticated(true)
       
@@ -48,39 +45,38 @@ export default function Home() {
         role: 'owner'
       })
       
-      // Check if user has completed onboarding
-      const onboardingCompleted = localStorage.getItem('coretrack_onboarding_completed')
-      if (!onboardingCompleted) {
-        setMode('onboarding')
-      } else {
-        setMode('dashboard')
+      // Only change mode if we're not already in a user-specific mode
+      if (mode === 'landing' || mode === 'login' || mode === 'signup') {
+        // Check onboarding status synchronously to avoid race conditions
+        const onboardingCompleted = localStorage.getItem('coretrack_onboarding_completed')
+        if (!onboardingCompleted) {
+          setMode('onboarding')
+        } else {
+          setMode('dashboard')
+        }
       }
-    } else if (!user) {
+    } else if (!user && hasInitialized) {
+      // Handle unauthenticated user state
       setIsAuthenticated(false)
-      // Clear user role when no user
       setCurrentRole(null)
       setCurrentUser(null)
-      // Only reset to landing if we're not already in auth-related modes
-      if (mode !== 'landing' && mode !== 'signup' && mode !== 'login') {
+      
+      // Only reset to landing if we're in a protected mode
+      if (mode === 'dashboard' || mode === 'onboarding') {
         setMode('landing')
       }
     }
-  }, [user, loading, hasInitialized, mode])
+  }, [user, loading, hasInitialized]) // Removed 'mode' from dependencies to prevent loops
 
   const handleSignupSuccess = (profile: any) => {
     setUserProfile(profile)
     setIsAuthenticated(true)
-    setMode('onboarding')
+    // Don't set mode here - let the useEffect handle it based on auth state
   }
 
   const handleLoginSuccess = () => {
     setIsAuthenticated(true)
-    const onboardingCompleted = localStorage.getItem('coretrack_onboarding_completed')
-    if (!onboardingCompleted) {
-      setMode('onboarding')
-    } else {
-      setMode('dashboard')
-    }
+    // Don't set mode here - let the useEffect handle it based on auth state
   }
 
   const handleOnboardingComplete = () => {
@@ -102,17 +98,15 @@ export default function Home() {
   }
 
   const renderContent = () => {
-    console.log('🔧 Current mode:', mode)
+    // Remove excessive debug logging to prevent console spam
     switch (mode) {
       case 'landing':
         return (
           <LandingPage
             onGetStarted={() => {
-              console.log('🔧 Get started clicked')
               setMode('signup')
             }}
             onSignIn={() => {
-              console.log('🔧 Sign in clicked - changing mode from', mode, 'to login')
               setMode('login')
             }}
           />
@@ -121,10 +115,7 @@ export default function Home() {
       case 'signup':
         return (
           <EnhancedSignup
-            onLogin={() => {
-              setIsAuthenticated(true)
-              setMode('onboarding')
-            }}
+            onLogin={handleLoginSuccess}
             onBackToLanding={() => setMode('landing')}
           />
         )

@@ -1,10 +1,21 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react'
 import { useAuth } from './AuthContext'
 import { getBranches, initializeBranchesForTenant } from '../firebase/branches'
 import { updateUserSelectedBranch } from '../firebase/auth'
 import { debugTrace, debugStep, debugError, debugSuccess } from '../utils/debugHelper'
+import { 
+  collection, 
+  query, 
+  where, 
+  onSnapshot, 
+  doc, 
+  updateDoc,
+  serverTimestamp,
+  addDoc
+} from 'firebase/firestore'
+import { db } from '../firebase'
 
 export interface Branch {
   id: string
@@ -21,6 +32,140 @@ export interface Branch {
     inventoryValue: number
     lowStockItems: number
   }
+  // Enhanced fields for comprehensive branch management
+  type?: string
+  isActive?: boolean
+  settings?: Record<string, any>
+  createdAt?: Date
+  updatedAt?: Date
+}
+
+export interface BranchSwitchAuditLog {
+  userId: string
+  tenantId: string
+  fromBranchId: string | null
+  toBranchId: string
+  timestamp: Date
+  sessionId: string
+  userAgent: string
+  ipAddress?: string
+}
+
+// Branch-aware cache manager
+class BranchCacheManager {
+  private cache = new Map<string, Map<string, any>>()
+  private subscriptions = new Map<string, () => void>()
+
+  getCacheKey(branchId: string, collection: string): string {
+    return `${branchId}:${collection}`
+  }
+
+  get<T>(branchId: string, collection: string): T[] | null {
+    const branchCache = this.cache.get(branchId)
+    return branchCache?.get(collection) || null
+  }
+
+  set<T>(branchId: string, collection: string, data: T[]): void {
+    if (!this.cache.has(branchId)) {
+      this.cache.set(branchId, new Map())
+    }
+    this.cache.get(branchId)!.set(collection, data)
+  }
+
+  clearBranch(branchId: string): void {
+    this.cache.delete(branchId)
+    // Clear any subscriptions for this branch
+    const keysToDelete: string[] = []
+    this.subscriptions.forEach((unsubscribe, key) => {
+      if (key.startsWith(branchId)) {
+        unsubscribe()
+        keysToDelete.push(key)
+      }
+    })
+    keysToDelete.forEach(key => this.subscriptions.delete(key))
+  }
+
+  clearAll(): void {
+    // Unsubscribe from all listeners
+    this.subscriptions.forEach(unsubscribe => unsubscribe())
+    this.subscriptions.clear()
+    this.cache.clear()
+  }
+
+  addSubscription(branchId: string, collection: string, unsubscribe: () => void): void {
+    const key = this.getCacheKey(branchId, collection)
+    // Clear existing subscription if any
+    if (this.subscriptions.has(key)) {
+      this.subscriptions.get(key)!()
+    }
+    this.subscriptions.set(key, unsubscribe)
+  }
+
+  getStats(): { branches: number; collections: number; subscriptions: number } {
+    let collections = 0
+    this.cache.forEach(branchCache => {
+      collections += branchCache.size
+    })
+    
+    return {
+      branches: this.cache.size,
+      collections,
+      subscriptions: this.subscriptions.size
+    }
+  }
+}
+
+// Session manager for tracking branch switches
+class BranchSessionManager {
+  private sessionId: string
+  private switchHistory: BranchSwitchAuditLog[] = []
+
+  constructor() {
+    this.sessionId = this.generateSessionId()
+  }
+
+  private generateSessionId(): string {
+    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+  }
+
+  async logBranchSwitch(
+    userId: string,
+    tenantId: string,
+    fromBranchId: string | null,
+    toBranchId: string
+  ): Promise<void> {
+    const log: BranchSwitchAuditLog = {
+      userId,
+      tenantId,
+      fromBranchId,
+      toBranchId,
+      timestamp: new Date(),
+      sessionId: this.sessionId,
+      userAgent: navigator.userAgent
+    }
+
+    // Store locally
+    this.switchHistory.push(log)
+
+    // Store in Firebase for audit trail
+    try {
+      await addDoc(collection(db, `tenants/${tenantId}/auditLogs`), {
+        type: 'branch_switch',
+        ...log,
+        timestamp: serverTimestamp()
+      })
+    } catch (error) {
+      console.error('Failed to log branch switch:', error)
+    }
+  }
+
+  getSwitchHistory(): BranchSwitchAuditLog[] {
+    return [...this.switchHistory]
+  }
+
+  getSessionId(): string {
+    return this.sessionId
+  }
 }
 
 interface BranchContextType {
@@ -29,6 +174,16 @@ interface BranchContextType {
   setSelectedBranch: (branch: Branch) => void
   refreshBranches: () => void
   loading: boolean
+  // Enhanced functionality
+  switchingInProgress: boolean
+  lastSwitchTime: Date | null
+  error: string | null
+  switchBranch: (branchId: string) => Promise<void>
+  canAccessBranch: (branchId: string) => boolean
+  getBranchData: (collection: string, additionalFilters?: any[]) => Promise<any[]>
+  clearBranchCache: () => void
+  getSwitchHistory: () => BranchSwitchAuditLog[]
+  getCacheStats: () => { branches: number; collections: number; subscriptions: number }
 }
 
 const BranchContext = createContext<BranchContextType | undefined>(undefined)
@@ -38,6 +193,16 @@ export function BranchProvider({ children }: { children: ReactNode }) {
   const [branches, setBranches] = useState<Branch[]>([])
   const [selectedBranch, setSelectedBranchState] = useState<Branch | null>(null)
   const [loading, setLoading] = useState(true)
+  
+  // Enhanced state for comprehensive branch switching
+  const [switchingInProgress, setSwitchingInProgress] = useState(false)
+  const [lastSwitchTime, setLastSwitchTime] = useState<Date | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  
+  // Managers for enhanced functionality
+  const cacheManagerRef = useRef(new BranchCacheManager())
+  const sessionManagerRef = useRef(new BranchSessionManager())
+  const branchListenerRef = useRef<(() => void) | null>(null)
 
   // Development mode detection
   const isDevelopment = process.env.NODE_ENV === 'development'
@@ -315,13 +480,167 @@ export function BranchProvider({ children }: { children: ReactNode }) {
     loadBranches()
   }
 
+  // Enhanced branch switching with comprehensive state management
+  const switchBranch = useCallback(async (branchId: string): Promise<void> => {
+    if (!profile || !tenant || switchingInProgress) {
+      return
+    }
+
+    const targetBranch = branches.find(b => b.id === branchId)
+    if (!targetBranch) {
+      setError(`Branch not found: ${branchId}`)
+      return
+    }
+
+    setSwitchingInProgress(true)
+    setError(null)
+
+    try {
+      const fromBranchId = selectedBranch?.id || null
+
+      // Step 1: Log the switch for audit trail
+      await sessionManagerRef.current.logBranchSwitch(
+        profile.uid,
+        tenant.id,
+        fromBranchId,
+        branchId
+      )
+
+      // Step 2: Clear cache for old branch (if switching)
+      if (fromBranchId && fromBranchId !== branchId) {
+        cacheManagerRef.current.clearBranch(fromBranchId)
+      }
+
+      // Step 3: Update selected branch
+      setSelectedBranchState(targetBranch)
+      setLastSwitchTime(new Date())
+
+      // Step 4: Save to Firebase user profile
+      if (profile.uid) {
+        try {
+          await updateUserSelectedBranch(profile.uid, branchId)
+        } catch (error) {
+          console.warn('Failed to update user selected branch:', error)
+        }
+      }
+
+      // Step 5: Trigger global branch change event
+      window.dispatchEvent(new CustomEvent('branchChanged', {
+        detail: {
+          fromBranchId,
+          toBranchId: branchId,
+          branch: targetBranch,
+          userId: profile.uid,
+          tenantId: tenant.id
+        }
+      }))
+
+    } catch (error) {
+      console.error('Branch switch failed:', error)
+      setError(error instanceof Error ? error.message : 'Branch switch failed')
+    } finally {
+      setSwitchingInProgress(false)
+    }
+  }, [profile, tenant, branches, selectedBranch, switchingInProgress])
+
+  // Check if user can access specific branch
+  const canAccessBranch = useCallback((branchId: string): boolean => {
+    if (!profile || !tenant) return false
+    
+    // For now, assume all branches are accessible if user has access to tenant
+    // This can be enhanced with proper permission checking
+    return branches.some(b => b.id === branchId)
+  }, [profile, tenant, branches])
+
+  // Get branch-specific data with caching
+  const getBranchData = useCallback(async (
+    collectionName: string,
+    additionalFilters: any[] = []
+  ): Promise<any[]> => {
+    if (!selectedBranch || !tenant) {
+      return []
+    }
+
+    const branchId = selectedBranch.id
+    
+    // Check cache first
+    const cached = cacheManagerRef.current.get(branchId, collectionName)
+    if (cached) {
+      return cached
+    }
+
+    try {
+      // Build query with branch filter
+      const baseQuery = query(
+        collection(db, `tenants/${tenant.id}/${collectionName}`),
+        where('branchId', '==', branchId),
+        ...additionalFilters
+      )
+
+      // Set up real-time listener and cache the data
+      const unsubscribe = onSnapshot(baseQuery, (snapshot) => {
+        const data = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        
+        cacheManagerRef.current.set(branchId, collectionName, data)
+      })
+
+      // Store the subscription for cleanup
+      cacheManagerRef.current.addSubscription(branchId, collectionName, unsubscribe)
+
+      // Return empty array initially, real data will come through listener
+      return []
+      
+    } catch (error) {
+      console.error(`Failed to get ${collectionName} data:`, error)
+      return []
+    }
+  }, [selectedBranch, tenant])
+
+  // Clear branch cache
+  const clearBranchCache = useCallback((): void => {
+    cacheManagerRef.current.clearAll()
+  }, [])
+
+  // Get switch history
+  const getSwitchHistory = useCallback((): BranchSwitchAuditLog[] => {
+    return sessionManagerRef.current.getSwitchHistory()
+  }, [])
+
+  // Get cache statistics
+  const getCacheStats = useCallback(() => {
+    return cacheManagerRef.current.getStats()
+  }, [])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      cacheManagerRef.current.clearAll()
+      if (branchListenerRef.current) {
+        branchListenerRef.current()
+      }
+    }
+  }, [])
+
   return (
     <BranchContext.Provider value={{
       branches,
       selectedBranch,
       setSelectedBranch,
       refreshBranches,
-      loading
+      loading,
+      // Enhanced functionality
+      switchingInProgress,
+      lastSwitchTime,
+      error,
+      switchBranch,
+      canAccessBranch,
+      getBranchData,
+      clearBranchCache,
+      getSwitchHistory,
+      getCacheStats
     }}>
       {children}
     </BranchContext.Provider>
@@ -334,4 +653,56 @@ export function useBranch() {
     throw new Error('useBranch must be used within a BranchProvider')
   }
   return context
+}
+
+// Hook for branch-specific data
+export function useBranchData(collectionName: string, additionalFilters: any[] = []) {
+  const { getBranchData, selectedBranch } = useBranch()
+  const [data, setData] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!selectedBranch) {
+      setData([])
+      setLoading(false)
+      return
+    }
+
+    let isMounted = true
+
+    const loadData = async () => {
+      setLoading(true)
+      try {
+        const result = await getBranchData(collectionName, additionalFilters)
+        if (isMounted) {
+          setData(result)
+        }
+      } catch (error) {
+        console.error(`Failed to load ${collectionName}:`, error)
+        if (isMounted) {
+          setData([])
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadData()
+
+    // Listen for branch changes
+    const handleBranchChange = () => {
+      loadData()
+    }
+
+    window.addEventListener('branchChanged', handleBranchChange)
+
+    return () => {
+      isMounted = false
+      window.removeEventListener('branchChanged', handleBranchChange)
+    }
+  }, [selectedBranch, collectionName, getBranchData, additionalFilters])
+
+  return { data, loading }
 }

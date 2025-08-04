@@ -10,7 +10,6 @@ import EnhancedTeamManagement from './modules/EnhancedTeamManagement'
 import DevTools from './DevTools'
 import ProfessionalFooter from './ProfessionalFooter'
 import ShiftDashboard from './ShiftManagement/ShiftDashboard'
-import ShiftRequiredModal from './ShiftRequiredModal'
 import InventoryCenter from './modules/InventoryCenter'
 import POS from './modules/POS'  // Original POS
 import POSEnhanced from './modules/POS_Enhanced'  // Enhanced POS with Add-ons and Offline
@@ -25,10 +24,11 @@ import InventoryDiscrepancy from './modules/InventoryDiscrepancy'
 import BusinessReports from './modules/BusinessReports'
 import { useAuth } from '../lib/context/AuthContext' // Use AuthContext instead of UserContext
 import { useUser } from '../lib/rbac/UserContext' // Add UserContext for coordinated loading
+import { useSubscription } from '../lib/context/SubscriptionContext' // Add subscription context
 import { hasPermission, getAllowedModules, ModulePermission } from '../lib/rbac/permissions'
+import { hasModuleAccess, getAccessibleModules } from '../lib/rbac/subscriptionPermissions'
 import ConnectionStatus from './ui/ConnectionStatus'
 import { BranchProvider } from '../lib/context/BranchContext'
-import { useShift } from '../lib/context/ShiftContext'
 
 export type ModuleType = 'dashboard' | 'inventory' | 'pos' | 'purchase-orders' | 'menu-builder' | 'expenses' | 'team-management' | 'location-management' | 'settings' | 'discrepancy-monitoring' | 'business-reports'
 
@@ -37,14 +37,22 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ onLogout }: DashboardProps) {
-  const { profile, user, loading: authLoading } = useAuth() // Use AuthContext
+  const { profile, user, loading: authLoading, refreshProfile } = useAuth() // Use AuthContext
   const { currentRole, loading: userLoading } = useUser() // Use coordinated UserContext
-  const { isShiftActive, loading: shiftLoading } = useShift()
+  const { features: subscriptionFeatures, loading: subscriptionLoading } = useSubscription() // Add subscription context
   const [activeModule, setActiveModule] = useState<ModuleType>('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
-  // Coordinated loading state
-  const isLoading = authLoading || userLoading || shiftLoading
+  // Coordinated loading state - include subscription loading
+  const isLoading = authLoading || userLoading || subscriptionLoading
+
+  // Auto-refresh profile if user exists but profile is missing (common after signup)
+  useEffect(() => {
+    if (user && !profile && !authLoading) {
+      console.log('🔧 Dashboard: User exists but profile missing, refreshing...')
+      refreshProfile()
+    }
+  }, [user, profile, authLoading, refreshProfile])
 
   // Get role from profile first, fallback to UserContext
   const effectiveRole = profile?.role || currentRole
@@ -54,12 +62,13 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     role: effectiveRole || 'staff'
   } : null
 
-  // Get allowed modules for current user role (calculate even if no role yet)
-  const allowedModules = getAllowedModules(effectiveRole)
+  // Get allowed modules using subscription-based permissions
+  const allowedModules = getAccessibleModules(effectiveRole, subscriptionFeatures)
 
   console.log('🔍 RBAC DEBUG - Dashboard:', {
     effectiveRole,
     currentUserEmail: currentUser?.email,
+    subscriptionFeatures: subscriptionFeatures ? Object.keys(subscriptionFeatures).filter(k => (subscriptionFeatures as any)[k]) : 'loading',
     allowedModules,
     activeModule,
     isLoading
@@ -67,18 +76,18 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
   // Auto-redirect to first allowed module if current module is not accessible
   useEffect(() => {
-    if (effectiveRole && !hasPermission(effectiveRole, activeModule as ModulePermission)) {
+    if (effectiveRole && subscriptionFeatures && !hasModuleAccess(effectiveRole, subscriptionFeatures, activeModule as any)) {
       const firstAllowedModule = allowedModules[0]
       if (firstAllowedModule) {
         console.log('🔄 RBAC REDIRECT:', {
           from: activeModule,
           to: firstAllowedModule,
-          reason: 'No permission for current module'
+          reason: 'No subscription access for current module'
         })
         setActiveModule(firstAllowedModule as ModuleType)
       }
     }
-  }, [effectiveRole, activeModule, allowedModules])
+  }, [effectiveRole, subscriptionFeatures, activeModule, allowedModules])
 
   // Show unified loading state while authentication initializes
   if (isLoading) {
@@ -104,10 +113,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     )
   }
 
-  // If no active shift, show shift required modal
-  if (!isShiftActive) {
-    return <ShiftRequiredModal />
-  }
+  // Direct access to dashboard - no shift requirement
 
   const renderModule = () => {
     switch (activeModule) {
@@ -168,8 +174,19 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           <div className="px-6 py-2 bg-white border-b border-surface-200">
             <div className="flex items-center justify-between">
               <ConnectionStatus />
-              <div className="text-xs text-surface-500">
-                Logged in as {currentUser?.email} • {currentRole}
+              <div className="flex items-center space-x-4">
+                {/* Profile Refresh Button (shows if profile is missing but user exists) */}
+                {user && !profile && (
+                  <button
+                    onClick={refreshProfile}
+                    className="text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition-colors"
+                  >
+                    Refresh Profile
+                  </button>
+                )}
+                <div className="text-xs text-surface-500">
+                  Logged in as {currentUser?.email} • {currentRole}
+                </div>
               </div>
             </div>
           </div>

@@ -121,13 +121,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUser(firebaseUser);
           
           const userProfile = await getUserProfile(firebaseUser.uid);
-          setProfile(userProfile);
           
-          if (userProfile?.tenantId) {
-            const tenantInfo = await getTenantInfo(userProfile.tenantId);
-            setTenant(tenantInfo);
+          if (!userProfile) {
+            // Profile might not be created yet (common after signup), retry after a short delay
+            console.log('🔧 AuthContext: Profile not found, retrying in 2 seconds...')
+            setTimeout(async () => {
+              try {
+                const retryProfile = await getUserProfile(firebaseUser.uid);
+                setProfile(retryProfile);
+                
+                if (retryProfile?.tenantId) {
+                  const tenantInfo = await getTenantInfo(retryProfile.tenantId);
+                  setTenant(tenantInfo);
+                } else {
+                  setTenant(null);
+                }
+              } catch (retryError) {
+                console.error('Profile retry failed:', retryError);
+                setProfile(null);
+                setTenant(null);
+              }
+            }, 2000);
           } else {
-            setTenant(null);
+            setProfile(userProfile);
+            
+            if (userProfile?.tenantId) {
+              const tenantInfo = await getTenantInfo(userProfile.tenantId);
+              setTenant(tenantInfo);
+            } else {
+              setTenant(null);
+            }
           }
         } else {
           // User is signed out

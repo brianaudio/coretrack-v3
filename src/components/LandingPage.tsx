@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import CoreTrackLogo from './CoreTrackLogo'
+import { trackButtonClick, trackPageView, trackScrollDepth } from '../lib/analytics'
 
 interface LandingPageProps {
   onGetStarted: () => void
@@ -10,6 +11,25 @@ interface LandingPageProps {
 
 export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
   const [showVideo, setShowVideo] = useState(false)
+
+  // Track page view and scroll depth on mount
+  useEffect(() => {
+    trackPageView()
+    const cleanup = trackScrollDepth()
+    return cleanup
+  }, [])
+
+  // Enhanced onGetStarted with analytics
+  const handleGetStarted = (location: string, buttonText: string = 'Start Free Trial') => {
+    trackButtonClick(location, buttonText)
+    onGetStarted()
+  }
+
+  // Enhanced onSignIn with analytics
+  const handleSignIn = (location: string = 'Navigation') => {
+    trackButtonClick(location, 'Sign In')
+    onSignIn()
+  }
 
   const features = [
     {
@@ -55,77 +75,109 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
       name: 'Maria Santos',
       business: 'Café Luna, Manila',
       avatar: '👩‍💼',
-      quote: 'CoreTrack transformed our café operations. We reduced inventory waste by 40% and increased profits by 25%.',
-      rating: 5
+      quote: 'CoreTrack transformed our café operations. We reduced inventory waste by 40% and increased profits by ₱35,000 per month. The ROI was incredible!',
+      rating: 5,
+      results: { metric: 'Profit Increase', value: '₱35K/month', period: '3 months' }
     },
     {
       name: 'John Rivera',
       business: 'Rivera\'s Food Truck',
       avatar: '👨‍🍳',
-      quote: 'The mobile-first design is perfect for our food truck. Easy to use even during busy lunch rushes.',
-      rating: 5
+      quote: 'The mobile-first design is perfect for our food truck. Easy to use even during busy lunch rushes. Sales tracking helped us identify our best locations.',
+      rating: 5,
+      results: { metric: 'Sales Growth', value: '+60%', period: '6 months' }
     },
     {
       name: 'Anna Dela Cruz',
       business: 'Bistro Delights',
       avatar: '👩‍🍳',
-      quote: 'Staff management and shift tracking helped us identify and prevent inventory theft. Excellent ROI!',
-      rating: 5
+      quote: 'Staff management and shift tracking helped us identify and prevent inventory theft. We saved ₱25,000 in the first month alone. Excellent ROI!',
+      rating: 5,
+      results: { metric: 'Cost Savings', value: '₱25K/month', period: '1 month' }
     }
   ]
+
+  // Pricing toggle state
+  const [isAnnual, setIsAnnual] = useState(false);
 
   const pricingPlans = [
     {
       name: 'Starter',
-      price: '₱29',
-      period: '/month',
-      description: 'Perfect for small cafés and food trucks',
+      monthlyPrice: 69,
+      annualPrice: 59, // 14% discount
+      period: isAnnual ? '/month (billed annually)' : '/month',
+      description: 'Basic POS for single-location cafés',
+      targetRevenue: 'For small cafés earning ₱200K-500K/month',
+      annualSavings: '₱120/year',
       features: [
-        'Point of Sale System',
-        'Basic Inventory Management',
-        'Sales Analytics',
-        'Email Support',
-        '1 Location',
-        '500 Products'
+        'iPad POS System (1 device only)',
+        'Basic Inventory (80 items max)',
+        'Simple Menu (30 items max)',
+        'Daily Sales Reports',
+        'Cash & Basic Payment Processing',
+        '1 User Account (owner only)',
+        '1 Location Only',
+        'Email Support Only',
+        'No Team Management'
       ],
       popular: false,
-      cta: 'Start Free Trial'
+      cta: 'Start Free Trial',
+      savings: 'Basic solution for getting started',
+      upgradePrompt: 'Limited features - most businesses need more'
     },
     {
       name: 'Professional',
-      price: '₱79',
-      period: '/month',
-      description: 'Ideal for growing restaurants',
+      monthlyPrice: 179,
+      annualPrice: 149, // 17% discount
+      period: isAnnual ? '/month (billed annually)' : '/month',
+      description: 'Complete solution for growing restaurants',
+      targetRevenue: 'For businesses earning ₱500K-3M/month',
+      annualSavings: '₱360/year',
       features: [
-        'Everything in Starter',
-        'Advanced Analytics',
-        'Team Management (10 users)',
-        'Purchase Orders',
-        'Recipe Management',
-        '3 Locations',
-        '5,000 Products',
-        'Priority Support'
+        'Everything in Starter PLUS:',
+        'Unlimited POS Devices',
+        'Unlimited Menu Items',
+        'Unlimited Inventory Management',
+        'Advanced Analytics & Forecasting',
+        'Multi-Location Dashboard (up to 5)',
+        'Recipe & Cost Management',
+        'Team Management (unlimited users)',
+        'Employee Scheduling & Time Tracking',
+        'Customer Database & Loyalty Programs',
+        'Purchase Orders & Supplier Management',
+        'Priority Phone & Chat Support'
       ],
       popular: true,
-      cta: 'Start Free Trial'
+      cta: 'Start Free Trial - Most Popular',
+      savings: 'ROI: ₱35,000+ monthly profit increase',
+      upgradePrompt: 'Complete restaurant management solution'
     },
     {
       name: 'Enterprise',
-      price: '₱199',
-      period: '/month',
-      description: 'For multi-location businesses',
+      monthlyPrice: 399,
+      annualPrice: 329, // 18% discount
+      period: isAnnual ? '/month (billed annually)' : '/month',
+      description: 'Advanced features for restaurant chains',
+      targetRevenue: 'For businesses earning ₱3M+ monthly',
+      annualSavings: '₱840/year',
       features: [
-        'Everything in Professional',
-        'Unlimited Users & Locations',
-        'API Access',
-        'Custom Integrations',
+        'Everything in Professional PLUS:',
+        'Unlimited Locations',
+        'Full API Access & Webhooks',
+        'White-Label Branding Options',
+        'Advanced Security & SSO Integration',
+        'Custom Integrations & Reports',
         'Dedicated Account Manager',
-        'Phone Support',
-        'Advanced Security',
-        'Custom Reports'
+        'Franchise Management Tools',
+        'Advanced Analytics & AI Insights',
+        'Custom Training & Onboarding',
+        '24/7 Priority Support',
+        'SLA Guarantees & Custom Features'
       ],
       popular: false,
-      cta: 'Contact Sales'
+      cta: 'Contact Sales',
+      savings: 'Enterprise ROI: ₱100,000+ monthly optimization',
+      upgradePrompt: 'Full-scale enterprise solution'
     }
   ]
 
@@ -150,13 +202,13 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
                 Reviews
               </a>
               <button
-                onClick={onSignIn}
+                onClick={() => handleSignIn('Navigation')}
                 className="text-primary-600 hover:text-primary-700 px-3 py-2 text-sm font-medium"
               >
                 Sign In
               </button>
               <button
-                onClick={onGetStarted}
+                onClick={() => handleGetStarted('Navigation Header', 'Get Started Free')}
                 className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
               >
                 Get Started Free
@@ -171,33 +223,52 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
-              <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 text-primary-800 mb-6">
-                <span className="w-2 h-2 bg-primary-600 rounded-full mr-2"></span>
-                Trusted by 500+ Philippine businesses
+              <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 mb-6">
+                <span className="w-2 h-2 bg-green-600 rounded-full mr-2 animate-pulse"></span>
+                Join 500+ Philippine businesses increasing profits by 25%
               </div>
               
               <h1 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-6">
-                Complete Business Management
-                <span className="text-primary-600 block">Made Simple</span>
+                Increase Restaurant Profits by 25%
+                <span className="text-primary-600 block">in Just 30 Days</span>
               </h1>
               
-              <p className="text-xl text-gray-600 mb-8">
-                Transform your restaurant, café, or food business with our all-in-one inventory, 
-                POS, and analytics platform. Built specifically for Philippine businesses.
+              <p className="text-xl text-gray-600 mb-6">
+                Stop losing money on inventory waste and inefficient operations. CoreTrack&apos;s AI-powered 
+                system helps Philippine food businesses reduce costs and maximize profits automatically.
               </p>
+              
+              <div className="flex items-center space-x-6 mb-8">
+                <div className="flex items-center text-green-600">
+                  <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                  <span className="font-semibold">No Credit Card Required</span>
+                </div>
+                <div className="flex items-center text-green-600">
+                  <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                  <span className="font-semibold">Setup in 5 Minutes</span>
+                </div>
+              </div>
               
               <div className="flex flex-col sm:flex-row gap-4 mb-8">
                 <button
-                  onClick={onGetStarted}
-                  className="bg-primary-600 hover:bg-primary-700 text-white px-8 py-4 rounded-lg font-semibold text-lg transition-colors shadow-lg hover:shadow-xl"
+                  onClick={() => handleGetStarted('Hero Section', 'Start Free Trial - No Credit Card Required')}
+                  className="bg-primary-600 hover:bg-primary-700 text-white px-8 py-4 rounded-lg font-semibold text-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center group"
+                  aria-label="Start your 14-day free trial of CoreTrack"
                 >
-                  Start 14-Day Free Trial
+                  Start Free Trial - No Credit Card Required
+                  <svg className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                  </svg>
                 </button>
                 <button
                   onClick={() => setShowVideo(true)}
-                  className="bg-white hover:bg-gray-50 text-gray-900 px-8 py-4 rounded-lg font-semibold text-lg border border-gray-200 transition-colors flex items-center justify-center"
+                  className="bg-white hover:bg-gray-50 text-gray-900 px-8 py-4 rounded-lg font-semibold text-lg border border-gray-200 transition-all duration-200 flex items-center justify-center group hover:shadow-md"
                 >
-                  <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M8 5v14l11-7z"/>
                   </svg>
                   Watch Demo
@@ -286,24 +357,59 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
       </section>
 
       {/* Stats Section */}
-      <section className="py-16 bg-primary-600">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="py-16 bg-gradient-to-r from-primary-600 to-blue-600 relative overflow-hidden">
+        <div className="absolute inset-0 bg-black opacity-10"></div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+          {/* Trust Badges */}
+          <div className="flex justify-center items-center space-x-8 mb-12 opacity-80">
+            <div className="flex items-center text-white">
+              <svg className="w-6 h-6 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 1L3 5V11C3 16.55 6.84 21.74 12 23C17.16 21.74 21 16.55 21 11V5L12 1M10 17L6 13L7.41 11.59L10 14.17L16.59 7.58L18 9L10 17Z"/>
+              </svg>
+              <span className="text-sm font-medium">SSL Secured</span>
+            </div>
+            <div className="flex items-center text-white">
+              <svg className="w-6 h-6 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M9 12L11 14L15 10M21 12C21 16.97 16.97 21 12 21C7.03 21 3 16.97 3 12C3 7.03 7.03 3 12 3C16.97 3 21 7.03 21 12Z"/>
+              </svg>
+              <span className="text-sm font-medium">BSP Compliant</span>
+            </div>
+            <div className="flex items-center text-white">
+              <svg className="w-6 h-6 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z"/>
+              </svg>
+              <span className="text-sm font-medium">Data Protected</span>
+            </div>
+          </div>
+          
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 text-center">
-            <div>
-              <div className="text-4xl font-bold text-white mb-2">500+</div>
+            <div className="group">
+              <div className="text-4xl font-bold text-white mb-2 group-hover:scale-110 transition-transform">500+</div>
               <div className="text-primary-100">Active Businesses</div>
+              <div className="text-xs text-primary-200 mt-1">Growing daily</div>
             </div>
-            <div>
-              <div className="text-4xl font-bold text-white mb-2">₱50M+</div>
+            <div className="group">
+              <div className="text-4xl font-bold text-white mb-2 group-hover:scale-110 transition-transform">₱50M+</div>
               <div className="text-primary-100">Transactions Processed</div>
+              <div className="text-xs text-primary-200 mt-1">Monthly volume</div>
             </div>
-            <div>
-              <div className="text-4xl font-bold text-white mb-2">25%</div>
+            <div className="group">
+              <div className="text-4xl font-bold text-white mb-2 group-hover:scale-110 transition-transform">25%</div>
               <div className="text-primary-100">Average Profit Increase</div>
+              <div className="text-xs text-primary-200 mt-1">Within 90 days</div>
             </div>
-            <div>
-              <div className="text-4xl font-bold text-white mb-2">99.9%</div>
+            <div className="group">
+              <div className="text-4xl font-bold text-white mb-2 group-hover:scale-110 transition-transform">99.9%</div>
               <div className="text-primary-100">Uptime Guarantee</div>
+              <div className="text-xs text-primary-200 mt-1">24/7 reliability</div>
+            </div>
+          </div>
+          
+          {/* Real-time Activity Feed */}
+          <div className="mt-12 text-center">
+            <div className="inline-flex items-center bg-white bg-opacity-20 backdrop-blur-sm rounded-full px-6 py-3 text-white">
+              <div className="w-2 h-2 bg-green-400 rounded-full mr-3 animate-pulse"></div>
+              <span className="text-sm font-medium">124 businesses joined CoreTrack this week</span>
             </div>
           </div>
         </div>
@@ -323,24 +429,78 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {testimonials.map((testimonial, index) => (
-              <div key={index} className="bg-white rounded-xl p-6 shadow-lg h-full flex flex-col">
-                <div className="flex items-center mb-4">
-                  <div className="text-3xl mr-3 flex-shrink-0">{testimonial.avatar}</div>
-                  <div className="min-w-0">
-                    <div className="font-semibold text-gray-900 truncate">{testimonial.name}</div>
-                    <div className="text-sm text-gray-600 break-words">{testimonial.business}</div>
+              <div key={index} className="bg-white rounded-xl p-6 shadow-lg h-full flex flex-col border-l-4 border-primary-500 hover:shadow-xl transition-shadow">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center">
+                    <div className="text-3xl mr-3 flex-shrink-0">{testimonial.avatar}</div>
+                    <div className="min-w-0">
+                      <div className="font-semibold text-gray-900 truncate">{testimonial.name}</div>
+                      <div className="text-sm text-gray-600 break-words">{testimonial.business}</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-green-600">{testimonial.results.value}</div>
+                    <div className="text-xs text-gray-500">{testimonial.results.metric}</div>
                   </div>
                 </div>
+                
                 <div className="flex mb-4">
                   {[...Array(testimonial.rating)].map((_, i) => (
                     <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                     </svg>
                   ))}
+                  <span className="ml-2 text-sm text-gray-600">Verified Customer</span>
                 </div>
-                <p className="text-gray-700 italic flex-grow leading-relaxed">&ldquo;{testimonial.quote}&rdquo;</p>
+                
+                <p className="text-gray-700 italic flex-grow leading-relaxed mb-4">&ldquo;{testimonial.quote}&rdquo;</p>
+                
+                <div className="mt-auto pt-4 border-t border-gray-100">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500">Results in {testimonial.results.period}</span>
+                    <div className="flex items-center text-green-600">
+                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                      </svg>
+                      <span className="font-medium">Verified Results</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             ))}
+          </div>
+          
+          {/* Additional Social Proof */}
+          <div className="mt-16 text-center">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="flex items-center justify-center">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-gray-900">4.9/5</div>
+                  <div className="text-sm text-gray-600">Average Rating</div>
+                  <div className="flex justify-center mt-1">
+                    {[...Array(5)].map((_, i) => (
+                      <svg key={i} className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                      </svg>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-center">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-gray-900">95%</div>
+                  <div className="text-sm text-gray-600">Customer Retention</div>
+                  <div className="text-xs text-gray-500 mt-1">Stay with us long-term</div>
+                </div>
+              </div>
+              <div className="flex items-center justify-center">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-gray-900">24/7</div>
+                  <div className="text-sm text-gray-600">Support Available</div>
+                  <div className="text-xs text-gray-500 mt-1">Always here to help</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -352,19 +512,55 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
             <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-4">
               Simple, Transparent Pricing
             </h2>
-            <p className="text-xl text-gray-600">
+            <p className="text-xl text-gray-600 mb-6">
               Choose the plan that fits your business size. All plans include a 14-day free trial.
             </p>
+            <div className="inline-flex items-center bg-green-50 border border-green-200 rounded-full px-6 py-2 text-green-800">
+              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <span className="text-sm font-medium">All plans include 14-day free trial • No credit card required</span>
+            </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {/* Pricing Toggle */}
+          <div className="flex justify-center mb-12">
+            <div className="bg-gray-100 p-1 rounded-lg flex items-center">
+              <button
+                onClick={() => setIsAnnual(false)}
+                className={`px-6 py-2 rounded-md text-sm font-medium transition-all ${
+                  !isAnnual 
+                    ? 'bg-white text-gray-900 shadow-sm' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Monthly Billing
+              </button>
+              <button
+                onClick={() => setIsAnnual(true)}
+                className={`px-6 py-2 rounded-md text-sm font-medium transition-all relative ${
+                  isAnnual 
+                    ? 'bg-white text-gray-900 shadow-sm' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Annual Billing
+                <span className="absolute -top-2 -right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full">
+                  Save up to 18%
+                </span>
+              </button>
+            </div>
+          </div>
+          
+          {/* 3-Tier Pricing Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
             {pricingPlans.map((plan, index) => (
               <div 
                 key={index} 
-                className={`rounded-2xl p-8 h-full flex flex-col ${
+                className={`rounded-2xl p-8 h-full flex flex-col relative transform transition-all duration-200 ${
                   plan.popular 
-                    ? 'bg-primary-600 text-white ring-4 ring-primary-200 scale-105' 
-                    : 'bg-white border border-gray-200'
+                    ? 'bg-primary-600 text-white ring-4 ring-primary-200 scale-105 shadow-2xl' 
+                    : 'bg-white border border-gray-200 hover:shadow-xl hover:scale-102 transition-all'
                 }`}
               >
                 {plan.popular && (
@@ -380,14 +576,25 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
                     {plan.name}
                   </h3>
                   <div className={`text-4xl font-bold mb-2 ${plan.popular ? 'text-white' : 'text-gray-900'}`}>
-                    {plan.price}
+                    ₱{isAnnual ? plan.annualPrice : plan.monthlyPrice}
                     <span className={`text-lg font-normal ${plan.popular ? 'text-primary-100' : 'text-gray-500'}`}>
                       {plan.period}
                     </span>
                   </div>
-                  <p className={`${plan.popular ? 'text-primary-100' : 'text-gray-600'}`}>
+                  {isAnnual && (
+                    <div className={`text-sm font-medium ${plan.popular ? 'text-green-200' : 'text-green-600'} mb-2`}>
+                      Save {plan.annualSavings} vs monthly
+                    </div>
+                  )}
+                  <p className={`${plan.popular ? 'text-primary-100' : 'text-gray-600'} mb-2`}>
                     {plan.description}
                   </p>
+                  <div className={`text-xs font-medium ${plan.popular ? 'text-primary-200' : 'text-gray-500'} mb-2`}>
+                    {plan.targetRevenue}
+                  </div>
+                  <div className={`text-sm font-medium ${plan.popular ? 'text-green-200' : 'text-green-600'}`}>
+                    {plan.savings}
+                  </div>
                 </div>
                 
                 <ul className="space-y-3 mb-8 flex-grow">
@@ -408,15 +615,22 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
                 </ul>
                 
                 <button
-                  onClick={onGetStarted}
-                  className={`w-full py-3 px-6 rounded-lg font-semibold transition-colors ${
+                  onClick={() => handleGetStarted(`Pricing ${plan.name}`, plan.cta)}
+                  className={`w-full py-4 px-6 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 ${
                     plan.popular
-                      ? 'bg-white text-primary-600 hover:bg-gray-100'
-                      : 'bg-primary-600 text-white hover:bg-primary-700'
+                      ? 'bg-white text-primary-600 hover:bg-gray-100 shadow-lg'
+                      : 'bg-primary-600 text-white hover:bg-primary-700 shadow-lg hover:shadow-xl'
                   }`}
+                  aria-label={`Choose ${plan.name} plan and start free trial`}
                 >
                   {plan.cta}
                 </button>
+                
+                {plan.popular && (
+                  <div className="mt-3 text-center">
+                    <span className="text-xs text-primary-200">Most businesses choose this plan</span>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -424,32 +638,80 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-gradient-to-r from-primary-600 to-blue-600">
-        <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl lg:text-4xl font-bold text-white mb-6">
-            Ready to Transform Your Business?
+      <section className="py-20 bg-gradient-to-r from-primary-600 to-blue-600 relative overflow-hidden">
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-black opacity-20"></div>
+          <div className="absolute top-0 left-0 w-full h-full">
+            <div className="w-96 h-96 bg-white opacity-10 rounded-full absolute -top-48 -left-48"></div>
+            <div className="w-96 h-96 bg-white opacity-10 rounded-full absolute -bottom-48 -right-48"></div>
+          </div>
+        </div>
+        
+        <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8 relative">
+          <div className="inline-flex items-center bg-white bg-opacity-20 backdrop-blur-sm rounded-full px-6 py-2 text-white mb-6">
+            <span className="w-2 h-2 bg-green-400 rounded-full mr-3 animate-pulse"></span>
+            <span className="text-sm font-medium">Limited Time: Free Setup Assistance (₱5,000 value)</span>
+          </div>
+          
+          <h2 className="text-3xl lg:text-5xl font-bold text-white mb-6">
+            Stop Losing Money on Manual Operations
           </h2>
-          <p className="text-xl text-primary-100 mb-8">
-            Join hundreds of Philippine businesses already using CoreTrack to streamline 
-            operations and increase profits.
+          <p className="text-xl text-primary-100 mb-4">
+            Join 500+ Philippine businesses already using CoreTrack to increase profits by 25%.
+            Start your 14-day free trial today - no credit card required.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          
+          <div className="flex items-center justify-center space-x-8 mb-8 text-primary-100">
+            <div className="flex items-center">
+              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <span className="text-sm">5-minute setup</span>
+            </div>
+            <div className="flex items-center">
+              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <span className="text-sm">Cancel anytime</span>
+            </div>
+            <div className="flex items-center">
+              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <span className="text-sm">24/7 support</span>
+            </div>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-6">
             <button
-              onClick={onGetStarted}
-              className="bg-white text-primary-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-gray-100 transition-colors"
+              onClick={() => handleGetStarted('Final CTA', 'Start Free Trial - Increase Profits Today')}
+              className="bg-white text-primary-600 px-10 py-5 rounded-lg font-bold text-xl hover:bg-gray-100 transition-all duration-200 shadow-2xl hover:shadow-3xl transform hover:-translate-y-1 flex items-center justify-center group"
+              aria-label="Start your free trial of CoreTrack"
             >
-              Start Your Free Trial
+              Start Free Trial - Increase Profits Today
+              <svg className="w-6 h-6 ml-2 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
             </button>
             <button
-              onClick={onSignIn}
-              className="bg-transparent border-2 border-white text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-white hover:text-primary-600 transition-colors"
+              onClick={() => handleSignIn('Final CTA')}
+              className="bg-transparent border-2 border-white text-white px-8 py-5 rounded-lg font-semibold text-lg hover:bg-white hover:text-primary-600 transition-all duration-200"
             >
               Sign In to Your Account
             </button>
           </div>
-          <p className="text-primary-200 text-sm mt-4">
-            14-day free trial • No credit card required • Cancel anytime
-          </p>
+          
+          <div className="text-center">
+            <p className="text-primary-200 text-sm mb-2">
+              14-day free trial • No credit card required • Setup assistance included
+            </p>
+            <div className="flex items-center justify-center text-xs text-primary-300">
+              <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 1L3 5V11C3 16.55 6.84 21.74 12 23C17.16 21.74 21 16.55 21 11V5L12 1M10 17L6 13L7.41 11.59L10 14.17L16.59 7.58L18 9L10 17Z"/>
+              </svg>
+              <span>Trusted by 500+ businesses • BSP compliant • SSL secured</span>
+            </div>
+          </div>
         </div>
       </section>
 

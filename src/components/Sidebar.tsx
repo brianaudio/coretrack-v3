@@ -3,6 +3,8 @@
 import { ModuleType } from './Dashboard'
 import CoreTrackLogo from './CoreTrackLogo'
 import { ModulePermission, UserRole } from '../lib/rbac/permissions'
+import { hasModuleAccess } from '../lib/rbac/subscriptionPermissions'
+import { useSubscription } from '../lib/context/SubscriptionContext'
 import { useBusinessSettings } from '../lib/context/BusinessSettingsContext'
 
 interface SidebarProps {
@@ -10,7 +12,7 @@ interface SidebarProps {
   onModuleChange: (module: ModuleType) => void
   isOpen: boolean
   onToggle: () => void
-  allowedModules: ModulePermission[]
+  allowedModules: (keyof import('../lib/rbac/subscriptionPermissions').ModuleFeatureMap)[]
   currentRole: UserRole
 }
 
@@ -129,11 +131,12 @@ export default function Sidebar({
   currentRole 
 }: SidebarProps) {
   const { settings, isRetail } = useBusinessSettings()
+  const { features: subscriptionFeatures } = useSubscription()
 
-  // Filter menu items based on user permissions AND business type
+  // Filter menu items based on subscription permissions AND business type
   const filteredMenuItems = menuItems.filter(item => {
-    // First check if user has permission for this module
-    if (!allowedModules.includes(item.id as ModulePermission)) {
+    // First check if user has subscription access for this module
+    if (!allowedModules.includes(item.id as any)) {
       return false
     }
 

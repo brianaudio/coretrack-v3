@@ -1352,7 +1352,7 @@ function IntegrationTab() {
           </div>
           <h4 className="text-lg font-semibold text-surface-900 mb-2">Need a Custom Integration?</h4>
           <p className="text-surface-600 mb-6 max-w-2xl mx-auto">
-            Don't see the integration you need? Our team can help build custom connections to your favorite business tools 
+            Don&apos;t see the integration you need? Our team can help build custom connections to your favorite business tools 
             or Philippine-specific services.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">

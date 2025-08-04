@@ -1193,7 +1193,7 @@ export default function POSEnhanced() {
           <div className="bg-white border-b border-gray-200 p-4">
             <div className="flex gap-2 overflow-x-auto">
               {(() => {
-                // Get unique categories from menu items
+                // Get unique categories from menu items dynamically
                 const categories = ['All'];
                 const categorySet = new Set<string>();
                 
@@ -1202,24 +1202,9 @@ export default function POSEnhanced() {
                   categorySet.add(category);
                 });
                 
-                const uniqueCategories = Array.from(categorySet);
-                
-                // Map generic categories to display names
-                const categoryMap: { [key: string]: string } = {
-                  'General': 'Food',
-                  'Beverages': 'Beverages',
-                  'Desserts': 'Desserts',
-                  'Appetizers': 'Appetizers',
-                  'Food': 'Food'
-                };
-                
-                // Add unique categories that exist in the menu
-                uniqueCategories.forEach(cat => {
-                  const displayName = categoryMap[cat] || cat;
-                  if (!categories.includes(displayName)) {
-                    categories.push(displayName);
-                  }
-                });
+                // Add all unique categories that actually exist in the menu
+                const uniqueCategories = Array.from(categorySet).sort();
+                categories.push(...uniqueCategories);
                 
                 return categories.map((category) => (
                   <button
@@ -1235,8 +1220,7 @@ export default function POSEnhanced() {
                     {category !== 'All' && (
                       <span className="ml-2 text-xs opacity-75">
                         ({menuItems.filter(item => 
-                          (item.category || 'General') === category || 
-                          (category === 'Food' && (!item.category || item.category === 'General'))
+                          (item.category || 'General') === category
                         ).length})
                       </span>
                     )}
@@ -1261,23 +1245,24 @@ export default function POSEnhanced() {
                 <p className="text-gray-500">Add items in Menu Builder to start selling</p>
               </div>
             ) : selectedCategory === 'All' ? (
-              // Group by categories when "All" is selected
+              // Group by categories when "All" is selected - show ALL actual categories
               <div className="space-y-8">
-                {['Food', 'Beverages', 'Desserts', 'Appetizers'].map(category => {
-                  const categoryItems = menuItems.filter(item => 
-                    item.category === category || 
-                    (category === 'Food' && (!item.category || item.category === 'General'))
-                  );
-                  
-                  if (categoryItems.length === 0) return null;
-                  
-                  return (
-                    <div key={category} className="space-y-4">
-                      <div className="flex items-center gap-3">
-                        <h3 className="text-xl font-bold text-gray-900">{category}</h3>
-                        <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                          {categoryItems.length} items
-                        </span>
+                {Array.from(new Set(menuItems.map(item => item.category || 'General')))
+                  .sort()
+                  .map(category => {
+                    const categoryItems = menuItems.filter(item => 
+                      (item.category || 'General') === category
+                    );
+                    
+                    if (categoryItems.length === 0) return null;
+                    
+                    return (
+                      <div key={category} className="space-y-4">
+                        <div className="flex items-center gap-3">
+                          <h3 className="text-xl font-bold text-gray-900">{category}</h3>
+                          <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                            {categoryItems.length} items
+                          </span>
                       </div>
                       
                       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -1323,10 +1308,7 @@ export default function POSEnhanced() {
               // Single category view
               <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {menuItems
-                  .filter(item => 
-                    item.category === selectedCategory || 
-                    (selectedCategory === 'Food' && (!item.category || item.category === 'General'))
-                  )
+                  .filter(item => (item.category || 'General') === selectedCategory)
                   .map((item) => (
                     <div
                       key={item.id}

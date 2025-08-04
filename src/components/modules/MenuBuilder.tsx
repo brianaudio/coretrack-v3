@@ -1158,7 +1158,53 @@ export default function MenuBuilder() {
                 </div>
               </div>
 
-              {/* Improved Menu Items Grid */}
+              {/* Menu Items Grid with Empty State */}
+              {menuItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <div className="w-24 h-24 mx-auto mb-4 text-gray-300">
+                    <svg fill="currentColor" viewBox="0 0 24 24" className="w-full h-full">
+                      <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM19 19H5V5H19V19Z"/>
+                      <path d="M17 8H7V10H17V8ZM17 11H7V13H17V11ZM17 14H7V16H17V14Z"/>
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Menu Available</h3>
+                  <p className="text-gray-600 text-center mb-6 max-w-sm">
+                    You haven't created any menu items yet. Start building your menu by adding your first item.
+                  </p>
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    Create Your First Menu Item
+                  </button>
+                </div>
+              ) : filteredItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <div className="w-24 h-24 mx-auto mb-4 text-gray-300">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-full h-full">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Items Found</h3>
+                  <p className="text-gray-600 text-center mb-6 max-w-sm">
+                    No menu items match your current filters. Try adjusting your search or filter criteria.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setSearchQuery('')
+                      setCategoryFilter('all')
+                      setStatusFilter('all')
+                      setStockFilter('all')
+                    }}
+                    className="px-4 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                  >
+                    Clear All Filters
+                  </button>
+                </div>
+              ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {filteredItems.map((item) => (
                   <div 
@@ -1251,6 +1297,7 @@ export default function MenuBuilder() {
                   </div>
                 ))}
               </div>
+              )}
             </div>
           </div>
         ) : (
@@ -1271,18 +1318,45 @@ export default function MenuBuilder() {
 
             {/* Add-ons Content */}
             <div className="flex-1 overflow-auto p-6 bg-gray-50">
-              {filteredAddons.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="text-4xl mb-4">🥤</div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    {addons.length === 0 ? 'No Add-ons Yet' : 'No Matching Add-ons'}
-                  </h3>
-                  <p className="text-gray-600 mb-4">
-                    {addons.length === 0 
-                      ? 'Create your first add-on using the "Add Add-on" button above.' 
-                      : 'Try adjusting your search criteria.'
-                    }
+              {addons.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <div className="w-24 h-24 mx-auto mb-4 text-gray-300">
+                    <svg fill="currentColor" viewBox="0 0 24 24" className="w-full h-full">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                      <path d="M16 6V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v2c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6-2h4v2h-4V4z"/>
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Add-ons Available</h3>
+                  <p className="text-gray-600 text-center mb-6 max-w-sm">
+                    You haven't created any add-ons yet. Add-ons are extras like sauces, drinks, or sides that customers can add to their orders.
                   </p>
+                  <button
+                    onClick={() => setShowCreateAddonModal(true)}
+                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    Create Your First Add-on
+                  </button>
+                </div>
+              ) : filteredAddons.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <div className="w-24 h-24 mx-auto mb-4 text-gray-300">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-full h-full">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Add-ons Found</h3>
+                  <p className="text-gray-600 text-center mb-6 max-w-sm">
+                    No add-ons match your current search criteria. Try adjusting your search terms.
+                  </p>
+                  <button
+                    onClick={() => setAddonSearchQuery('')}
+                    className="px-4 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                  >
+                    Clear Search
+                  </button>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

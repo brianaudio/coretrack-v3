@@ -20,11 +20,13 @@ export const FeatureGate: React.FC<FeatureGateProps> = ({
 }) => {
   const { hasFeature, loading } = useSubscription();
 
-  // DEVELOPMENT MODE: Always allow access during testing
-  const isDevMode = process.env.NODE_ENV === 'development';
+  // DEVELOPMENT MODE: Respect subscription tiers for proper testing
+  // Set NEXT_PUBLIC_BYPASS_SUBSCRIPTION=true to completely bypass in development
+  const shouldBypass = process.env.NODE_ENV === 'development' && 
+                      process.env.NEXT_PUBLIC_BYPASS_SUBSCRIPTION === 'true';
   
-  // In development, skip loading check and always allow access
-  if (isDevMode) {
+  if (shouldBypass) {
+    console.log('🔧 Development Mode: Bypassing subscription check for feature:', feature);
     return <>{children}</>;
   }
 

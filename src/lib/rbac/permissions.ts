@@ -1,7 +1,7 @@
 // Role-Based Access Control (RBAC) Configuration
 // Defines which modules each role can access
 
-export type UserRole = 'staff' | 'manager' | 'owner';
+export type UserRole = 'staff' | 'manager' | 'owner' | 'cashier';
 
 export type ModulePermission = 
   | 'pos'
@@ -19,6 +19,7 @@ export type ModulePermission =
 // Define what modules each role can access
 export const ROLE_PERMISSIONS: Record<UserRole, ModulePermission[]> = {
   staff: ['pos', 'inventory', 'purchase-orders'],
+  cashier: ['pos', 'inventory'], // Cashier has limited access - only POS and basic inventory
   manager: [
     'pos', 
     'inventory', 

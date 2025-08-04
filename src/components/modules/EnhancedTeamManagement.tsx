@@ -500,7 +500,7 @@ export default function EnhancedTeamManagement() {
       } else if (hasAuthAccount && (!authUserId || authUserId === 'existing-user')) {
         alert(`✅ Team member ${trimmedName} has been added successfully!\n\n📧 They already have a login account and can access the system using their existing credentials.\n\n💡 If they need to reset their password, they can use the "Forgot Password" option from the login page.`)
       } else {
-        alert(`✅ Team member ${trimmedName} has been added to your team!\n\n⚠️ Note: Login account setup is pending. They've been added to your team management.\n\n🔐 To create their login credentials:\n1. You can try creating their account again later\n2. Or they can sign up themselves using the same email\n3. Or use "Forgot Password" if account exists`)
+        alert(`✅ Team member ${trimmedName} has been added to your team!\n\n⚠️ Note: Login account setup is pending. They&apos;ve been added to your team management.\n\n🔐 To create their login credentials:\n1. You can try creating their account again later\n2. Or they can sign up themselves using the same email\n3. Or use "Forgot Password" if account exists`)
       }
       
     } catch (error) {
@@ -689,7 +689,7 @@ export default function EnhancedTeamManagement() {
           </div>
           <h3 className="text-xl font-semibold text-red-900 mb-2">Access Denied</h3>
           <p className="text-red-700 mb-4">
-            You don't have permission to access team management. This feature is only available to owners and managers.
+            You don&apos;t have permission to access team management. This feature is only available to owners and managers.
           </p>
           <p className="text-sm text-red-600 mb-2">
             Your current role: <span className="font-medium">{profile?.role || 'Unknown'}</span>

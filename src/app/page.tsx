@@ -13,17 +13,20 @@ import { sessionManager } from '../lib/auth/sessionManager'
 type AppMode = 'landing' | 'signup' | 'login' | 'onboarding' | 'dashboard'
 
 export default function Home() {
-  const { user, loading } = useAuth()
-  const { setCurrentRole, setCurrentUser } = useUser()
+  const { user, loading: authLoading } = useAuth()
+  const { setCurrentRole, setCurrentUser, loading: userLoading, setLoading: setUserLoading } = useUser()
   const [mode, setMode] = useState<AppMode>('landing')
   const [userProfile, setUserProfile] = useState<any>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [hasInitialized, setHasInitialized] = useState(false)
 
+  // Coordinate loading states between AuthContext and UserContext
+  const isLoading = authLoading || userLoading
+
   // Initialize auth state tracking
   useEffect(() => {
     // Wait for auth to initialize
-    if (loading) {
+    if (authLoading) {
       return
     }
 
@@ -45,6 +48,9 @@ export default function Home() {
         role: 'owner'
       })
       
+      // Mark UserContext as loaded
+      setUserLoading(false)
+      
       // Only change mode if we're not already in a user-specific mode
       if (mode === 'landing' || mode === 'login' || mode === 'signup') {
         // Check onboarding status synchronously to avoid race conditions
@@ -61,12 +67,15 @@ export default function Home() {
       setCurrentRole(null)
       setCurrentUser(null)
       
+      // Mark UserContext as loaded (no user)
+      setUserLoading(false)
+      
       // Only reset to landing if we're in a protected mode
       if (mode === 'dashboard' || mode === 'onboarding') {
         setMode('landing')
       }
     }
-  }, [user, loading, hasInitialized]) // Removed 'mode' from dependencies to prevent loops
+  }, [user, authLoading, hasInitialized, setCurrentRole, setCurrentUser, setUserLoading]) // Removed 'mode' from dependencies to prevent loops
 
   const handleSignupSuccess = (profile: any) => {
     setUserProfile(profile)
@@ -95,6 +104,19 @@ export default function Home() {
     import('../lib/firebase/auth').then(({ signOut }) => {
       signOut().catch(console.error)
     })
+  }
+
+  // Show unified loading state while authentication initializes
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Loading CoreTrack</h2>
+          <p className="text-gray-600">Initializing your business management system...</p>
+        </div>
+      </div>
+    )
   }
 
   const renderContent = () => {

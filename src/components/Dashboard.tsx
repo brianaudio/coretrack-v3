@@ -24,6 +24,7 @@ import ShiftStatusBar from './ShiftManagement/ShiftStatusBar'
 import InventoryDiscrepancy from './modules/InventoryDiscrepancy'
 import BusinessReports from './modules/BusinessReports'
 import { useAuth } from '../lib/context/AuthContext' // Use AuthContext instead of UserContext
+import { useUser } from '../lib/rbac/UserContext' // Add UserContext for coordinated loading
 import { hasPermission, getAllowedModules, ModulePermission } from '../lib/rbac/permissions'
 import ConnectionStatus from './ui/ConnectionStatus'
 import { BranchProvider } from '../lib/context/BranchContext'
@@ -37,31 +38,36 @@ interface DashboardProps {
 
 export default function Dashboard({ onLogout }: DashboardProps) {
   const { profile, user, loading: authLoading } = useAuth() // Use AuthContext
+  const { currentRole, loading: userLoading } = useUser() // Use coordinated UserContext
   const { isShiftActive, loading: shiftLoading } = useShift()
   const [activeModule, setActiveModule] = useState<ModuleType>('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
-  // Get role from profile instead of UserContext
-  const currentRole = profile?.role || null
+  // Coordinated loading state
+  const isLoading = authLoading || userLoading || shiftLoading
+
+  // Get role from profile first, fallback to UserContext
+  const effectiveRole = profile?.role || currentRole
   const currentUser = user ? {
     uid: user.uid,
     email: user.email || '',
-    role: profile?.role || 'staff'
+    role: effectiveRole || 'staff'
   } : null
 
   // Get allowed modules for current user role (calculate even if no role yet)
-  const allowedModules = getAllowedModules(currentRole)
+  const allowedModules = getAllowedModules(effectiveRole)
 
   console.log('🔍 RBAC DEBUG - Dashboard:', {
-    currentRole,
+    effectiveRole,
     currentUserEmail: currentUser?.email,
     allowedModules,
-    activeModule
+    activeModule,
+    isLoading
   })
 
   // Auto-redirect to first allowed module if current module is not accessible
   useEffect(() => {
-    if (currentRole && !hasPermission(currentRole, activeModule as ModulePermission)) {
+    if (effectiveRole && !hasPermission(effectiveRole, activeModule as ModulePermission)) {
       const firstAllowedModule = allowedModules[0]
       if (firstAllowedModule) {
         console.log('🔄 RBAC REDIRECT:', {
@@ -72,39 +78,27 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         setActiveModule(firstAllowedModule as ModuleType)
       }
     }
-  }, [currentRole, activeModule, allowedModules])
+  }, [effectiveRole, activeModule, allowedModules])
 
-  // If authentication is still loading, show loading state
-  if (authLoading) {
+  // Show unified loading state while authentication initializes
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading authentication...</p>
+          <p className="text-gray-600">Loading dashboard...</p>
         </div>
       </div>
     )
   }
 
   // If no user role is set, show loading or redirect to auth
-  if (!currentRole) {
+  if (!effectiveRole) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading user data...</p>
-        </div>
-      </div>
-    )
-  }
-
-  // If shift loading, show loading state
-  if (shiftLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading shift data...</p>
         </div>
       </div>
     )
@@ -157,7 +151,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           isOpen={sidebarOpen}
           onToggle={() => setSidebarOpen(!sidebarOpen)}
           allowedModules={allowedModules}
-          currentRole={currentRole}
+          currentRole={effectiveRole}
         />
         
         <div className="flex-1 flex flex-col overflow-hidden">

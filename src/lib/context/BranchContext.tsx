@@ -39,18 +39,111 @@ export function BranchProvider({ children }: { children: ReactNode }) {
   const [selectedBranch, setSelectedBranchState] = useState<Branch | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // Development mode detection
+  const isDevelopment = process.env.NODE_ENV === 'development'
+
+  // Mock branch data for development
+  const mockBranches: Branch[] = [
+    {
+      id: 'dev-branch-main',
+      name: 'Main Branch',
+      address: '123 Business St, Development City',
+      phone: '+1 (555) 123-4567',
+      manager: 'John Doe',
+      status: 'active',
+      isMain: true,
+      icon: '🏢',
+      stats: {
+        totalRevenue: 125000,
+        totalOrders: 856,
+        inventoryValue: 45000,
+        lowStockItems: 12
+      }
+    },
+    {
+      id: 'dev-branch-west',
+      name: 'West Side Branch',
+      address: '456 Commerce Ave, Development City',
+      phone: '+1 (555) 987-6543',
+      manager: 'Jane Smith',
+      status: 'active',
+      isMain: false,
+      icon: '🏪',
+      stats: {
+        totalRevenue: 89000,
+        totalOrders: 623,
+        inventoryValue: 32000,
+        lowStockItems: 8
+      }
+    }
+  ]
+
   // Load branches on mount
   useEffect(() => {
+    if (isDevelopment) {
+      console.log('🔧 Development Mode: Initial load - checking for real branches...')
+      
+      // In development mode, try to load real branches first, then fall back to mock
+      if (profile?.tenantId) {
+        getBranches(profile.tenantId).then(realBranches => {
+          console.log('🔧 Development Mode: Real branches response:', realBranches.length)
+          
+          if (realBranches.length > 0) {
+            console.log('🔧 Development Mode: Found real branches, using them:', realBranches.map(b => b.name))
+            setBranches(realBranches)
+            
+            // Auto-select the first real branch
+            const firstBranch = realBranches[0]
+            console.log('🔧 Development Mode: Auto-selecting first real branch:', firstBranch.name)
+            setSelectedBranchState(firstBranch)
+          } else {
+            console.log('🔧 Development Mode: No real branches found, using mock branches')
+            setBranches(mockBranches)
+            
+            // Auto-select mock branch
+            const mainBranch = mockBranches.find(b => b.isMain) || mockBranches[0]
+            console.log('🔧 Development Mode: Auto-selecting mock main branch:', mainBranch.name)
+            setSelectedBranchState(mainBranch)
+          }
+          setLoading(false)
+        }).catch(error => {
+          console.log('🔧 Development Mode: Error loading real branches, using mock:', error)
+          setBranches(mockBranches)
+          
+          // Auto-select mock branch
+          const mainBranch = mockBranches.find(b => b.isMain) || mockBranches[0]
+          console.log('🔧 Development Mode: Auto-selecting mock main branch after error:', mainBranch.name)
+          setSelectedBranchState(mainBranch)
+          setLoading(false)
+        })
+      } else {
+        console.log('🔧 Development Mode: No tenantId, using mock branches')
+        setBranches(mockBranches)
+        
+        // Auto-select mock branch
+        const mainBranch = mockBranches.find(b => b.isMain) || mockBranches[0]
+        console.log('🔧 Development Mode: Auto-selecting mock main branch (no tenantId):', mainBranch.name)
+        setSelectedBranchState(mainBranch)
+        setLoading(false)
+      }
+      return
+    }
+
     if (profile?.tenantId) {
       debugTrace('BranchProvider Loading', { tenantId: profile.tenantId }, { component: 'BranchContext' })
       loadBranches()
     } else {
       debugStep('No tenant ID available', { hasProfile: !!profile }, { component: 'BranchContext' })
     }
-  }, [profile?.tenantId])
+  }, [profile?.tenantId, isDevelopment])
 
   // Restore selected branch from user profile
   useEffect(() => {
+    if (isDevelopment) {
+      // In development mode, selection is handled in the initial load effect
+      return
+    }
+
     debugStep('Branch selection effect triggered', { 
       branchCount: branches.length,
       hasProfile: !!profile,
@@ -119,7 +212,7 @@ export function BranchProvider({ children }: { children: ReactNode }) {
         reason: branches.length === 0 ? 'No branches' : 'No profile'
       }, { component: 'BranchContext' })
     }
-  }, [branches, profile?.selectedBranchId, profile?.uid])
+  }, [branches, profile?.selectedBranchId, profile?.uid, isDevelopment, selectedBranch?.id])
 
   const loadBranches = async () => {
     if (!profile?.tenantId) return
@@ -157,6 +250,17 @@ export function BranchProvider({ children }: { children: ReactNode }) {
   }
 
   const setSelectedBranch = async (branch: Branch) => {
+    if (isDevelopment) {
+      console.log('🔧 Development Mode: Mock branch selection:', branch.name)
+      setSelectedBranchState(branch)
+      
+      // Emit event for other components
+      window.dispatchEvent(new CustomEvent('branchChanged', { 
+        detail: { branchId: branch.id, branch } 
+      }))
+      return
+    }
+
     debugStep('Manually selecting branch', { branchName: branch.name, branchId: branch.id }, { component: 'BranchContext' })
     
     setSelectedBranchState(branch)
@@ -177,7 +281,37 @@ export function BranchProvider({ children }: { children: ReactNode }) {
     }))
   }
 
-  const refreshBranches = () => {
+  const refreshBranches = async () => {
+    if (isDevelopment) {
+      console.log('🔧 Development Mode: Forcing refresh - checking for real branches first...')
+      
+      // In development, check if there are real branches created
+      if (profile?.tenantId) {
+        try {
+          const realBranches = await getBranches(profile.tenantId)
+          console.log('🔧 Development Mode: Real branches found:', realBranches.length)
+          
+          if (realBranches.length > 0) {
+            console.log('🔧 Development Mode: Using real branches:', realBranches.map(b => b.name))
+            setBranches(realBranches)
+            
+            // Auto-select the first real branch
+            const firstBranch = realBranches[0]
+            if (!selectedBranch || selectedBranch.id.startsWith('dev-branch-')) {
+              console.log('🔧 Development Mode: Auto-selecting first real branch:', firstBranch.name)
+              setSelectedBranchState(firstBranch)
+            }
+            return
+          }
+        } catch (error) {
+          console.log('🔧 Development Mode: Error fetching real branches:', error)
+        }
+      }
+      
+      console.log('🔧 Development Mode: No real branches found, using mock branches')
+      setBranches(mockBranches)
+      return
+    }
     loadBranches()
   }
 

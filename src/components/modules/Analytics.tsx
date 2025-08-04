@@ -81,7 +81,7 @@ export default function Analytics() {
     }
 
     loadAnalyticsData()
-  }, [profile?.tenantId, selectedBranch?.id, selectedPeriod])
+  }, [profile?.tenantId, selectedBranch?.id, selectedPeriod, selectedBranch])
 
   const totalSales = salesData.reduce((sum, day) => sum + day.revenue, 0)
   const totalOrders = salesData.reduce((sum, day) => sum + day.orders, 0)

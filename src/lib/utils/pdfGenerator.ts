@@ -1,5 +1,21 @@
 import jsPDF from 'jspdf'
 import { PurchaseOrder } from '../firebase/purchaseOrders'
+import { Timestamp } from 'firebase/firestore'
+
+// Helper function to safely convert Timestamp or Date objects to Date
+const toDate = (dateValue: any): Date => {
+  if (!dateValue) return new Date()
+  if (dateValue.toDate && typeof dateValue.toDate === 'function') {
+    // It's a Firestore Timestamp
+    return dateValue.toDate()
+  }
+  if (dateValue instanceof Date) {
+    // It's already a Date object
+    return dateValue
+  }
+  // Try to parse as a string or number
+  return new Date(dateValue)
+}
 
 export const generatePurchaseOrderPDF = (order: PurchaseOrder): void => {
   try {
@@ -14,7 +30,7 @@ export const generatePurchaseOrderPDF = (order: PurchaseOrder): void => {
     pdf.setFontSize(12)
     pdf.setFont('helvetica', 'normal')
     pdf.text(`Order #: ${order.orderNumber}`, 20, 40)
-    pdf.text(`Date: ${order.createdAt?.toDate().toLocaleDateString() || 'N/A'}`, 140, 40)
+    pdf.text(`Date: ${toDate(order.createdAt).toLocaleDateString()}`, 140, 40)
     
     // Status
     pdf.setFont('helvetica', 'bold')
@@ -26,10 +42,12 @@ export const generatePurchaseOrderPDF = (order: PurchaseOrder): void => {
     pdf.setFont('helvetica', 'normal')
     pdf.text(`Supplier: ${order.supplierName}`, 20, 80)
     pdf.text(`Requested by: ${order.requestor || 'N/A'}`, 20, 90)
-    pdf.text(`Expected Delivery: ${order.expectedDelivery?.toDate().toLocaleDateString() || 'N/A'}`, 20, 100)
+    pdf.text(`Expected Delivery: ${toDate(order.expectedDelivery).toLocaleDateString()}`, 20, 100)
     
     if (order.deliveredAt) {
-      pdf.text(`Delivered on: ${order.deliveredAt.toDate().toLocaleDateString()}`, 20, 110)
+      // Handle both Timestamp and Date objects
+      const deliveredDate = toDate(order.deliveredAt)
+      pdf.text(`Delivered on: ${deliveredDate.toLocaleDateString()}`, 20, 110)
       if (order.deliveredBy) {
         pdf.text(`Received by: ${order.deliveredBy}`, 20, 120)
       }

@@ -1,0 +1,22 @@
+## Clean Header Design for Menu Builder
+
+The issue: All bulk mode controls are crammed into one row making it congested and unpleasant.
+
+Solution: Separate into two clean rows:
+1. **Top Row**: Title, tabs, and primary actions (Bulk Operations, Add Menu Item)
+2. **Bulk Mode Row**: Only appears when in bulk mode, contains all bulk-specific controls
+
+Benefits:
+- Cleaner visual hierarchy
+- Less cognitive load
+- Professional appearance
+- Better spacing and readability
+- Actions grouped logically
+
+Normal Mode Header:
+Menu Builder | [Menu Items] [Add-ons] | [Bulk Operations] [Add Menu Item]
+
+Bulk Mode Header:
+Menu Builder | [Menu Items] [Add-ons] | [Bulk Operations] [Add Menu Item]
+────────────────────────────────────────────────────────────────────────
+[Icon] Bulk Selection Mode | [1 item selected] | [Select All] [Clear] | [Activate] [Deactivate] [Delete] | [Exit Bulk Mode]

@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "validate:production": "node scripts/validate-production.js",
+    "build:production": "NODE_ENV=production npm run validate:production && npm run build",
+    "deploy:rules": "firebase deploy --only firestore:rules",
+    "security:audit": "npm run validate:production"
   },
   "dependencies": {
     "date-fns": "^2.30.0",

@@ -194,6 +194,7 @@ export const InventoryCountModal: React.FC<InventoryCountModalProps> = ({
 }) => {
   const [currentStep, setCurrentStep] = useState<'opening' | 'closing'>('opening');
   const [counts, setCounts] = useState<{[itemId: string]: {opening: number, closing: number}}>({});
+  const [theftAlerts, setTheftAlerts] = useState<{[itemId: string]: string[]}>({});
 
   if (!isOpen || !auditData) return null;
 
@@ -205,15 +206,80 @@ export const InventoryCountModal: React.FC<InventoryCountModalProps> = ({
         [type]: value
       }
     }));
+
+    // 🚨 REAL-TIME THEFT PREVENTION ANALYSIS
+    if (type === 'closing') {
+      const item = auditData.inventoryCounts.find((i: any) => i.itemId === itemId);
+      if (item) {
+        const opening = counts[itemId]?.opening || 0;
+        const expectedClosing = opening - (item.expectedUsage || 0);
+        const discrepancy = expectedClosing - value;
+        const discrepancyPercentage = opening > 0 ? (Math.abs(discrepancy) / opening) * 100 : 0;
+        
+        const alerts: string[] = [];
+        
+        // Large shortage alert
+        if (discrepancy > 5 && discrepancyPercentage > 20) {
+          alerts.push('🚨 EXCESSIVE SHORTAGE - Potential theft detected');
+        }
+        
+        // Premium item alert
+        if (item.costPerUnit > 50 && discrepancy > 2) {
+          alerts.push('💰 HIGH-VALUE ITEM SHORTAGE');
+        }
+        
+        // Suspicious patterns
+        if (discrepancy > 10) {
+          alerts.push('⚠️ INVESTIGATE IMMEDIATELY - Large discrepancy');
+        }
+        
+        setTheftAlerts(prev => ({
+          ...prev,
+          [itemId]: alerts
+        }));
+      }
+    }
   };
+
+  // Calculate real-time theft risk score
+  const calculateShiftRiskScore = () => {
+    let totalRiskScore = 0;
+    let highRiskItems = 0;
+    
+    auditData.inventoryCounts.forEach((item: any) => {
+      const opening = counts[item.itemId]?.opening || 0;
+      const closing = counts[item.itemId]?.closing || 0;
+      const expectedClosing = opening - (item.expectedUsage || 0);
+      const discrepancy = expectedClosing - closing;
+      const discrepancyPercentage = opening > 0 ? (Math.abs(discrepancy) / opening) * 100 : 0;
+      
+      if (discrepancy > 5 && discrepancyPercentage > 15) {
+        totalRiskScore += 30;
+        highRiskItems++;
+      }
+    });
+    
+    return { totalRiskScore, highRiskItems };
+  };
+
+  const riskAssessment = calculateShiftRiskScore();
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg p-6 w-full max-w-6xl mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">
-            Inventory Count - {currentStep === 'opening' ? 'Opening' : 'Closing'} Count
-          </h3>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">
+              Inventory Count - {currentStep === 'opening' ? 'Opening' : 'Closing'} Count
+            </h3>
+            {currentStep === 'closing' && riskAssessment.totalRiskScore > 50 && (
+              <div className="mt-2 p-2 bg-red-100 border border-red-300 rounded-lg">
+                <p className="text-sm text-red-800 font-medium">
+                  🚨 HIGH RISK SHIFT - {riskAssessment.highRiskItems} items flagged for investigation
+                </p>
+              </div>
+            )}
+          </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -238,9 +304,21 @@ export const InventoryCountModal: React.FC<InventoryCountModalProps> = ({
             }`}>
               2
             </div>
-            <span className="ml-2 font-medium">Closing Count</span>
+            <span className="ml-2 font-medium">Closing Count & Theft Detection</span>
           </div>
         </div>
+
+        {/* 🚨 THEFT PREVENTION INSTRUCTIONS */}
+        {currentStep === 'closing' && (
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <h4 className="text-sm font-semibold text-yellow-800 mb-2">🔍 Theft Prevention Protocol</h4>
+            <div className="text-xs text-yellow-700 space-y-1">
+              <p>• Count carefully - discrepancies {'>'}5 items trigger investigation</p>
+              <p>• Photo evidence required for all flagged items</p>
+              <p>• Manager notification sent for high-risk items automatically</p>
+            </div>
+          </div>
+        )}
 
         {/* Inventory Items Table */}
         <div className="border border-gray-200 rounded-lg overflow-hidden">
@@ -257,50 +335,63 @@ export const InventoryCountModal: React.FC<InventoryCountModalProps> = ({
                   <>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expected Usage</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Discrepancy</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">🚨 Alerts</th>
                   </>
                 )}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {auditData.inventoryCounts.map((item: any, index: number) => (
-                <tr key={item.itemId} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{item.itemName}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{item.category}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{item.unit}</td>
-                  <td className="px-4 py-3">
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      value={counts[item.itemId]?.[currentStep] || 0}
-                      onChange={(e) => updateCount(item.itemId, currentStep, parseFloat(e.target.value) || 0)}
-                      className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </td>
-                  {currentStep === 'closing' && (
-                    <>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {item.expectedUsage || 0} {item.unit}
-                      </td>
-                      <td className="px-4 py-3">
-                        {(() => {
-                          const opening = counts[item.itemId]?.opening || 0;
-                          const closing = counts[item.itemId]?.closing || 0;
-                          const expected = opening - (item.expectedUsage || 0);
-                          const discrepancy = expected - closing;
-                          return (
-                            <span className={`text-sm font-medium ${
-                              Math.abs(discrepancy) > 0.1 ? 'text-red-600' : 'text-green-600'
-                            }`}>
-                              {discrepancy > 0 ? '+' : ''}{discrepancy.toFixed(1)} {item.unit}
-                            </span>
-                          );
-                        })()}
-                      </td>
-                    </>
-                  )}
-                </tr>
-              ))}
+              {auditData.inventoryCounts.map((item: any, index: number) => {
+                const opening = counts[item.itemId]?.opening || 0;
+                const closing = counts[item.itemId]?.closing || 0;
+                const expected = opening - (item.expectedUsage || 0);
+                const discrepancy = expected - closing;
+                const hasTheftAlert = theftAlerts[item.itemId]?.length > 0;
+                
+                return (
+                  <tr key={item.itemId} className={`${
+                    hasTheftAlert ? 'bg-red-50 border-l-4 border-red-400' : 
+                    index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                  }`}>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{item.itemName}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{item.category}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{item.unit}</td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        value={counts[item.itemId]?.[currentStep] || 0}
+                        onChange={(e) => updateCount(item.itemId, currentStep, parseFloat(e.target.value) || 0)}
+                        className={`w-20 px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 ${
+                          hasTheftAlert ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-blue-500'
+                        }`}
+                      />
+                    </td>
+                    {currentStep === 'closing' && (
+                      <>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {item.expectedUsage || 0} {item.unit}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`text-sm font-medium ${
+                            Math.abs(discrepancy) > 0.1 ? 'text-red-600' : 'text-green-600'
+                          }`}>
+                            {discrepancy > 0 ? '+' : ''}{discrepancy.toFixed(1)} {item.unit}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          {theftAlerts[item.itemId]?.map((alert, idx) => (
+                            <div key={idx} className="text-xs text-red-700 bg-red-100 px-2 py-1 rounded mb-1">
+                              {alert}
+                            </div>
+                          ))}
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -59,9 +59,10 @@ export default function PurchaseOrders() {
   const [newOrder, setNewOrder] = useState({
     supplierId: '',
     requestor: '',
-    items: [{ itemName: '', description: '', quantity: 1, unit: 'piece', unitPrice: 0, total: 0 }] as PurchaseOrderItem[],
+    items: [{ itemName: '', description: '', quantity: 1, unit: 'piece', unitPrice: 0, total: 0, lastModified: 'unitPrice' }] as (PurchaseOrderItem & { lastModified?: 'unitPrice' | 'total' | 'quantity' })[],
     expectedDelivery: new Date(),
-    notes: ''
+    notes: '',
+    shippingFee: 0
   })
 
   const [deliveryItems, setDeliveryItems] = useState<Array<{
@@ -178,12 +179,49 @@ export default function PurchaseOrders() {
     }
   }, [])
 
-  const calculateTotals = (items: PurchaseOrderItem[]) => {
+  // Keyboard shortcuts for faster workflow
+  useEffect(() => {
+    const handleKeydown = (e: KeyboardEvent) => {
+      // Only handle shortcuts when not typing in input fields
+      if ((e.target as HTMLElement)?.tagName === 'INPUT' || (e.target as HTMLElement)?.tagName === 'TEXTAREA') {
+        return
+      }
+
+      if (e.ctrlKey || e.metaKey) {
+        switch (e.key) {
+          case 'n':
+            e.preventDefault()
+            setShowCreateModal(true)
+            break
+          case 'a':
+            e.preventDefault()
+            const pendingOrders = orders.filter(o => o.status === 'pending')
+            if (pendingOrders.length > 0 && confirm(`Approve all ${pendingOrders.length} pending orders?`)) {
+              pendingOrders.forEach(order => handleUpdateStatus(order.id!, 'approved'))
+            }
+            break
+          case 'o':
+            e.preventDefault()
+            const approvedOrders = orders.filter(o => o.status === 'approved')
+            if (approvedOrders.length > 0 && confirm(`Mark all ${approvedOrders.length} approved orders as ordered?`)) {
+              approvedOrders.forEach(order => handleUpdateStatus(order.id!, 'ordered'))
+            }
+            break
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeydown)
+    return () => document.removeEventListener('keydown', handleKeydown)
+  }, [orders])
+
+  const calculateTotals = (items: PurchaseOrderItem[], shippingFee: number = 0) => {
     const subtotal = items.reduce((sum, item) => sum + item.total, 0)
     return {
       subtotal,
+      shippingFee,
       tax: 0,
-      total: subtotal
+      total: subtotal + shippingFee
     }
   }
 
@@ -199,7 +237,7 @@ export default function PurchaseOrders() {
           total: item.quantity * item.unitPrice
         }))
 
-      const { subtotal, tax, total } = calculateTotals(updatedItems)
+      const { subtotal, tax, total } = calculateTotals(updatedItems, newOrder.shippingFee)
 
       // Generate locationId for the current branch
       const locationId = getBranchLocationId(selectedBranch.id)
@@ -229,9 +267,10 @@ export default function PurchaseOrders() {
       setNewOrder({
         supplierId: '',
         requestor: '',
-        items: [{ itemName: '', description: '', quantity: 1, unit: 'piece', unitPrice: 0, total: 0 }],
+        items: [{ itemName: '', description: '', quantity: 1, unit: 'piece', unitPrice: 0, total: 0, lastModified: 'unitPrice' }],
         expectedDelivery: new Date(),
-        notes: ''
+        notes: '',
+        shippingFee: 0
       })
       setShowCreateModal(false)
     } catch (error) {
@@ -463,7 +502,7 @@ export default function PurchaseOrders() {
           profile.tenantId,
           deliveringOrder.orderNumber,
           receivedBy.trim(),
-          newStatus === 'partially_delivered'
+          newStatus === 'partially_delivered' ? 'partial' : 'complete'
         )
 
         setDeliveryResult(result.inventoryUpdateResult || null)
@@ -566,7 +605,7 @@ export default function PurchaseOrders() {
   const addOrderItem = () => {
     setNewOrder(prev => ({
       ...prev,
-      items: [...prev.items, { itemName: '', description: '', quantity: 1, unit: 'piece', unitPrice: 0, total: 0 }]
+      items: [...prev.items, { itemName: '', description: '', quantity: 1, unit: 'piece', unitPrice: 0, total: 0, lastModified: 'unitPrice' }]
     }))
   }
 
@@ -578,9 +617,17 @@ export default function PurchaseOrders() {
         
         const updatedItem = { ...item, [field]: value }
         
-        // Recalculate total when quantity or unitPrice changes
+        // Smart calculation based on which field was changed
         if (field === 'quantity' || field === 'unitPrice') {
+          // User modified unit price or quantity -> calculate total
           updatedItem.total = updatedItem.quantity * updatedItem.unitPrice
+          updatedItem.lastModified = field === 'unitPrice' ? 'unitPrice' : 'quantity'
+        } else if (field === 'total') {
+          // User modified total -> calculate unit price
+          if (updatedItem.quantity > 0) {
+            updatedItem.unitPrice = updatedItem.total / updatedItem.quantity
+            updatedItem.lastModified = 'total'
+          }
         }
         
         // Check if item exists in inventory when item name changes
@@ -805,6 +852,8 @@ export default function PurchaseOrders() {
         </div>
       </div>
 
+
+
       {/* Filters */}
       <div className="bg-white p-4 rounded-lg shadow">
         <div className="flex flex-col md:flex-row md:items-center gap-4">
@@ -927,19 +976,134 @@ export default function PurchaseOrders() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {order.createdAt?.toDate().toLocaleDateString()}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                    <button
-                      onClick={() => setViewingOrder(order)}
-                      className="text-blue-600 hover:text-blue-900"
-                    >
-                      View
-                    </button>
-                    <button
-                      onClick={() => handleDeleteOrder(order.id!)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div className="flex items-center gap-2">
+                      {/* Express Mode for Small Orders */}
+                      {(order.status === 'draft' || order.status === 'pending') && order.total <= 5000 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (confirm(`Express approve, order, and mark as delivered for ${order.supplierName} (₱${order.total.toFixed(2)})?`)) {
+                              // Sequential status updates
+                              handleUpdateStatus(order.id!, 'approved')
+                              setTimeout(() => handleUpdateStatus(order.id!, 'ordered'), 500)
+                              setTimeout(() => {
+                                // Auto-fill delivery data and show modal
+                                setReceivedBy('Manager')
+                                setDeliveryItems(order.items.map(item => ({
+                                  itemName: item.itemName,
+                                  quantityOrdered: item.quantity,
+                                  quantityReceived: item.quantity, // Auto-set to full quantity
+                                  unit: item.unit,
+                                  unitPrice: item.unitPrice
+                                })))
+                                setDeliveringOrder(order)
+                                setShowDeliveryModal(true)
+                              }, 1000)
+                            }
+                          }}
+                          className="px-3 py-1 bg-gradient-to-r from-green-500 to-blue-600 text-white text-xs rounded-md hover:from-green-600 hover:to-blue-700 transition-all transform hover:scale-105 shadow-sm"
+                          title="Express: Approve → Order → Deliver (for orders ≤ ₱5,000)"
+                        >
+                          ⚡ Express
+                        </button>
+                      )}
+                      
+                      {/* Quick Action Buttons */}
+                      {order.status === 'draft' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleUpdateStatus(order.id!, 'pending')
+                          }}
+                          className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
+                          title="Submit for Approval"
+                        >
+                          Submit
+                        </button>
+                      )}
+                      
+                      {order.status === 'pending' && (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleUpdateStatus(order.id!, 'approved')
+                            }}
+                            className="px-3 py-1 bg-green-600 text-white text-xs rounded-md hover:bg-green-700 transition-colors"
+                            title="Approve Order"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleUpdateStatus(order.id!, 'cancelled')
+                            }}
+                            className="px-3 py-1 bg-red-600 text-white text-xs rounded-md hover:bg-red-700 transition-colors"
+                            title="Cancel Order"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      )}
+                      
+                      {order.status === 'approved' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleUpdateStatus(order.id!, 'ordered')
+                          }}
+                          className="px-3 py-1 bg-purple-600 text-white text-xs rounded-md hover:bg-purple-700 transition-colors"
+                          title="Mark as Ordered"
+                        >
+                          Order
+                        </button>
+                      )}
+                      
+                      {(order.status === 'ordered' || order.status === 'partially_delivered') && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleShowDeliveryModal(order)
+                          }}
+                          className={`px-3 py-1 text-white text-xs rounded-md transition-colors ${
+                            order.status === 'partially_delivered' 
+                              ? 'bg-amber-600 hover:bg-amber-700' 
+                              : 'bg-green-600 hover:bg-green-700'
+                          }`}
+                          disabled={loadingDelivery === order.id}
+                          title={order.status === 'partially_delivered' ? 'Continue Delivery' : 'Mark as Delivered'}
+                        >
+                          {loadingDelivery === order.id 
+                            ? '...' 
+                            : order.status === 'partially_delivered'
+                            ? 'Continue'
+                            : 'Deliver'
+                          }
+                        </button>
+                      )}
+                      
+                      {/* View Button */}
+                      <button
+                        onClick={() => setViewingOrder(order)}
+                        className="text-blue-600 hover:text-blue-900 text-xs"
+                        title="View Details"
+                      >
+                        View
+                      </button>
+                      
+                      {/* Delete Button - Only for draft/pending */}
+                      {(order.status === 'draft' || order.status === 'pending') && (
+                        <button
+                          onClick={() => handleDeleteOrder(order.id!)}
+                          className="text-red-600 hover:text-red-900 text-xs"
+                          title="Delete Order"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
                 ))
@@ -1059,37 +1223,23 @@ export default function PurchaseOrders() {
                   </button>
                 </div>
 
-                {/* Items Table Header - Hidden on Mobile */}
-                <div className="hidden md:grid grid-cols-12 gap-4 mb-3 px-4 py-2 bg-surface-50 rounded-lg text-sm font-medium text-surface-700">
-                  <div className="col-span-3">Item Name</div>
-                  <div className="col-span-2">Description</div>
-                  <div className="col-span-2">Quantity</div>
-                  <div className="col-span-2">Unit</div>
-                  <div className="col-span-2">Unit Price</div>
-                  <div className="col-span-1">Actions</div>
-                </div>
 
                 {/* Items List */}
-                <div className="space-y-4">
+                <div className="space-y-6">
                   {newOrder.items.map((item, index) => (
-                    <div key={index} className="border border-surface-200 rounded-lg p-4 bg-surface-50">
-                      {/* Mobile Layout */}
-                      <div className="md:hidden space-y-4">
-                        <div>
-                          <label className="block text-xs font-medium text-surface-600 mb-1">Item Name</label>
+                    <div key={index} className="border border-primary-100 rounded-xl bg-white shadow-sm p-6 flex flex-col gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                        <div className="col-span-2 flex flex-col gap-2">
+                          <label className="block text-xs font-semibold text-primary-700 mb-1">Item Name</label>
                           <input
                             type="text"
                             placeholder="Enter item name"
                             value={item.itemName}
                             onChange={(e) => updateOrderItem(index, 'itemName', e.target.value)}
-                            className={`input-field ${
-                              item.itemName.trim() && !checkItemInInventory(item.itemName) 
-                                ? 'border-amber-300 bg-amber-50' 
-                                : ''
-                            }`}
+                            className={`input-field font-semibold text-lg ${item.itemName.trim() && !checkItemInInventory(item.itemName) ? 'border-amber-300 bg-amber-50' : ''}`}
                             list={`inventory-items-${index}`}
                           />
-                          <datalist id={`inventory-items-${index}`}>
+                          <datalist id={`inventory-items-${index}`}> 
                             {inventoryItems.map((invItem) => (
                               <option key={invItem.id} value={invItem.name} />
                             ))}
@@ -1102,254 +1252,157 @@ export default function PurchaseOrders() {
                               Not found in inventory - will be added automatically
                             </p>
                           )}
-                          {inventoryItems.length > 0 && (!item.itemName.trim() || checkItemInInventory(item.itemName)) && (
-                            <p className="text-xs text-surface-500 mt-1">
-                              Available inventory items: {inventoryItems.slice(0, 3).map(item => item.name).join(', ')}
-                              {inventoryItems.length > 3 && ` +${inventoryItems.length - 3} more`}
-                            </p>
-                          )}
                         </div>
-                        <div>
-                          <label className="block text-xs font-medium text-surface-600 mb-1">Description</label>
+                        <div className="col-span-2 flex flex-col gap-2">
+                          <label className="block text-xs font-semibold text-primary-700 mb-1">Description</label>
                           <input
                             type="text"
                             placeholder="Item description"
                             value={item.description}
                             onChange={(e) => updateOrderItem(index, 'description', e.target.value)}
-                            className="input-field"
+                            className="input-field text-base"
                           />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-surface-600 mb-2">Quantity</label>
-                            <input
-                              type="number"
-                              placeholder="Enter quantity"
-                              min="1"
-                              value={item.quantity}
-                              onChange={(e) => updateOrderItem(index, 'quantity', parseInt(e.target.value) || 1)}
-                              className="input-field text-xl font-semibold text-center h-14"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-surface-600 mb-2">Unit</label>
-                            <select
-                              value={item.unit}
-                              onChange={(e) => updateOrderItem(index, 'unit', e.target.value)}
-                              className="input-field text-lg font-semibold h-14"
-                            >
-                              <optgroup label="Count">
-                                <option value="piece">Piece</option>
-                                <option value="dozen">Dozen</option>
-                                <option value="case">Case</option>
-                                <option value="box">Box</option>
-                                <option value="pack">Pack</option>
-                                <option value="bag">Bag</option>
-                                <option value="container">Container</option>
-                                <option value="bottle">Bottle</option>
-                                <option value="can">Can</option>
-                                <option value="jar">Jar</option>
-                              </optgroup>
-                              <optgroup label="Weight">
-                                <option value="oz">Ounce (oz)</option>
-                                <option value="lb">Pound (lb)</option>
-                                <option value="g">Gram (g)</option>
-                                <option value="kg">Kilogram (kg)</option>
-                                <option value="ton">Ton</option>
-                              </optgroup>
-                              <optgroup label="Volume - Liquid">
-                                <option value="fl oz">Fluid Ounce (fl oz)</option>
-                                <option value="cup">Cup</option>
-                                <option value="pint">Pint</option>
-                                <option value="quart">Quart</option>
-                                <option value="gallon">Gallon</option>
-                                <option value="ml">Milliliter (ml)</option>
-                                <option value="liter">Liter</option>
-                              </optgroup>
-                              <optgroup label="Volume - Dry">
-                                <option value="tsp">Teaspoon (tsp)</option>
-                                <option value="tbsp">Tablespoon (tbsp)</option>
-                                <option value="cubic ft">Cubic Foot</option>
-                                <option value="cubic in">Cubic Inch</option>
-                              </optgroup>
-                              <optgroup label="Length">
-                                <option value="inch">Inch</option>
-                                <option value="ft">Foot</option>
-                                <option value="yard">Yard</option>
-                                <option value="cm">Centimeter (cm)</option>
-                                <option value="m">Meter (m)</option>
-                              </optgroup>
-                              <optgroup label="Area">
-                                <option value="sq ft">Square Foot</option>
-                                <option value="sq in">Square Inch</option>
-                                <option value="sq m">Square Meter</option>
-                              </optgroup>
-                            </select>
-                            {/* Unit Mismatch Warning */}
-                            {(() => {
-                              const inventoryUnit = getInventoryItemUnit(item.itemName)
-                              const hasUnitMismatch = inventoryUnit && inventoryUnit.toLowerCase() !== item.unit.toLowerCase()
-                              return hasUnitMismatch && (
-                                <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-sm">
-                                  <div className="flex items-center gap-2 text-amber-800">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                                    </svg>
-                                    <span className="font-medium">Unit Mismatch Warning</span>
-                                  </div>
-                                  <p className="text-amber-700 mt-1">
-                                    Inventory unit: <strong>{inventoryUnit}</strong> • PO unit: <strong>{item.unit}</strong>
-                                  </p>
-                                  <p className="text-amber-600 text-xs mt-1">
-                                    This may require unit resolution during delivery.
-                                  </p>
-                                </div>
-                              )
-                            })()}
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-surface-600 mb-1">Unit Price</label>
+                        <div className="flex flex-col gap-2">
+                          <label className="block text-xs font-semibold text-primary-700 mb-1">Quantity</label>
                           <input
                             type="number"
-                            placeholder="0.00"
-                            min="0"
-                            step="0.01"
-                            value={item.unitPrice}
-                            onChange={(e) => updateOrderItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
-                            className="input-field text-lg font-semibold h-12"
+                            placeholder="Enter quantity"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => updateOrderItem(index, 'quantity', parseInt(e.target.value) || 1)}
+                            className="input-field text-xl font-bold text-center h-12"
                           />
                         </div>
-                        <div className="flex items-center justify-between pt-2 border-t border-surface-200">
-                          <div className="text-sm font-medium text-surface-900">
-                            Total: ₱{(item.quantity * item.unitPrice).toFixed(2)}
-                          </div>
-                          <button
-                            onClick={() => removeOrderItem(index)}
-                            className="text-red-600 hover:text-red-800 p-2"
-                            disabled={newOrder.items.length === 1}
+                        <div className="flex flex-col gap-2">
+                          <label className="block text-xs font-semibold text-primary-700 mb-1">Unit</label>
+                          <select
+                            value={item.unit}
+                            onChange={(e) => updateOrderItem(index, 'unit', e.target.value)}
+                            className="input-field text-lg font-semibold h-12"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
+                            <optgroup label="Count">
+                              <option value="piece">Piece</option>
+                              <option value="dozen">Dozen</option>
+                              <option value="case">Case</option>
+                              <option value="box">Box</option>
+                              <option value="pack">Pack</option>
+                              <option value="bag">Bag</option>
+                              <option value="container">Container</option>
+                              <option value="bottle">Bottle</option>
+                              <option value="can">Can</option>
+                              <option value="jar">Jar</option>
+                            </optgroup>
+                            <optgroup label="Weight">
+                              <option value="oz">Ounce (oz)</option>
+                              <option value="lb">Pound (lb)</option>
+                              <option value="g">Gram (g)</option>
+                              <option value="kg">Kilogram (kg)</option>
+                              <option value="ton">Ton</option>
+                            </optgroup>
+                            <optgroup label="Volume - Liquid">
+                              <option value="fl oz">Fluid Ounce (fl oz)</option>
+                              <option value="cup">Cup</option>
+                              <option value="pint">Pint</option>
+                              <option value="quart">Quart</option>
+                              <option value="gallon">Gallon</option>
+                              <option value="ml">Milliliter (ml)</option>
+                              <option value="liter">Liter</option>
+                            </optgroup>
+                            <optgroup label="Volume - Dry">
+                              <option value="tsp">Teaspoon (tsp)</option>
+                              <option value="tbsp">Tablespoon (tbsp)</option>
+                              <option value="cubic ft">Cubic Foot</option>
+                              <option value="cubic in">Cubic Inch</option>
+                            </optgroup>
+                            <optgroup label="Length">
+                              <option value="inch">Inch</option>
+                              <option value="ft">Foot</option>
+                              <option value="yard">Yard</option>
+                              <option value="cm">Centimeter (cm)</option>
+                              <option value="m">Meter (m)</option>
+                            </optgroup>
+                            <optgroup label="Area">
+                              <option value="sq ft">Square Foot</option>
+                              <option value="sq in">Square Inch</option>
+                              <option value="sq m">Square Meter</option>
+                            </optgroup>
+                          </select>
+                          {/* Unit Mismatch Warning */}
+                          {(() => {
+                            const inventoryUnit = getInventoryItemUnit(item.itemName)
+                            const hasUnitMismatch = inventoryUnit && inventoryUnit.toLowerCase() !== item.unit.toLowerCase()
+                            return hasUnitMismatch && (
+                              <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-sm">
+                                <div className="flex items-center gap-2 text-amber-800">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                  </svg>
+                                  <span className="font-medium">Unit Mismatch Warning</span>
+                                </div>
+                                <p className="text-amber-700 mt-1">
+                                  Inventory unit: <strong>{inventoryUnit}</strong> • PO unit: <strong>{item.unit}</strong>
+                                </p>
+                                <p className="text-amber-600 text-xs mt-1">
+                                  This may require unit resolution during delivery.
+                                </p>
+                              </div>
+                            )
+                          })()}
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <label className="block text-xs font-semibold text-primary-700 mb-1">Unit Price</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-primary-500">₱</span>
+                            <input
+                              type="number"
+                              placeholder="0.00"
+                              min="0"
+                              step="0.01"
+                              value={item.unitPrice}
+                              onChange={(e) => updateOrderItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                              className={`input-field pl-8 text-lg font-semibold h-12 ${item.lastModified === 'unitPrice' ? 'border-green-500 bg-green-50' : item.lastModified === 'total' ? 'border-blue-300 bg-blue-50' : ''}`}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <label className="block text-xs font-semibold text-primary-700 mb-1">Total Price</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-primary-500">₱</span>
+                            <input
+                              type="number"
+                              placeholder="0.00"
+                              min="0"
+                              step="0.01"
+                              value={item.total}
+                              onChange={(e) => updateOrderItem(index, 'total', parseFloat(e.target.value) || 0)}
+                              className={`input-field pl-8 text-lg font-semibold h-12 ${item.lastModified === 'total' ? 'border-green-500 bg-green-50' : item.lastModified === 'unitPrice' ? 'border-blue-300 bg-blue-50' : ''}`}
+                            />
+                          </div>
                         </div>
                       </div>
-
-                      {/* Desktop Layout */}
-                      <div className="hidden md:grid grid-cols-12 gap-4 items-center">
-                        <div className="col-span-3">
-                          <input
-                            type="text"
-                            placeholder="Enter item name"
-                            value={item.itemName}
-                            onChange={(e) => updateOrderItem(index, 'itemName', e.target.value)}
-                            className={`w-full input-field ${
-                              item.itemName.trim() && !checkItemInInventory(item.itemName) 
-                                ? 'border-amber-300 bg-amber-50' 
-                                : ''
-                            }`}
-                            list={`inventory-items-desktop-${index}`}
-                          />
-                          {item.itemName.trim() && !checkItemInInventory(item.itemName) && (
-                            <p className="text-xs text-amber-600 mt-1 flex items-center">
-                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                              </svg>
-                              Not in inventory
-                            </p>
-                          )}
+                      {/* Calculation and Remove Button */}
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pt-4 border-t border-primary-100 mt-4">
+                        <div className="flex-1">
+                          <div className="text-xs text-primary-600 mb-2">Calculation:</div>
+                          <div className="font-mono text-sm mb-1">
+                            {item.lastModified === 'total' 
+                              ? `₱${item.total.toFixed(2)} ÷ ${item.quantity} = ₱${item.unitPrice.toFixed(2)}/unit`
+                              : `${item.quantity} × ₱${item.unitPrice.toFixed(2)} = ₱${item.total.toFixed(2)}`
+                            }
+                          </div>
+                          <div className="font-medium text-base text-primary-700">Final Total: ₱{(item.quantity * item.unitPrice).toFixed(2)}</div>
                         </div>
-                        <datalist id={`inventory-items-desktop-${index}`}>
-                          {inventoryItems.map((invItem) => (
-                            <option key={invItem.id} value={invItem.name} />
-                          ))}
-                        </datalist>
-                        <input
-                          type="text"
-                          placeholder="Item description"
-                          value={item.description}
-                          onChange={(e) => updateOrderItem(index, 'description', e.target.value)}
-                          className="col-span-2 input-field"
-                        />
-                        <input
-                          type="number"
-                          placeholder="Enter quantity"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) => updateOrderItem(index, 'quantity', parseInt(e.target.value) || 1)}
-                          className="col-span-2 input-field text-xl font-semibold text-center h-12"
-                        />
-                        <select
-                          value={item.unit}
-                          onChange={(e) => updateOrderItem(index, 'unit', e.target.value)}
-                          className="col-span-2 input-field text-lg font-semibold h-12"
-                        >
-                          <optgroup label="Count">
-                            <option value="piece">Piece</option>
-                            <option value="dozen">Dozen</option>
-                            <option value="case">Case</option>
-                            <option value="box">Box</option>
-                            <option value="pack">Pack</option>
-                            <option value="bag">Bag</option>
-                            <option value="container">Container</option>
-                            <option value="bottle">Bottle</option>
-                            <option value="can">Can</option>
-                            <option value="jar">Jar</option>
-                          </optgroup>
-                          <optgroup label="Weight">
-                            <option value="oz">Ounce (oz)</option>
-                            <option value="lb">Pound (lb)</option>
-                            <option value="g">Gram (g)</option>
-                            <option value="kg">Kilogram (kg)</option>
-                            <option value="ton">Ton</option>
-                          </optgroup>
-                          <optgroup label="Volume - Liquid">
-                            <option value="fl oz">Fluid Ounce (fl oz)</option>
-                            <option value="cup">Cup</option>
-                            <option value="pint">Pint</option>
-                            <option value="quart">Quart</option>
-                            <option value="gallon">Gallon</option>
-                            <option value="ml">Milliliter (ml)</option>
-                            <option value="liter">Liter</option>
-                          </optgroup>
-                          <optgroup label="Volume - Dry">
-                            <option value="tsp">Teaspoon (tsp)</option>
-                            <option value="tbsp">Tablespoon (tbsp)</option>
-                            <option value="cubic ft">Cubic Foot</option>
-                            <option value="cubic in">Cubic Inch</option>
-                          </optgroup>
-                          <optgroup label="Length">
-                            <option value="inch">Inch</option>
-                            <option value="ft">Foot</option>
-                            <option value="yard">Yard</option>
-                            <option value="cm">Centimeter (cm)</option>
-                            <option value="m">Meter (m)</option>
-                          </optgroup>
-                          <optgroup label="Area">
-                            <option value="sq ft">Square Foot</option>
-                            <option value="sq in">Square Inch</option>
-                            <option value="sq m">Square Meter</option>
-                          </optgroup>
-                        </select>
-                        <input
-                          type="number"
-                          placeholder="0.00"
-                          min="0"
-                          step="0.01"
-                          value={item.unitPrice}
-                          onChange={(e) => updateOrderItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
-                          className="col-span-2 input-field text-lg font-semibold h-12"
-                        />
-                        <div className="col-span-1 flex justify-center">
+                        <div className="flex items-center gap-2">
                           <button
                             onClick={() => removeOrderItem(index)}
-                            className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors"
+                            className="text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 p-2 rounded-lg transition-colors text-sm font-semibold"
                             disabled={newOrder.items.length === 1}
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
+                            Remove
                           </button>
                         </div>
                       </div>
@@ -1372,20 +1425,66 @@ export default function PurchaseOrders() {
                 />
               </div>
 
+              {/* Shipping Fee Section */}
+              <div>
+                <label className="block text-sm font-medium text-surface-700 mb-2">
+                  Shipping Fee
+                </label>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-medium text-surface-600">₱</span>
+                  <input
+                    type="number"
+                    value={newOrder.shippingFee}
+                    onChange={(e) => setNewOrder(prev => ({ ...prev, shippingFee: parseFloat(e.target.value) || 0 }))}
+                    min="0"
+                    step="0.01"
+                    className="input-field flex-1"
+                    placeholder="0.00"
+                  />
+                </div>
+                <p className="text-xs text-surface-500 mt-1">
+                  Shipping costs will be distributed across all items to calculate adjusted unit prices
+                </p>
+              </div>
+
               {/* Order Summary */}
               <div className="bg-surface-50 rounded-lg p-6 border border-surface-200">
                 <h4 className="text-lg font-medium text-surface-900 mb-4">Order Summary</h4>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-surface-600">Subtotal:</span>
-                    <span className="font-medium">₱{calculateTotals(newOrder.items).subtotal.toFixed(2)}</span>
+                    <span className="font-medium">₱{calculateTotals(newOrder.items, newOrder.shippingFee).subtotal.toFixed(2)}</span>
                   </div>
+                  {newOrder.shippingFee > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-surface-600">Shipping Fee:</span>
+                      <span className="font-medium">₱{newOrder.shippingFee.toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="border-t border-surface-200 pt-2 mt-2">
                     <div className="flex justify-between text-lg font-semibold">
                       <span>Total:</span>
-                      <span className="text-primary-600">₱{calculateTotals(newOrder.items).total.toFixed(2)}</span>
+                      <span className="text-primary-600">₱{calculateTotals(newOrder.items, newOrder.shippingFee).total.toFixed(2)}</span>
                     </div>
                   </div>
+                  {newOrder.shippingFee > 0 && newOrder.items.some(item => item.quantity > 0) && (
+                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <h5 className="text-sm font-medium text-blue-800 mb-2">Adjusted Unit Prices (including shipping):</h5>
+                      <div className="space-y-1 text-xs text-blue-700">
+                        {newOrder.items.filter(item => item.quantity > 0).map((item, index) => {
+                          const totalItemsQuantity = newOrder.items.reduce((sum, i) => sum + i.quantity, 0)
+                          const shippingPerItem = totalItemsQuantity > 0 ? newOrder.shippingFee / totalItemsQuantity : 0
+                          const adjustedUnitPrice = item.unitPrice + shippingPerItem
+                          return (
+                            <div key={index} className="flex justify-between">
+                              <span>{item.itemName || `Item ${index + 1}`}:</span>
+                              <span>₱{item.unitPrice.toFixed(2)} + ₱{shippingPerItem.toFixed(2)} = ₱{adjustedUnitPrice.toFixed(2)}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1673,360 +1772,305 @@ export default function PurchaseOrders() {
         </div>
       )}
 
-      {/* Delivery Modal */}
+      {/* Simplified Delivery Receipt Modal */}
       {showDeliveryModal && deliveringOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-surface-200">
-              <h3 className="text-lg font-semibold text-surface-900">Deliver Purchase Order</h3>
-              <p className="text-sm text-surface-600 mt-1">Order #{deliveringOrder.orderNumber}</p>
-            </div>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden">
             
-            {/* Modal Content */}
-            <div className="px-6 py-4 space-y-6">
-              {/* Order Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Clean Header */}
+            <div className="bg-white border-b border-gray-200 p-6">
+              <div className="flex items-center justify-between">
                 <div>
-                  <label className="block text-sm font-medium text-surface-700 mb-2">
-                    Supplier
-                  </label>
-                  <input
-                    type="text"
-                    value={deliveringOrder.supplierName}
-                    readOnly
-                    className="input-field bg-surface-100 cursor-not-allowed"
-                  />
+                  <h2 className="text-2xl font-bold text-gray-900">Delivery Receipt</h2>
+                  <div className="flex items-center gap-3 mt-1 text-gray-600">
+                    <span className="font-medium">Order #{deliveringOrder.orderNumber}</span>
+                    <span>•</span>
+                    <span>{deliveringOrder.supplierName}</span>
+                    <span>•</span>
+                    <span className="text-sm">{deliveringOrder.expectedDelivery?.toDate().toLocaleDateString()}</span>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-surface-700 mb-2">
-                    Requested By
-                  </label>
-                  <input
-                    type="text"
-                    value={deliveringOrder.requestor || ''}
-                    readOnly
-                    className="input-field bg-surface-100 cursor-not-allowed"
-                  />
+                <button
+                  onClick={() => setShowDeliveryModal(false)}
+                  className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center justify-center transition-colors"
+                >
+                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Main Content */}
+            <div className="flex-1 flex overflow-hidden">
+              
+              {/* Left Side - Items Table */}
+              <div className="flex-1 flex flex-col">
+                
+                {/* Toolbar */}
+                <div className="bg-gray-50 border-b border-gray-200 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold text-gray-900">Items to Receive</h3>
+                    <span className="text-sm text-gray-500">{deliveryItems.length} items</span>
+                  </div>
+                  
+                  {/* Quick Actions */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setDeliveryItems(prev => prev.map(item => ({
+                          ...item,
+                          quantityReceived: item.quantityOrdered
+                        })))
+                      }}
+                      className="px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Receive All
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        setDeliveryItems(prev => prev.map(item => ({
+                          ...item,
+                          quantityReceived: 0
+                        })))
+                      }}
+                      className="px-3 py-2 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors"
+                    >
+                      Clear All
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-surface-700 mb-2">
-                    Order Status
-                  </label>
-                  <input
-                    type="text"
-                    value={deliveringOrder.status}
-                    readOnly
-                    className="input-field bg-surface-100 cursor-not-allowed"
-                  />
+
+                {/* Items Table */}
+                <div className="flex-1 overflow-y-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-100 sticky top-0">
+                      <tr>
+                        <th className="text-left p-4 font-semibold text-gray-900">Item</th>
+                        <th className="text-center p-4 font-semibold text-gray-900 w-24">Ordered</th>
+                        <th className="text-center p-4 font-semibold text-gray-900 w-32">Received</th>
+                        <th className="text-center p-4 font-semibold text-gray-900 w-20">Unit</th>
+                        <th className="text-right p-4 font-semibold text-gray-900 w-24">Price</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {deliveryItems.map((item, index) => {
+                        const originalItem = deliveringOrder.items.find(original => 
+                          original.itemName.toLowerCase().trim() === item.itemName.toLowerCase().trim()
+                        )
+                        const previouslyReceived = originalItem?.quantityReceived || 0
+                        const isFullyReceived = item.quantityReceived === item.quantityOrdered && item.quantityReceived > 0
+                        const isPartialReceived = item.quantityReceived > 0 && item.quantityReceived < item.quantityOrdered
+                        
+                        return (
+                          <tr key={index} className={`border-b border-gray-100 hover:bg-gray-50 ${
+                            isFullyReceived ? 'bg-green-50' : isPartialReceived ? 'bg-amber-50' : ''
+                          }`}>
+                            {/* Item Name */}
+                            <td className="p-4">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-3 h-3 rounded-full ${
+                                  isFullyReceived ? 'bg-green-500' : isPartialReceived ? 'bg-amber-500' : 'bg-gray-300'
+                                }`}></div>
+                                <div>
+                                  <div className="font-medium text-gray-900">{item.itemName}</div>
+                                  {deliveringOrder.status === 'partially_delivered' && previouslyReceived > 0 && (
+                                    <div className="text-xs text-blue-600">
+                                      Previously received: {previouslyReceived} {item.unit}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            
+                            {/* Ordered Quantity */}
+                            <td className="p-4 text-center">
+                              <span className="font-semibold text-gray-900">{item.quantityOrdered}</span>
+                            </td>
+                            
+                            {/* Received Quantity Input */}
+                            <td className="p-4">
+                              <div className="flex items-center justify-center gap-2">
+                                {/* Minus Button */}
+                                <button
+                                  onClick={() => handleDeliveryQuantityChange(index, Math.max(0, item.quantityReceived - 1))}
+                                  className="w-8 h-8 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg flex items-center justify-center text-sm font-bold transition-colors disabled:opacity-50"
+                                  disabled={item.quantityReceived <= 0}
+                                >
+                                  −
+                                </button>
+                                
+                                {/* Quantity Input */}
+                                <input
+                                  type="number"
+                                  value={item.quantityReceived}
+                                  onChange={(e) => handleDeliveryQuantityChange(index, parseInt(e.target.value) || 0)}
+                                  className={`w-16 h-10 text-center font-bold border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 ${
+                                    isFullyReceived 
+                                      ? 'border-green-300 bg-green-50 text-green-800'
+                                      : isPartialReceived
+                                      ? 'border-amber-300 bg-amber-50 text-amber-800'
+                                      : 'border-gray-300 bg-white text-gray-900'
+                                  }`}
+                                  min="0"
+                                  max={item.quantityOrdered}
+                                />
+                                
+                                {/* Plus Button */}
+                                <button
+                                  onClick={() => handleDeliveryQuantityChange(index, Math.min(item.quantityOrdered, item.quantityReceived + 1))}
+                                  className="w-8 h-8 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-lg flex items-center justify-center text-sm font-bold transition-colors disabled:opacity-50"
+                                  disabled={item.quantityReceived >= item.quantityOrdered}
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </td>
+                            
+                            {/* Unit */}
+                            <td className="p-4 text-center text-gray-600">
+                              {item.unit}
+                            </td>
+                            
+                            {/* Price */}
+                            <td className="p-4 text-right text-gray-900 font-medium">
+                              ₱{item.unitPrice.toFixed(2)}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-surface-700 mb-2">
-                    Created Date
-                  </label>
-                  <input
-                    type="text"
-                    value={deliveringOrder.createdAt?.toDate().toLocaleDateString()}
-                    readOnly
-                    className="input-field bg-surface-100 cursor-not-allowed"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-surface-700 mb-2">
-                    Expected Delivery
-                  </label>
-                  <input
-                    type="text"
-                    value={deliveringOrder.expectedDelivery?.toDate().toLocaleDateString()}
-                    readOnly
-                    className="input-field bg-surface-100 cursor-not-allowed"
-                  />
-                </div>
-                {deliveringOrder.actualDelivery && (
+              </div>
+
+              {/* Right Side - Summary & Actions */}
+              <div className="w-80 bg-gray-50 border-l border-gray-200 flex flex-col">
+                
+                {/* Receiver Info */}
+                <div className="p-6 border-b border-gray-200 bg-white">
+                  <h3 className="font-semibold text-gray-900 mb-4">Receiver Information</h3>
                   <div>
-                    <label className="block text-sm font-medium text-surface-700 mb-2">
-                      Actual Delivery
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Received By <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
-                      value={deliveringOrder.actualDelivery.toDate().toLocaleDateString()}
-                      readOnly
-                      className="input-field bg-surface-100 cursor-not-allowed"
+                      value={receivedBy}
+                      onChange={(e) => setReceivedBy(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Enter receiver's name"
+                      required
                     />
-                  </div>
-                )}
-                <div>
-                  <label className="block text-sm font-medium text-surface-700 mb-2">
-                    Received By *
-                  </label>
-                  <input
-                    type="text"
-                    value={receivedBy}
-                    onChange={(e) => setReceivedBy(e.target.value)}
-                    className="input-field"
-                    placeholder="Enter name of person receiving delivery"
-                    required
-                  />
-                  <p className="text-xs text-surface-500 mt-1">
-                    Required for delivery accountability and audit trail
-                  </p>
-                </div>
-              </div>
-
-              {/* Delivery Items */}
-              <div>
-                <h4 className="text-md font-medium text-surface-900 mb-2">Delivery Items</h4>
-                
-                {/* Partial delivery status */}
-                {deliveringOrder.status === 'partially_delivered' && (
-                  <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                    <div className="flex items-center mb-2">
-                      <svg className="w-5 h-5 text-amber-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                      </svg>
-                      <span className="text-sm font-medium text-amber-800">Continuing Partial Delivery</span>
+                    <div className="flex gap-2 mt-2">
+                      {['Manager', 'Staff', 'Owner'].map(role => (
+                        <button
+                          key={role}
+                          onClick={() => setReceivedBy(role)}
+                          className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded"
+                        >
+                          {role}
+                        </button>
+                      ))}
                     </div>
-                    <p className="text-sm text-amber-700">
-                      This order has been partially delivered. Enter additional quantities to receive for the remaining items.
-                    </p>
                   </div>
-                )}
-                
-                <p className="text-sm text-surface-600 mb-4">
-                  Enter the actual quantity received for each item. Items with zero quantity received will not update inventory.
-                </p>
-                <div className="space-y-4">
-                  {deliveryItems.map((item, index) => {
-                    // Find the original item to check previously received quantities
-                    const originalItem = deliveringOrder.items.find(original => 
-                      original.itemName.toLowerCase().trim() === item.itemName.toLowerCase().trim()
-                    )
-                    const previouslyReceived = originalItem?.quantityReceived || 0
-                    const remainingToReceive = item.quantityOrdered - previouslyReceived
+                </div>
+
+                {/* Summary */}
+                <div className="flex-1 p-6">
+                  <h3 className="font-semibold text-gray-900 mb-4">Summary</h3>
+                  
+                  {(() => {
+                    const partialItems = deliveryItems.filter(item => item.quantityReceived > 0 && item.quantityReceived < item.quantityOrdered)
+                    const fullItems = deliveryItems.filter(item => item.quantityReceived === item.quantityOrdered && item.quantityReceived > 0)
+                    const noReceived = deliveryItems.filter(item => item.quantityReceived === 0)
                     
                     return (
-                      <div key={index} className="border border-surface-200 rounded-lg p-4 bg-surface-50">
-                        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-surface-700 mb-1">Item Name</label>
-                            <input
-                              type="text"
-                              value={item.itemName}
-                              readOnly
-                              className="input-field bg-surface-100 cursor-not-allowed"
-                            />
+                      <div className="space-y-4">
+                        {/* Stats */}
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div className="bg-green-100 rounded-lg p-3">
+                            <div className="text-xl font-bold text-green-600">{fullItems.length}</div>
+                            <div className="text-xs text-green-600">Complete</div>
                           </div>
-                          <div>
-                            <label className="block text-sm font-medium text-surface-700 mb-1">Quantity Ordered</label>
-                            <input
-                              type="number"
-                              value={item.quantityOrdered}
-                              readOnly
-                              className="input-field bg-surface-100 cursor-not-allowed"
-                            />
+                          <div className="bg-amber-100 rounded-lg p-3">
+                            <div className="text-xl font-bold text-amber-600">{partialItems.length}</div>
+                            <div className="text-xs text-amber-600">Partial</div>
                           </div>
-                          {deliveringOrder.status === 'partially_delivered' && (
-                            <div>
-                              <label className="block text-sm font-medium text-surface-700 mb-1">Previously Received</label>
-                              <input
-                                type="number"
-                                value={previouslyReceived}
-                                readOnly
-                                className="input-field bg-blue-100 cursor-not-allowed text-blue-800 font-medium"
-                              />
-                              <p className="text-xs text-blue-600 mt-1">
-                                {remainingToReceive} remaining
-                              </p>
+                          <div className="bg-gray-100 rounded-lg p-3">
+                            <div className="text-xl font-bold text-gray-600">{noReceived.length}</div>
+                            <div className="text-xs text-gray-600">Pending</div>
+                          </div>
+                        </div>
+
+                        {/* Status Messages */}
+                        {partialItems.length > 0 && (
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                              <span className="text-sm font-medium text-amber-800">Partial Delivery</span>
                             </div>
-                          )}
-                          <div>
-                            <label className="block text-sm font-medium text-surface-700 mb-1">Unit</label>
-                          <input
-                            type="text"
-                            value={item.unit}
-                            readOnly
-                            className="input-field bg-surface-100 cursor-not-allowed text-center"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-surface-700 mb-1">Quantity Received</label>
-                          <input
-                            type="number"
-                            value={item.quantityReceived}
-                            onChange={(e) => handleDeliveryQuantityChange(index, parseInt(e.target.value) || 0)}
-                            className={`input-field text-xl font-semibold text-center h-12 ${
-                              item.quantityReceived > 0 && item.quantityReceived < item.quantityOrdered 
-                                ? 'border-amber-300 bg-amber-50' 
-                                : item.quantityReceived === item.quantityOrdered && item.quantityReceived > 0
-                                ? 'border-green-300 bg-green-50'
-                                : ''
-                            }`}
-                            min="0"
-                            max={item.quantityOrdered}
-                          />
-                          {/* Partial delivery warning */}
-                          {item.quantityReceived > 0 && item.quantityReceived < item.quantityOrdered && (
-                            <p className="text-xs text-amber-600 mt-1 font-medium">
-                              ⚠️ Partial delivery ({item.quantityOrdered - item.quantityReceived} remaining)
+                            <p className="text-xs text-amber-700">
+                              Order will remain open for future deliveries
                             </p>
-                          )}
-                          {/* Full delivery confirmation */}
-                          {item.quantityReceived === item.quantityOrdered && item.quantityReceived > 0 && (
-                            <p className="text-xs text-green-600 mt-1 font-medium">
-                              ✅ Full quantity received
+                          </div>
+                        )}
+
+                        {fullItems.length === deliveryItems.length && deliveryItems.length > 0 && (
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                              <span className="text-sm font-medium text-green-800">Complete Delivery</span>
+                            </div>
+                            <p className="text-xs text-green-700">
+                              All items received, order will be marked as delivered
                             </p>
-                          )}
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-surface-700 mb-1">Unit Price</label>
-                          <input
-                            type="number"
-                            value={item.unitPrice}
-                            readOnly
-                            className="input-field bg-surface-100 cursor-not-allowed"
-                            step="0.01"
-                          />
-                        </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
                     )
-                  })}
+                  })()}
                 </div>
-              </div>
 
-              {/* Partial Delivery Summary */}
-              {(() => {
-                const partialItems = deliveryItems.filter(item => item.quantityReceived > 0 && item.quantityReceived < item.quantityOrdered)
-                const fullItems = deliveryItems.filter(item => item.quantityReceived === item.quantityOrdered && item.quantityReceived > 0)
-                const noReceived = deliveryItems.filter(item => item.quantityReceived === 0)
-                
-                return (partialItems.length > 0 || fullItems.length > 0) && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h4 className="text-md font-medium text-blue-900 mb-3">📋 Delivery Summary</h4>
+                {/* Action Buttons */}
+                <div className="p-6 border-t border-gray-200 bg-white">
+                  <div className="space-y-3">
+                    <button
+                      onClick={handleConfirmDelivery}
+                      disabled={isDelivering || !receivedBy.trim()}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isDelivering ? (
+                        <>
+                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Confirm Delivery
+                        </>
+                      )}
+                    </button>
                     
-                    {fullItems.length > 0 && (
-                      <div className="mb-3">
-                        <p className="text-sm font-medium text-green-700 mb-1">✅ Fully Received Items ({fullItems.length}):</p>
-                        <ul className="list-disc list-inside text-sm text-green-600 ml-4">
-                          {fullItems.map(item => (
-                            <li key={item.itemName}>{item.itemName} - {item.quantityReceived} {item.unit}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    
-                    {partialItems.length > 0 && (
-                      <div className="mb-3">
-                        <p className="text-sm font-medium text-amber-700 mb-1">⚠️ Partially Received Items ({partialItems.length}):</p>
-                        <ul className="list-disc list-inside text-sm text-amber-600 ml-4">
-                          {partialItems.map(item => (
-                            <li key={item.itemName}>
-                              {item.itemName} - {item.quantityReceived}/{item.quantityOrdered} {item.unit} 
-                              <span className="font-medium"> ({item.quantityOrdered - item.quantityReceived} remaining)</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    
-                    {noReceived.length > 0 && (
-                      <div>
-                        <p className="text-sm font-medium text-gray-700 mb-1">⭕ Items Not Received ({noReceived.length}):</p>
-                        <ul className="list-disc list-inside text-sm text-gray-600 ml-4">
-                          {noReceived.map(item => (
-                            <li key={item.itemName}>{item.itemName} - {item.quantityOrdered} {item.unit} (pending)</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    
-                    {partialItems.length > 0 && (
-                      <div className="mt-3 p-3 bg-amber-100 rounded-lg">
-                        <p className="text-sm font-medium text-amber-800">
-                          🔄 This order will be marked as "Partially Delivered" and can be delivered again for remaining items.
-                        </p>
-                      </div>
-                    )}
+                    <button
+                      onClick={() => setShowDeliveryModal(false)}
+                      disabled={isDelivering}
+                      className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-3 px-4 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
                   </div>
-                )
-              })()}
-
-              {/* Delivery Result - Success/Failure Summary */}
-              {deliveryResult && (
-                <div>
-                  <h4 className="text-md font-medium text-surface-900 mb-3">Delivery Result</h4>
-                  <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded-lg text-sm text-surface-900">
-                    <p className="font-semibold">Successfully Delivered Items:</p>
-                    <ul className="list-disc list-inside">
-                      {deliveryResult.updatedItems.map(itemName => (
-                        <li key={itemName}>{itemName}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  {deliveryResult.notFoundItems.length > 0 && (
-                    <div className="mt-4">
-                      <p className="font-semibold text-red-600">Items Not Found in Inventory:</p>
-                      <ul className="list-disc list-inside">
-                        {deliveryResult.notFoundItems.map(itemName => (
-                          <li key={itemName}>{itemName}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {deliveryResult.unitMismatches.length > 0 && (
-                    <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                      <div className="flex items-center gap-2 mb-3">
-                        <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                        </svg>
-                        <p className="font-semibold text-amber-800">⚠️ Unit Mismatches Detected</p>
-                      </div>
-                      <p className="text-sm text-amber-700 mb-3">
-                        The following items were not added to inventory due to unit mismatches. 
-                        Please resolve these mismatches to complete the delivery.
-                      </p>
-                      <div className="space-y-2">
-                        {deliveryResult.unitMismatches.map(({ itemName, expectedUnit, receivedUnit }) => (
-                          <div key={itemName} className="bg-white p-3 rounded border border-amber-200">
-                            <div className="font-medium text-amber-900">{itemName}</div>
-                            <div className="text-sm text-amber-700">
-                              Inventory unit: <span className="font-semibold">{expectedUnit}</span> • 
-                              Purchase order unit: <span className="font-semibold">{receivedUnit}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
-                        <p className="text-sm text-blue-800">
-                          💡 <strong>Tip:</strong> Use the Unit Mismatch Resolution tool above to fix these issues 
-                          and complete your inventory update.
-                        </p>
-                      </div>
-                    </div>
-                  )}
                 </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-surface-200 bg-surface-50 rounded-b-xl">
-              <div className="flex justify-end space-x-4">
-                <button
-                  onClick={() => setShowDeliveryModal(false)}
-                  className="btn-secondary"
-                  disabled={isDelivering}
-                >
-                  {deliveryResult ? 'Close' : 'Cancel'}
-                </button>
-                {!deliveryResult && (
-                  <button
-                    onClick={handleConfirmDelivery}
-                    className="btn-primary disabled:bg-surface-300 disabled:text-surface-500 disabled:cursor-not-allowed"
-                    disabled={isDelivering || !receivedBy.trim()}
-                  >
-                    {isDelivering ? 'Processing...' : 'Confirm Delivery'}
-                  </button>
-                )}
               </div>
             </div>
           </div>
@@ -2054,7 +2098,7 @@ export default function PurchaseOrders() {
                   </div>
                   <div className="ml-3 flex-1">
                     <p className="text-sm text-blue-800">
-                      The item <strong>"{missingItem.itemName}"</strong> is not currently in your inventory. 
+                      The item <strong>&ldquo;{missingItem.itemName}&rdquo;</strong> is not currently in your inventory. 
                       Adding it will help you track stock levels and manage orders more effectively.
                     </p>
                   </div>
@@ -2189,7 +2233,7 @@ export default function PurchaseOrders() {
                   
                   <div className="mt-3 p-3 bg-blue-50 rounded-lg">
                     <p className="text-sm text-blue-800">
-                      <strong>Recommended:</strong> Update the inventory unit to match your purchase order ("{mismatch.receivedUnit}") 
+                      <strong>Recommended:</strong> Update the inventory unit to match your purchase order (&ldquo;{mismatch.receivedUnit}&rdquo;) 
                       to maintain consistency and avoid future mismatches.
                     </p>
                   </div>

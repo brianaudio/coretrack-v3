@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { signIn, signUp } from '../lib/firebase/auth'
+import { signIn, signUp, createDemoAccount } from '../lib/firebase/auth'
 import CoreTrackLogo from './CoreTrackLogo'
 
 interface LoginProps {
@@ -15,6 +15,7 @@ export default function Login({ onLogin }: LoginProps) {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    console.log('🔧 Login form submitted!')
     setLoading(true)
     setError('')
 
@@ -23,8 +24,11 @@ export default function Login({ onLogin }: LoginProps) {
     const email = (formData.get('email') as string)?.toLowerCase().trim()
     const password = formData.get('password') as string
 
+    console.log('🔧 Form data:', { email, password: password ? '***' : 'empty' })
+
     // Input validation
     if (!email || !password) {
+      console.log('🔧 Validation failed: missing email or password')
       setError('Email and password are required')
       setLoading(false)
       return
@@ -55,6 +59,7 @@ export default function Login({ onLogin }: LoginProps) {
 
     try {
       if (isSignUp) {
+        console.log('🔧 Signup flow')
         const displayName = (formData.get('displayName') as string)?.trim()
         const businessName = (formData.get('businessName') as string)?.trim()
         const businessType = formData.get('businessType') as 'restaurant' | 'cafe' | 'food_truck' | 'other'
@@ -68,23 +73,36 @@ export default function Login({ onLogin }: LoginProps) {
         
         await signUp(email, password, displayName, businessName, businessType)
       } else {
+        console.log('🔧 Sign in flow')
         await signIn(email, password)
       }
       
+      console.log('🔧 Authentication successful, calling onLogin()')
       onLogin()
     } catch (err: any) {
-      // Don't expose internal error details
-      if (err.code === 'auth/user-not-found') {
-        setError('No account found with this email address')
+      console.error('Authentication error:', err);
+      
+      // Handle Firebase auth errors with user-friendly messages
+      if (err.message && err.message.includes('Invalid email or password')) {
+        setError('Invalid email or password. Please check your credentials.');
+      } else if (err.code === 'auth/invalid-credential') {
+        setError('Invalid email or password. Please check your credentials.');
+      } else if (err.code === 'auth/user-not-found') {
+        setError('No account found with this email address.');
       } else if (err.code === 'auth/wrong-password') {
-        setError('Incorrect password')
+        setError('Incorrect password.');
       } else if (err.code === 'auth/too-many-requests') {
-        setError('Too many failed login attempts. Please try again later.')
+        setError('Too many failed login attempts. Please try again later.');
       } else if (err.code === 'auth/email-already-in-use') {
-        setError('An account with this email already exists')
+        setError('An account with this email already exists.');
+      } else if (err.code === 'auth/weak-password') {
+        setError('Password is too weak. Please choose a stronger password.');
+      } else if (err.code === 'auth/invalid-email') {
+        setError('Invalid email address format.');
+      } else if (err.message) {
+        setError(err.message);
       } else {
-        setError('Login failed. Please check your credentials and try again.')
-        console.error('Login error:', err) // Log for debugging, don't expose to user
+        setError('Authentication failed. Please try again.');
       }
     } finally {
       setLoading(false)
@@ -92,21 +110,22 @@ export default function Login({ onLogin }: LoginProps) {
   }
 
   const handleDemoLogin = async () => {
+    console.log('🔧 Demo login clicked!')
     setLoading(true)
     setError('')
     
     try {
-      // Demo credentials should be environment variables in production
-      const demoEmail = process.env.NEXT_PUBLIC_DEMO_EMAIL || 'demo@coretrack.dev'
-      const demoPassword = process.env.NEXT_PUBLIC_DEMO_PASSWORD || 'demo123'
-      
-      await signIn(demoEmail, demoPassword)
+      console.log('🔧 Creating demo account...')
+      await createDemoAccount()
+      console.log('🔧 Demo account created, calling onLogin()')
       onLogin()
     } catch (err: any) {
-      if (err.code === 'auth/user-not-found') {
-        setError('Demo account not available')
+      console.error('Demo login error:', err)
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+        setError('Creating demo account...')
+        // The createDemoAccount function will handle creating the account
       } else {
-        setError('Demo login failed. Please try manual login.')
+        setError('Demo login failed. Please try creating a manual account.')
       }
     } finally {
       setLoading(false)

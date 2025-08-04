@@ -2,9 +2,11 @@
 
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
+import { useBranch } from '../../lib/context/BranchContext'
 import { useUser } from '../../lib/rbac/UserContext'
 import { collection, addDoc, query, where, getDocs, updateDoc, doc, Timestamp } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
+import { getBranchLocationId } from '../../lib/utils/branchUtils'
 
 interface ShiftData {
   id: string
@@ -25,6 +27,7 @@ interface ShiftLockScreenProps {
 
 export default function ShiftLockScreen({ children }: ShiftLockScreenProps) {
   const { user, profile } = useAuth()
+  const { selectedBranch } = useBranch()
   const { currentUser, currentRole } = useUser()
   const [activeShift, setActiveShift] = useState<ShiftData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -81,15 +84,17 @@ export default function ShiftLockScreen({ children }: ShiftLockScreenProps) {
     // Use a fallback tenantId for demo purposes
     const tenantId = profile?.tenantId || currentUser?.email?.split('@')[0] || 'demo-tenant'
     
-    if (!tenantId) return
+    if (!tenantId || !selectedBranch) return
 
     try {
       setLoading(true)
+      const locationId = getBranchLocationId(selectedBranch.id)
       const shiftsRef = collection(db, `tenants/${tenantId}/shifts`)
       const today = new Date().toISOString().split('T')[0]
       
       const q = query(
         shiftsRef,
+        where('locationId', '==', locationId), // SECURITY: Filter by branch
         where('date', '==', today),
         where('status', '==', 'active')
       )

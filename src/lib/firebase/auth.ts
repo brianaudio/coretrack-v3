@@ -16,17 +16,30 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { createInitialSubscription } from './subscription';
+import { UserRole } from '../rbac/permissions';
 
 export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
   tenantId: string;
-  role: 'owner' | 'manager' | 'staff';
-  selectedBranchId?: string; // Store user's selected branch
+  role: UserRole;
   createdAt: Timestamp;
   updatedAt: Timestamp;
   lastLogin: Timestamp;
+  
+  // Branch access control
+  assignedBranches: string[]; // Array of locationIds user can access
+  primaryBranch?: string;     // User's default branch locationId
+  branchPermissions?: {       // Granular permissions per branch
+    [locationId: string]: {
+      canView: boolean;
+      canEdit: boolean;
+      canManage: boolean;
+    }
+  };
+  
+  selectedBranchId?: string; // Store user's selected branch
 }
 
 export interface TenantInfo {
@@ -64,7 +77,10 @@ const createUserProfile = async (
     role: additionalData.role,
     createdAt: now,
     updatedAt: now,
-    lastLogin: now
+    lastLogin: now,
+    assignedBranches: [], // Initialize empty, will be populated based on role
+    primaryBranch: undefined,
+    branchPermissions: {}
   };
   
   await setDoc(userRef, profileData);
@@ -134,7 +150,10 @@ export const signUp = async (
       role: 'owner',
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
-      lastLogin: Timestamp.now()
+      lastLogin: Timestamp.now(),
+      assignedBranches: [], // Owners get access to all branches (handled in logic)
+      primaryBranch: undefined,
+      branchPermissions: {}
     };
     
     return { user, profile };
@@ -168,8 +187,24 @@ export const signIn = async (
     });
     
     return { user, profile };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error signing in:', error);
+    
+    // Handle specific Firebase auth errors
+    if (error.code === 'auth/invalid-credential') {
+      throw new Error('Invalid email or password. Please check your credentials.');
+    } else if (error.code === 'auth/user-not-found') {
+      throw new Error('No account found with this email address.');
+    } else if (error.code === 'auth/wrong-password') {
+      throw new Error('Incorrect password.');
+    } else if (error.code === 'auth/too-many-requests') {
+      throw new Error('Too many failed login attempts. Please try again later.');
+    } else if (error.code === 'auth/user-disabled') {
+      throw new Error('This account has been disabled.');
+    } else if (error.code === 'auth/invalid-email') {
+      throw new Error('Invalid email address format.');
+    }
+    
     throw error;
   }
 };
@@ -221,6 +256,35 @@ export const onAuthStateChange = (callback: (user: User | null) => void) => {
     console.log('🔗 Firebase Auth: State changed, user:', user ? 'exists' : 'null');
     callback(user);
   });
+};
+
+// Create demo account for development
+export const createDemoAccount = async (): Promise<{ user: User; profile: UserProfile }> => {
+  const demoEmail = process.env.NEXT_PUBLIC_DEMO_EMAIL || 'demo@coretrack.dev';
+  const demoPassword = process.env.NEXT_PUBLIC_DEMO_PASSWORD || 'SecureDemo123!';
+  
+  try {
+    // Try to sign in first to see if demo account exists
+    try {
+      return await signIn(demoEmail, demoPassword);
+    } catch (error: any) {
+      // If user doesn't exist, create the demo account
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        console.log('Creating demo account...');
+        return await signUp(
+          demoEmail,
+          demoPassword,
+          'Demo User',
+          'CoreTrack Demo Restaurant',
+          'restaurant'
+        );
+      }
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error creating demo account:', error);
+    throw error;
+  }
 };
 
 // Reset password

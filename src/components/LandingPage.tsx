@@ -265,17 +265,17 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {features.map((feature, index) => (
-              <div key={index} className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg transition-shadow">
+              <div key={index} className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg transition-shadow h-full flex flex-col">
                 <div className="text-4xl mb-4">{feature.icon}</div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-3">{feature.title}</h3>
-                <p className="text-gray-600 mb-4">{feature.description}</p>
-                <ul className="space-y-2">
+                <p className="text-gray-600 mb-4 flex-grow">{feature.description}</p>
+                <ul className="space-y-2 mt-auto">
                   {feature.benefits.map((benefit, i) => (
-                    <li key={i} className="flex items-center text-sm text-gray-600">
-                      <svg className="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                    <li key={i} className="flex items-start text-sm text-gray-600">
+                      <svg className="w-4 h-4 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                       </svg>
-                      {benefit}
+                      <span className="break-words">{benefit}</span>
                     </li>
                   ))}
                 </ul>
@@ -323,12 +323,12 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {testimonials.map((testimonial, index) => (
-              <div key={index} className="bg-white rounded-xl p-6 shadow-lg">
+              <div key={index} className="bg-white rounded-xl p-6 shadow-lg h-full flex flex-col">
                 <div className="flex items-center mb-4">
-                  <div className="text-3xl mr-3">{testimonial.avatar}</div>
-                  <div>
-                    <div className="font-semibold text-gray-900">{testimonial.name}</div>
-                    <div className="text-sm text-gray-600">{testimonial.business}</div>
+                  <div className="text-3xl mr-3 flex-shrink-0">{testimonial.avatar}</div>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-gray-900 truncate">{testimonial.name}</div>
+                    <div className="text-sm text-gray-600 break-words">{testimonial.business}</div>
                   </div>
                 </div>
                 <div className="flex mb-4">
@@ -338,7 +338,7 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
                     </svg>
                   ))}
                 </div>
-                <p className="text-gray-700 italic">"{testimonial.quote}"</p>
+                <p className="text-gray-700 italic flex-grow leading-relaxed">&ldquo;{testimonial.quote}&rdquo;</p>
               </div>
             ))}
           </div>
@@ -361,7 +361,7 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
             {pricingPlans.map((plan, index) => (
               <div 
                 key={index} 
-                className={`rounded-2xl p-8 ${
+                className={`rounded-2xl p-8 h-full flex flex-col ${
                   plan.popular 
                     ? 'bg-primary-600 text-white ring-4 ring-primary-200 scale-105' 
                     : 'bg-white border border-gray-200'
@@ -390,17 +390,17 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
                   </p>
                 </div>
                 
-                <ul className="space-y-3 mb-8">
+                <ul className="space-y-3 mb-8 flex-grow">
                   {plan.features.map((feature, i) => (
-                    <li key={i} className="flex items-center">
+                    <li key={i} className="flex items-start">
                       <svg 
-                        className={`w-5 h-5 mr-3 ${plan.popular ? 'text-primary-200' : 'text-green-500'}`} 
+                        className={`w-5 h-5 mr-3 mt-0.5 flex-shrink-0 ${plan.popular ? 'text-primary-200' : 'text-green-500'}`} 
                         fill="currentColor" 
                         viewBox="0 0 24 24"
                       >
                         <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                       </svg>
-                      <span className={`${plan.popular ? 'text-primary-100' : 'text-gray-600'}`}>
+                      <span className={`${plan.popular ? 'text-primary-100' : 'text-gray-600'} break-words`}>
                         {feature}
                       </span>
                     </li>

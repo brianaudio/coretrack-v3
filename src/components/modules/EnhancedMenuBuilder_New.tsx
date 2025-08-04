@@ -17,65 +17,7 @@ const EnhancedMenuBuilder: React.FC<EnhancedMenuBuilderProps> = ({
   onItemSelect
 }) => {
   // Sample data for demo - in production, this would come from Firebase
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([
-    {
-      id: '1',
-      name: 'Classic Burger',
-      description: 'Juicy beef patty with lettuce, tomato, and special sauce',
-      price: 250,
-      cost: 120,
-      category: 'Main Course',
-      status: 'active',
-      isAvailable: true,
-      allergens: ['Wheat', 'Dairy'],
-      nutritionalInfo: {
-        calories: 650,
-        protein: 30,
-        carbs: 45,
-        fat: 35,
-        fiber: 5,
-        sugar: 8,
-        sodium: 890
-      },
-      preparationTime: 15,
-      ingredients: [
-        { id: 'beef-patty', quantity: 1, unit: 'piece' },
-        { id: 'burger-bun', quantity: 1, unit: 'piece' },
-        { id: 'lettuce', quantity: 50, unit: 'grams' }
-      ],
-      profitMargin: 52.0,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    },
-    {
-      id: '2',
-      name: 'Caesar Salad',
-      description: 'Fresh romaine lettuce with parmesan and croutons',
-      price: 180,
-      cost: 65,
-      category: 'Salad',
-      status: 'active',
-      isAvailable: true,
-      allergens: ['Dairy'],
-      nutritionalInfo: {
-        calories: 320,
-        protein: 12,
-        carbs: 15,
-        fat: 25,
-        fiber: 8,
-        sugar: 4,
-        sodium: 420
-      },
-      preparationTime: 8,
-      ingredients: [
-        { id: 'romaine', quantity: 100, unit: 'grams' },
-        { id: 'parmesan', quantity: 30, unit: 'grams' }
-      ],
-      profitMargin: 63.9,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
-  ])
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([])
 
   const [inventory] = useState<InventoryItem[]>([
     {

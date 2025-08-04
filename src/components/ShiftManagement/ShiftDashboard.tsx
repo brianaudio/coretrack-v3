@@ -2,9 +2,11 @@
 
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
+import { useBranch } from '../../lib/context/BranchContext'
 import { useToast } from '../ui/Toast'
 import { collection, query, where, getDocs, orderBy, limit, updateDoc, doc, Timestamp } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
+import { getBranchLocationId } from '../../lib/utils/branchUtils'
 
 interface ShiftData {
   id: string
@@ -27,30 +29,33 @@ interface ShiftStats {
 }
 
 export default function ShiftDashboard() {
-  const { user, profile } = useAuth()
+  const { profile } = useAuth()
+  const { selectedBranch } = useBranch()
   const { addToast } = useToast()
+  
   const [shifts, setShifts] = useState<ShiftData[]>([])
-  const [stats, setStats] = useState<ShiftStats>({
+  const [loading, setLoading] = useState(false)
+  const [stats, setStats] = useState({
     totalShifts: 0,
     activeShifts: 0,
     completedShifts: 0,
     staffCount: 0
   })
-  const [loading, setLoading] = useState(true)
   const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'week' | 'month'>('today')
 
   useEffect(() => {
-    if (profile?.tenantId) {
+    if (profile?.tenantId && selectedBranch) {
       loadShifts()
     }
-  }, [profile?.tenantId, selectedPeriod])
+  }, [profile?.tenantId, selectedBranch, selectedPeriod])
 
   const loadShifts = async () => {
-    if (!profile?.tenantId) return
+    if (!profile?.tenantId || !selectedBranch) return
 
     try {
       setLoading(true)
       
+      const locationId = getBranchLocationId(selectedBranch.id)
       const shiftsRef = collection(db, `tenants/${profile.tenantId}/shifts`)
       let q
 
@@ -71,6 +76,7 @@ export default function ShiftDashboard() {
 
       q = query(
         shiftsRef,
+        where('locationId', '==', locationId), // SECURITY: Filter by branch
         where('createdAt', '>=', Timestamp.fromDate(startDate)),
         orderBy('createdAt', 'desc'),
         limit(50)

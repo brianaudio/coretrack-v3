@@ -9,7 +9,8 @@ import {
   query,
   where,
   orderBy,
-  Timestamp
+  Timestamp,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Location, LocationUsage, LocationInventory, LocationAnalytics } from '../types/location';
@@ -67,8 +68,39 @@ export const updateLocation = async (
 
 // Delete location
 export const deleteLocation = async (locationId: string): Promise<void> => {
-  await deleteDoc(doc(db, 'locations', locationId));
-  // TODO: Handle cleanup of location-specific data
+  // Use writeBatch for atomic deletes
+  const batch = writeBatch(db);
+  
+  // Delete the main location document
+  const locationRef = doc(db, 'locations', locationId);
+  batch.delete(locationRef);
+  
+  // Delete location usage data
+  const usageRef = doc(db, 'locationUsage', locationId);
+  batch.delete(usageRef);
+  
+  // Delete location inventory items
+  const inventoryQuery = query(
+    collection(db, 'locationInventory'),
+    where('locationId', '==', locationId)
+  );
+  const inventorySnapshot = await getDocs(inventoryQuery);
+  inventorySnapshot.docs.forEach(doc => {
+    batch.delete(doc.ref);
+  });
+  
+  // Delete location analytics
+  const analyticsQuery = query(
+    collection(db, 'locationAnalytics'),
+    where('locationId', '==', locationId)
+  );
+  const analyticsSnapshot = await getDocs(analyticsQuery);
+  analyticsSnapshot.docs.forEach(doc => {
+    batch.delete(doc.ref);
+  });
+  
+  // Commit all deletes atomically
+  await batch.commit();
 };
 
 // Get location usage statistics

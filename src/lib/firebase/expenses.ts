@@ -219,12 +219,22 @@ export const addExpenseCategory = async (category: CreateExpenseCategory): Promi
     const categoriesRef = getExpenseCategoriesCollection(category.tenantId);
     const now = Timestamp.now();
     
-    const docRef = await addDoc(categoriesRef, {
-      ...category,
+    // Create the category data object, only including budget if it's defined and > 0
+    const categoryData: any = {
+      name: category.name,
+      description: category.description,
+      tenantId: category.tenantId,
       isActive: true,
       createdAt: now,
       updatedAt: now
-    });
+    };
+    
+    // Only add budget field if it has a valid value
+    if (category.budget !== undefined && category.budget > 0) {
+      categoryData.budget = category.budget;
+    }
+    
+    const docRef = await addDoc(categoriesRef, categoryData);
     
     return docRef.id;
   } catch (error) {

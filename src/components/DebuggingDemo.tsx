@@ -48,13 +48,13 @@ export default function DebuggingDemo() {
       const isValidEmail = email.includes('@') && email.includes('.')
       const isValidPassword = password.length >= 6
 
-      debugValidation(isValidEmail, {
+      debugValidation('Email format check', isValidEmail, {
         email: 'Email format check',
         hasAtSymbol: email.includes('@'),
         hasDot: email.includes('.')
       }, { component: 'DebuggingDemo', sensitive: true })
 
-      debugValidation(isValidPassword, {
+      debugValidation('Password length check', isValidPassword, {
         passwordLength: password.length,
         minimumRequired: 6
       }, { component: 'DebuggingDemo' })
@@ -168,7 +168,7 @@ export default function DebuggingDemo() {
       </h1>
       
       <p className="text-gray-600 mb-8">
-        Open your browser's Developer Tools (F12) and check the Console tab to see our debugging techniques in action!
+        Open your browser&apos;s Developer Tools (F12) and check the Console tab to see our debugging techniques in action!
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, ReactNode } from 'react'
-import { useUser } from '../rbac/UserContext'
+import { useAuth } from './AuthContext'
 import { hasPermission, ModulePermission } from '../rbac/permissions'
 
 interface UserPermissionsContextType {
@@ -12,6 +12,7 @@ interface UserPermissionsContextType {
   isOwner: () => boolean;
   isManager: () => boolean;
   isStaff: () => boolean;
+  isCashier: () => boolean;
 }
 
 const UserPermissionsContext = createContext<UserPermissionsContextType | undefined>(undefined);
@@ -29,7 +30,8 @@ interface UserPermissionsProviderProps {
 }
 
 export const UserPermissionsProvider: React.FC<UserPermissionsProviderProps> = ({ children }) => {
-  const { currentRole } = useUser();
+  const { profile, loading } = useAuth();
+  const currentRole = profile?.role || null;
 
   const checkPermission = (permission: ModulePermission): boolean => {
     return hasPermission(currentRole, permission);
@@ -46,15 +48,17 @@ export const UserPermissionsProvider: React.FC<UserPermissionsProviderProps> = (
   const isOwner = (): boolean => currentRole === 'owner';
   const isManager = (): boolean => currentRole === 'manager';
   const isStaff = (): boolean => currentRole === 'staff';
+  const isCashier = (): boolean => currentRole === 'cashier';
 
   const value: UserPermissionsContextType = {
-    loading: false,
+    loading,
     hasPermission: checkPermission,
     canManageUsers: checkCanManageUsers,
     canManageSettings: checkCanManageSettings,
     isOwner,
     isManager,
     isStaff,
+    isCashier,
   };
 
   return (

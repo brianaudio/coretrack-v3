@@ -13,7 +13,8 @@ export type ModulePermission =
   | 'team-management'
   | 'location-management'
   | 'settings'
-  | 'discrepancy-monitoring';
+  | 'discrepancy-monitoring'
+  | 'business-reports';
 
 // Define what modules each role can access
 export const ROLE_PERMISSIONS: Record<UserRole, ModulePermission[]> = {
@@ -27,6 +28,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, ModulePermission[]> = {
     'expenses',
     'team-management',
     'location-management',
+    'business-reports',
     'settings',
     'discrepancy-monitoring'
   ],
@@ -39,6 +41,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, ModulePermission[]> = {
     'expenses',
     'team-management',
     'location-management',
+    'business-reports',
     'settings',
     'discrepancy-monitoring'
   ]

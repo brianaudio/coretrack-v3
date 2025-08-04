@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import AdvancedSearch from '@/components/AdvancedSearch'
 import BulkOperations from '@/components/BulkOperations'
 import SimpleChart from '@/components/SimpleChart'
+import PaymentMethodsAnalytics from './PaymentMethodsAnalytics'
 import { subscribeToInventoryItems, InventoryItem } from '../../lib/firebase/inventory'
 import { subscribeToPOSOrders, POSOrder } from '../../lib/firebase/pos'
 import { useBranch } from '../../lib/context/BranchContext'
@@ -27,7 +28,6 @@ interface InventoryAnalytics {
   averageStockLevel: number
   topMovingItems: TopMovingItem[]
   categoryBreakdown: CategoryBreakdown[]
-  stockPredictions: StockPrediction[]
 }
 
 interface TopMovingItem {
@@ -44,16 +44,6 @@ interface CategoryBreakdown {
   value: number
   percentage: number
   items: number
-}
-
-interface StockPrediction {
-  id: string
-  itemName: string
-  currentStock: number
-  dailyUsage: number
-  daysUntilEmpty: number
-  status: 'critical' | 'warning' | 'normal'
-  recommendedAction: string
 }
 
 interface CustomerAnalytics {
@@ -98,6 +88,17 @@ const EnhancedAnalytics: React.FC = () => {
   const [realInventoryItems, setRealInventoryItems] = useState<InventoryItem[]>([])
   const [loadingInventory, setLoadingInventory] = useState(true)
 
+  // Debug state
+  const [debugInfo, setDebugInfo] = useState({
+    branchId: '',
+    profileUid: '',
+    profileTenantId: '',
+    locationId: '',
+    ordersCount: 0,
+    inventoryCount: 0,
+    subscriptionErrors: [] as string[]
+  })
+
   // Calculate real inventory analytics from actual data
   const [inventoryAnalytics, setInventoryAnalytics] = useState<InventoryAnalytics>({
     totalItems: 0,
@@ -106,28 +107,45 @@ const EnhancedAnalytics: React.FC = () => {
     outOfStockItems: 0,
     averageStockLevel: 0,
     topMovingItems: [],
-    categoryBreakdown: [],
-    stockPredictions: []
+    categoryBreakdown: []
   })
 
   // Subscribe to real inventory data
   useEffect(() => {
     if (!selectedBranch?.id || !profile?.uid) {
       console.log('[Analytics] Missing requirements - Branch:', selectedBranch?.id, 'Profile:', profile?.uid)
+      setDebugInfo(prev => ({
+        ...prev,
+        branchId: selectedBranch?.id || 'missing',
+        profileUid: profile?.uid || 'missing',
+        subscriptionErrors: [...prev.subscriptionErrors, 'Missing branch or profile']
+      }))
       return
     }
 
     const locationId = getBranchLocationId(selectedBranch.id)
     console.log('[Analytics] Setting up inventory subscription for location:', locationId)
     
+    setDebugInfo(prev => ({
+      ...prev,
+      branchId: selectedBranch.id,
+      profileUid: profile.uid,
+      locationId,
+      profileTenantId: (profile as any).tenantId || 'not-set'
+    }))
+    
     setLoadingInventory(true)
     const unsubscribe = subscribeToInventoryItems(
-      profile.uid,
+      profile.tenantId || profile.uid, // Use tenantId if available, fallback to uid
       locationId,
       (items: InventoryItem[]) => {
         console.log('[Analytics] Received inventory items:', items.length, items)
         setRealInventoryItems(items)
         setLoadingInventory(false)
+        setDebugInfo(prev => ({
+          ...prev,
+          inventoryCount: items.length
+        }))
       }
     )
 
@@ -149,15 +167,27 @@ const EnhancedAnalytics: React.FC = () => {
     
     setLoadingOrders(true)
     const unsubscribe = subscribeToPOSOrders(
-      profile.uid,
+      profile.tenantId || profile.uid, // Use tenantId if available, fallback to uid
       (orders: POSOrder[]) => {
         console.log('[Analytics] Received POS orders:', orders.length, orders)
+        console.log('[Analytics] Order details:', orders.map(o => ({
+          id: o.id,
+          status: o.status,
+          total: o.total,
+          locationId: o.locationId,
+          createdAt: o.createdAt?.toDate()
+        })))
         setRealPOSOrders(orders)
         
         // Transform orders into sales data for analytics
         const salesByDate = transformOrdersToSalesData(orders)
+        console.log('[Analytics] Transformed sales data:', salesByDate)
         setSalesData(salesByDate)
         setLoadingOrders(false)
+        setDebugInfo(prev => ({
+          ...prev,
+          ordersCount: orders.length
+        }))
       },
       locationId
     )
@@ -224,8 +254,7 @@ const EnhancedAnalytics: React.FC = () => {
         outOfStockItems: 0,
         averageStockLevel: 0,
         topMovingItems: [],
-        categoryBreakdown: [],
-        stockPredictions: []
+        categoryBreakdown: []
       })
       return
     }
@@ -288,8 +317,7 @@ const EnhancedAnalytics: React.FC = () => {
       outOfStockItems,
       averageStockLevel,
       topMovingItems: [], // TODO: Implement based on sales data
-      categoryBreakdown,
-      stockPredictions: [] // TODO: Implement predictions
+      categoryBreakdown
     })
   }, [realInventoryItems])
 
@@ -386,7 +414,7 @@ const EnhancedAnalytics: React.FC = () => {
   }, [realPOSOrders])
 
   const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'week' | 'month' | 'quarter'>('week')
-  const [selectedTab, setSelectedTab] = useState<'overview' | 'sales' | 'inventory' | 'customers' | 'predictions'>('overview')
+  const [selectedTab, setSelectedTab] = useState<'sales' | 'inventory' | 'customers'>('sales')
   const [searchQuery, setSearchQuery] = useState('')
   const [filters, setFilters] = useState<any>({})
 
@@ -429,7 +457,7 @@ const EnhancedAnalytics: React.FC = () => {
     window.URL.revokeObjectURL(url)
   }
 
-  // Enhanced Revenue Chart with better design
+  // Enhanced Revenue Chart with wave/line design
   const RevenueChart: React.FC = () => {
     if (salesData.length === 0) {
       return (
@@ -447,17 +475,173 @@ const EnhancedAnalytics: React.FC = () => {
 
     const chartData = salesData.map(day => ({
       label: new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      value: day.revenue
+      value: day.revenue || 0 // Ensure no NaN values
     }))
+
+    // Calculate max value for better scaling with validation
+    const validValues = chartData.map(d => d.value).filter(v => !isNaN(v) && isFinite(v))
+    const maxValue = validValues.length > 0 ? Math.max(...validValues) : 1 // Fallback to 1 to avoid division by zero
+    const chartHeight = 280
+    const chartWidth = 400
+    const padding = 40
+    
+    // Validate that we have enough data and valid dimensions
+    if (chartData.length === 0 || maxValue <= 0) {
+      return (
+        <div className="h-64 flex items-center justify-center bg-surface-50 rounded-lg border-2 border-dashed border-surface-300">
+          <div className="text-center">
+            <p className="text-surface-500 font-medium">Invalid chart data</p>
+            <p className="text-surface-400 text-sm">Chart data contains invalid values</p>
+          </div>
+        </div>
+      )
+    }
+    
+    // Create SVG path for smooth wave line with validation
+    const createWavePath = (data: typeof chartData) => {
+      if (data.length < 2) return ''
+      
+      const stepX = (chartWidth - padding * 2) / Math.max(data.length - 1, 1)
+      let path = ''
+      
+      data.forEach((point, index) => {
+        const x = padding + index * stepX
+        const normalizedValue = Math.max(0, Math.min(1, point.value / maxValue)) // Normalize between 0-1
+        const y = chartHeight - padding - (normalizedValue * (chartHeight - padding * 2))
+        
+        // Validate coordinates
+        if (isNaN(x) || isNaN(y) || !isFinite(x) || !isFinite(y)) {
+          return // Skip invalid points
+        }
+        
+        if (index === 0) {
+          path += `M ${x} ${y}`
+        } else {
+          // Create smooth curve using quadratic bezier
+          const prevIndex = Math.max(0, index - 1)
+          const prevX = padding + prevIndex * stepX
+          const prevNormalizedValue = Math.max(0, Math.min(1, data[prevIndex].value / maxValue))
+          const prevY = chartHeight - padding - (prevNormalizedValue * (chartHeight - padding * 2))
+          const controlX = (prevX + x) / 2
+          
+          // Validate previous coordinates
+          if (!isNaN(prevX) && !isNaN(prevY) && !isNaN(controlX) && isFinite(prevX) && isFinite(prevY) && isFinite(controlX)) {
+            path += ` Q ${controlX} ${prevY} ${x} ${y}`
+          }
+        }
+      })
+      
+      return path
+    }
     
     return (
       <div className="space-y-4">
-        <SimpleChart data={chartData} type="line" height={280} />
+        <div className="relative bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4" style={{ height: chartHeight }}>
+          <svg width="100%" height="100%" viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="overflow-visible">
+            {/* Grid lines */}
+            <defs>
+              <linearGradient id="revenueGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.8"/>
+                <stop offset="100%" stopColor="#1D4ED8" stopOpacity="0.2"/>
+              </linearGradient>
+            </defs>
+            
+            {/* Horizontal grid lines */}
+            {[0, 0.25, 0.5, 0.75, 1].map((ratio, index) => {
+              const y = chartHeight - padding - (ratio * (chartHeight - padding * 2))
+              const gridValue = Math.round(maxValue * ratio)
+              
+              return (
+                <g key={index}>
+                  <line
+                    x1={padding}
+                    y1={y}
+                    x2={chartWidth - padding}
+                    y2={y}
+                    stroke="#E5E7EB"
+                    strokeWidth="1"
+                    strokeDasharray="2,2"
+                  />
+                  <text
+                    x={padding - 10}
+                    y={y + 4}
+                    fontSize="10"
+                    fill="#6B7280"
+                    textAnchor="end"
+                  >
+                    ₱{gridValue.toLocaleString()}
+                  </text>
+                </g>
+              )
+            })}
+            
+            {/* Wave line */}
+            <path
+              d={createWavePath(chartData)}
+              fill="none"
+              stroke="url(#revenueGradient)"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            
+            {/* Data points */}
+            {chartData.map((point, index) => {
+              const stepX = (chartWidth - padding * 2) / Math.max(chartData.length - 1, 1)
+              const x = padding + index * stepX
+              const normalizedValue = Math.max(0, Math.min(1, point.value / maxValue))
+              const y = chartHeight - padding - (normalizedValue * (chartHeight - padding * 2))
+              
+              // Only render if coordinates are valid
+              if (isNaN(x) || isNaN(y) || !isFinite(x) || !isFinite(y)) {
+                return null
+              }
+              
+              return (
+                <g key={index}>
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r="4"
+                    fill="#3B82F6"
+                    stroke="white"
+                    strokeWidth="2"
+                    className="hover:r-6 transition-all cursor-pointer"
+                  />
+                  {/* Data labels */}
+                  <text
+                    x={x}
+                    y={chartHeight - 10}
+                    fontSize="10"
+                    fill="#6B7280"
+                    textAnchor="middle"
+                  >
+                    {point.label}
+                  </text>
+                </g>
+              )
+            })}
+            
+            {/* Area fill under the wave */}
+            {chartData.length > 1 && (
+              <path
+                d={`${createWavePath(chartData)} L ${padding + (chartData.length - 1) * ((chartWidth - padding * 2) / Math.max(chartData.length - 1, 1))} ${chartHeight - padding} L ${padding} ${chartHeight - padding} Z`}
+                fill="url(#revenueGradient)"
+                fillOpacity="0.1"
+              />
+            )}
+          </svg>
+        </div>
+        
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 bg-primary-500 rounded-full"></div>
               <span className="text-surface-600">Revenue Trend</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-primary-300 rounded-full"></div>
+              <span className="text-surface-600">Peak: ₱{maxValue.toLocaleString()}</span>
             </div>
           </div>
           <div className="text-surface-500">
@@ -471,14 +655,16 @@ const EnhancedAnalytics: React.FC = () => {
   const CategoryChart: React.FC = () => {
     if (inventoryAnalytics.categoryBreakdown.length === 0) {
       return (
-        <div className="h-48 flex items-center justify-center bg-surface-50 rounded-lg border-2 border-dashed border-surface-300">
+        <div className="h-80 flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border border-slate-200">
           <div className="text-center">
-            <svg className="w-12 h-12 text-surface-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
-            </svg>
-            <p className="text-surface-500 font-medium">No category data</p>
-            <p className="text-surface-400 text-sm">Sales data will appear here</p>
+            <div className="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
+              </svg>
+            </div>
+            <h4 className="text-lg font-semibold text-slate-700 mb-2">No Category Data</h4>
+            <p className="text-slate-500 text-sm">Category breakdown will appear when sales data is available</p>
           </div>
         </div>
       )
@@ -488,8 +674,110 @@ const EnhancedAnalytics: React.FC = () => {
       label: category.category,
       value: category.value
     }))
+
+    // Calculate total value for percentages
+    const totalValue = chartData.reduce((sum, item) => sum + item.value, 0)
     
-    return <SimpleChart data={chartData} type="pie" height={200} />
+    // Enhanced color palette for professional look
+    const colorPalette = [
+      { bg: 'bg-blue-500', border: 'border-blue-600', text: 'text-blue-700', light: 'bg-blue-50' },
+      { bg: 'bg-emerald-500', border: 'border-emerald-600', text: 'text-emerald-700', light: 'bg-emerald-50' },
+      { bg: 'bg-purple-500', border: 'border-purple-600', text: 'text-purple-700', light: 'bg-purple-50' },
+      { bg: 'bg-orange-500', border: 'border-orange-600', text: 'text-orange-700', light: 'bg-orange-50' },
+      { bg: 'bg-pink-500', border: 'border-pink-600', text: 'text-pink-700', light: 'bg-pink-50' },
+      { bg: 'bg-indigo-500', border: 'border-indigo-600', text: 'text-indigo-700', light: 'bg-indigo-50' },
+      { bg: 'bg-teal-500', border: 'border-teal-600', text: 'text-teal-700', light: 'bg-teal-50' },
+      { bg: 'bg-red-500', border: 'border-red-600', text: 'text-red-700', light: 'bg-red-50' }
+    ]
+    
+    return (
+      <div className="h-96 bg-gradient-to-br from-slate-50 to-white rounded-xl border border-slate-200 p-6 overflow-hidden">
+        <div className="h-full flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4 flex-shrink-0">
+            <div>
+              <h4 className="text-lg font-semibold text-slate-800 mb-1">Category Distribution</h4>
+              <p className="text-sm text-slate-500">Revenue breakdown across product categories</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-slate-500 uppercase tracking-wide font-medium">Total Value</p>
+              <p className="text-lg font-bold text-slate-800">₱{totalValue.toLocaleString()}</p>
+            </div>
+          </div>
+
+          {/* Scroll Indicator */}
+          {chartData.length > 4 && (
+            <div className="flex items-center justify-center mb-2 flex-shrink-0">
+              <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+                <span>Scroll to view all {chartData.length} categories</span>
+              </div>
+            </div>
+          )}
+
+          {/* Professional Category Breakdown - Scrollable */}
+          <div className="flex-1 overflow-y-auto pr-2 space-y-3 min-h-0 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+            {chartData.map((category, index) => {
+              const color = colorPalette[index % colorPalette.length]
+              const percentage = totalValue > 0 ? (category.value / totalValue) * 100 : 0
+              const categoryInfo = inventoryAnalytics.categoryBreakdown[index]
+              
+              return (
+                <div key={category.label} className="group flex-shrink-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className={`w-4 h-4 rounded-full ${color.bg} border-2 ${color.border} shadow-sm flex-shrink-0`}></div>
+                      <div className="min-w-0 flex-1">
+                        <h5 className="font-medium text-slate-800 group-hover:text-slate-900 transition-colors truncate">
+                          {category.label}
+                        </h5>
+                        <p className="text-xs text-slate-500">{categoryInfo.items} items</p>
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0 ml-3">
+                      <p className="font-semibold text-slate-800">₱{category.value.toLocaleString()}</p>
+                      <p className="text-xs text-slate-500">{percentage.toFixed(1)}%</p>
+                    </div>
+                  </div>
+                  
+                  {/* Progress Bar */}
+                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                    <div 
+                      className={`h-full ${color.bg} rounded-full transition-all duration-500 ease-out shadow-sm`}
+                      style={{ width: `${percentage}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Summary Footer */}
+          <div className="mt-4 pt-4 border-t border-slate-200 flex-shrink-0">
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <p className="text-xs text-slate-500 uppercase tracking-wide font-medium">Categories</p>
+                <p className="text-lg font-bold text-slate-800">{chartData.length}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 uppercase tracking-wide font-medium">Top Category</p>
+                <p className="text-sm font-semibold text-slate-800 truncate">
+                  {chartData.length > 0 ? chartData.reduce((max, cat) => cat.value > max.value ? cat : max).label : 'N/A'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 uppercase tracking-wide font-medium">Avg Value</p>
+                <p className="text-lg font-bold text-slate-800">
+                  ₱{chartData.length > 0 ? Math.round(totalValue / chartData.length).toLocaleString() : '0'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -524,11 +812,9 @@ const EnhancedAnalytics: React.FC = () => {
       <div className="bg-white rounded-xl border border-surface-200 p-2">
         <div className="flex space-x-1">
           {[
-            { id: 'overview', label: 'Overview', icon: '📊' },
             { id: 'sales', label: 'Sales Analytics', icon: '💰' },
             { id: 'inventory', label: 'Inventory', icon: '📦' },
-            { id: 'customers', label: 'Customers', icon: '👥' },
-            { id: 'predictions', label: 'Predictions', icon: '🔮' }
+            { id: 'customers', label: 'Customers', icon: '👥' }
           ].map((tab) => (
             <button
               key={tab.id}
@@ -546,260 +832,160 @@ const EnhancedAnalytics: React.FC = () => {
         </div>
       </div>
 
-      {/* Overview Tab */}
-      {selectedTab === 'overview' && (
-        <div className="space-y-6">
-          {/* Loading State */}
-          {(loadingOrders || loadingInventory) && (
-            <div className="bg-white p-6 rounded-xl border border-surface-200 text-center">
-              <div className="flex items-center justify-center gap-3">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600"></div>
-                <span className="text-surface-600">Loading analytics data...</span>
-              </div>
-            </div>
-          )}
-
-          {/* Key Performance Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white p-6 rounded-xl border border-surface-200">
-              <div className="flex items-center justify-between">
+      {/* Sales Analytics Tab */}
+      {selectedTab === 'sales' && (
+        <div className="space-y-8">
+          {/* Payment Methods Analytics - Top Priority */}
+          <PaymentMethodsAnalytics />
+          
+          {/* Sales Performance Dashboard */}
+          <div className="bg-white rounded-xl border border-surface-200 shadow-sm">
+            <div className="p-6 border-b border-surface-200">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <p className="text-sm text-surface-500">Total Revenue</p>
-                  <p className="text-2xl font-bold text-surface-900">₱{currentMetrics.revenue.toLocaleString()}</p>
-                  <p className="text-xs text-surface-400 mt-1">
-                    {loadingOrders ? 'Loading...' : `${salesData.length} days of data`}
-                  </p>
+                  <h3 className="text-xl font-bold text-surface-900 mb-1">Sales Performance Dashboard</h3>
+                  <p className="text-sm text-surface-500">Comprehensive sales analytics and key performance indicators</p>
                 </div>
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl border border-surface-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-surface-500">Total Orders</p>
-                  <p className="text-2xl font-bold text-surface-900">{currentMetrics.orders.toLocaleString()}</p>
-                  <p className="text-xs text-surface-400 mt-1">
-                    {loadingOrders ? 'Loading...' : `${realPOSOrders.length} total orders`}
-                  </p>
-                </div>
-                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl border border-surface-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-surface-500">Average Order Value</p>
-                  <p className="text-2xl font-bold text-surface-900">₱{currentMetrics.averageOrderValue.toLocaleString()}</p>
-                  <p className="text-xs text-surface-400 mt-1">
-                    {loadingOrders ? 'Loading...' : 'Per completed order'}
-                  </p>
-                </div>
-                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl border border-surface-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-surface-500">Avg Order Value</p>
-                  <p className="text-2xl font-bold text-surface-900">₱{currentMetrics.averageOrderValue.toFixed(0)}</p>
-                  <p className={`text-sm ${currentMetrics.aovGrowth > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {currentMetrics.aovGrowth > 0 ? '+' : ''}{currentMetrics.aovGrowth}% vs last period
-                  </p>
-                </div>
-                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl border border-surface-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-surface-500">Total Customers</p>
-                  <p className="text-2xl font-bold text-surface-900">{customerAnalytics.totalCustomers.toLocaleString()}</p>
-                  <p className="text-xs text-surface-400 mt-1">
-                    {loadingOrders ? 'Loading...' : `${customerAnalytics.newCustomers} new this month`}
-                  </p>
-                </div>
-                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                  <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Charts Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white p-6 rounded-xl border border-surface-200">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-surface-900">Revenue Trends</h3>
-                <button
-                  onClick={() => exportData(salesData, 'sales-data')}
-                  className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-                >
-                  Export
-                </button>
-              </div>
-              <div className="h-64 bg-surface-50 rounded-lg flex items-center justify-center">
-                <p className="text-surface-500">Revenue chart will be implemented</p>
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl border border-surface-200">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-surface-900">Sales by Category</h3>
-                <button
-                  onClick={() => exportData(inventoryAnalytics.categoryBreakdown, 'category-breakdown')}
-                  className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-                >
-                  Export
-                </button>
-              </div>
-              <div className="h-64 bg-surface-50 rounded-lg flex items-center justify-center">
-                <p className="text-surface-500">Category chart will be implemented</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Insights */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white p-6 rounded-xl border border-surface-200">
-              <h3 className="text-lg font-semibold text-surface-900 mb-4">Top Performing Items</h3>
-              <div className="space-y-3">
-                {inventoryAnalytics.topMovingItems.length === 0 ? (
-                  <div className="text-center py-8">
-                    <svg className="w-12 h-12 text-surface-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                {salesData.length > 0 && (
+                  <button
+                    onClick={() => exportData(salesData, 'sales-analytics-export')}
+                    className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium shadow-sm"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    <p className="text-surface-500 font-medium">No data available</p>
-                    <p className="text-surface-400 text-sm">Sales data will appear here</p>
-                  </div>
-                ) : (
-                  inventoryAnalytics.topMovingItems.slice(0, 5).map((item, index) => (
-                    <div key={item.id} className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center text-sm font-semibold text-primary-600">
-                          {index + 1}
-                        </div>
-                        <div>
-                          <p className="font-medium text-surface-900">{item.name}</p>
-                          <p className="text-sm text-surface-500">{item.category}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-surface-900">{item.quantityUsed}</p>
-                        <p className="text-sm text-surface-500">units</p>
-                      </div>
-                    </div>
-                  ))
+                    Export Analytics
+                  </button>
                 )}
               </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Sales Analytics Tab */}
-      {selectedTab === 'sales' && (
-        <div className="space-y-6">
-          <div className="bg-white p-6 rounded-xl border border-surface-200">
-            <h3 className="text-lg font-semibold text-surface-900 mb-4">Detailed Sales Analytics</h3>
-            
-            {/* Sales Filters */}
-            <div className="mb-6">
-              <AdvancedSearch
-                onSearch={(searchTerm: string, filters: any) => {
-                  setSearchQuery(searchTerm)
-                  setFilters(filters)
-                }}
-                filters={[
-                  {
-                    key: 'dateRange',
-                    label: 'Date Range',
-                    type: 'date',
-                  },
-                  {
-                    key: 'paymentMethod',
-                    label: 'Payment Method',
-                    type: 'select',
-                    options: [
-                      { value: 'cash', label: 'Cash' },
-                      { value: 'card', label: 'Card' },
-                      { value: 'digital', label: 'Digital Wallet' }
-                    ]
-                  }
-                ]}
-                placeholder="Search sales data..."
-              />
-            </div>
+            <div className="p-6">
+              {/* Charts and Analytics Section */}
+              {salesData.length === 0 ? (
+                <div className="text-center py-16">
+                  <div className="w-20 h-20 bg-surface-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <svg className="w-10 h-10 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 012-2h2a2 2 0 012 2v15" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-semibold text-surface-900 mb-3">No Sales Data Available</h3>
+                  <p className="text-surface-600 mb-6 max-w-md mx-auto">
+                    Start making sales through the POS system to see detailed analytics and performance metrics.
+                  </p>
+                  <button 
+                    onClick={() => window.location.href = '#pos'}
+                    className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium shadow-sm"
+                  >
+                    Go to POS System
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-8">
+                  {/* Performance Insights Cards */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-xl border border-green-200">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
+                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                          </svg>
+                        </div>
+                        <span className="text-xs bg-green-200 text-green-800 px-2 py-1 rounded-full font-semibold">Growth</span>
+                      </div>
+                      <h4 className="text-sm font-semibold text-green-700 mb-2">Revenue Growth</h4>
+                      <p className="text-2xl font-bold text-green-900">
+                        {salesData.length > 1 ? 
+                          `${((salesData[salesData.length - 1].revenue / salesData[0].revenue - 1) * 100).toFixed(1)}%`
+                          : 'N/A'
+                        }
+                      </p>
+                      <p className="text-xs text-green-600 mt-1">Since first sale</p>
+                    </div>
 
-            {/* Sales Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-surface-50 border-b border-surface-200">
-                  <tr>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-surface-700">Date</th>
-                    <th className="text-right px-6 py-4 text-sm font-medium text-surface-700">Revenue</th>
-                    <th className="text-right px-6 py-4 text-sm font-medium text-surface-700">Orders</th>
-                    <th className="text-right px-6 py-4 text-sm font-medium text-surface-700">Customers</th>
-                    <th className="text-right px-6 py-4 text-sm font-medium text-surface-700">Avg Order Value</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-surface-200">
-                  {salesData.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-12 text-center">
-                        <div className="flex flex-col items-center">
-                          <svg className="w-12 h-12 text-surface-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="bg-gradient-to-r from-indigo-50 to-blue-50 p-6 rounded-xl border border-indigo-200">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="w-10 h-10 bg-indigo-500 rounded-lg flex items-center justify-center">
+                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                          </svg>
+                        </div>
+                        <span className="text-xs bg-indigo-200 text-indigo-800 px-2 py-1 rounded-full font-semibold">Peak</span>
+                      </div>
+                      <h4 className="text-sm font-semibold text-indigo-700 mb-2">Best Performance Day</h4>
+                      <p className="text-lg font-bold text-indigo-900">
+                        {salesData.length > 0 ? 
+                          new Date(salesData.reduce((best, day) => day.revenue > best.revenue ? day : best).date)
+                            .toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                          : 'N/A'
+                        }
+                      </p>
+                      <p className="text-xs text-indigo-600 mt-1">
+                        ₱{salesData.length > 0 ? 
+                          salesData.reduce((best, day) => day.revenue > best.revenue ? day : best).revenue.toLocaleString()
+                          : '0'
+                        } revenue
+                      </p>
+                    </div>
+
+                    <div className="bg-gradient-to-r from-orange-50 to-amber-50 p-6 rounded-xl border border-orange-200">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
+                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 012-2h2a2 2 0 012 2v15" />
                           </svg>
-                          <p className="text-surface-500 font-medium">No sales data available</p>
-                          <p className="text-surface-400 text-sm">Sales records will appear here once you start making sales</p>
                         </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    salesData.map((day) => (
-                      <tr key={day.date} className="hover:bg-surface-50">
-                        <td className="px-6 py-4 text-surface-900">
-                          {new Date(day.date).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 text-right font-medium text-surface-900">
-                          ₱{day.revenue.toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4 text-right text-surface-700">
-                          {day.orders}
-                        </td>
-                        <td className="px-6 py-4 text-right text-surface-700">
-                          {day.customers}
-                        </td>
-                        <td className="px-6 py-4 text-right text-surface-700">
-                          ₱{day.averageOrderValue.toFixed(0)}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                        <span className="text-xs bg-orange-200 text-orange-800 px-2 py-1 rounded-full font-semibold">Trend</span>
+                      </div>
+                      <h4 className="text-sm font-semibold text-orange-700 mb-2">Daily Average</h4>
+                      <p className="text-2xl font-bold text-orange-900">
+                        ₱{salesData.length > 0 ? 
+                          Math.round(salesData.reduce((sum, day) => sum + day.revenue, 0) / salesData.length).toLocaleString()
+                          : '0'
+                        }
+                      </p>
+                      <p className="text-xs text-orange-600 mt-1">Average daily revenue</p>
+                    </div>
+                  </div>
+
+                  {/* Charts Grid */}
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                    {/* Revenue Trends Chart */}
+                    <div className="bg-white p-6 rounded-xl border border-surface-200 shadow-sm">
+                      <div className="flex items-start justify-between mb-6">
+                        <div>
+                          <h4 className="text-lg font-semibold text-surface-900 mb-1">Revenue Trends</h4>
+                          <p className="text-sm text-surface-500">Daily revenue performance over time</p>
+                        </div>
+                        <button
+                          onClick={() => exportData(salesData, 'revenue-trends')}
+                          className="text-xs bg-surface-100 hover:bg-surface-200 text-surface-600 px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          Export
+                        </button>
+                      </div>
+                      <RevenueChart />
+                    </div>
+
+                    {/* Sales Category Chart */}
+                    <div className="bg-white p-6 rounded-xl border border-surface-200 shadow-sm">
+                      <div className="flex items-start justify-between mb-6">
+                        <div>
+                          <h4 className="text-lg font-semibold text-surface-900 mb-1">Sales by Category</h4>
+                          <p className="text-sm text-surface-500">Revenue breakdown by product categories</p>
+                        </div>
+                        <button
+                          onClick={() => exportData(inventoryAnalytics.categoryBreakdown, 'sales-by-category')}
+                          className="text-xs bg-surface-100 hover:bg-surface-200 text-surface-600 px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          Export
+                        </button>
+                      </div>
+                      <CategoryChart />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -979,72 +1165,6 @@ const EnhancedAnalytics: React.FC = () => {
                   ))
                 )}
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Predictions Tab */}
-      {selectedTab === 'predictions' && (
-        <div className="space-y-6">
-          <div className="bg-white p-6 rounded-xl border border-surface-200">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-surface-900">Stock Predictions & Alerts</h3>
-              <button
-                onClick={() => exportData(inventoryAnalytics.stockPredictions, 'stock-predictions')}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-              >
-                Export Predictions
-              </button>
-            </div>
-            
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-surface-50 border-b border-surface-200">
-                  <tr>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-surface-700">Item</th>
-                    <th className="text-right px-6 py-4 text-sm font-medium text-surface-700">Current Stock</th>
-                    <th className="text-right px-6 py-4 text-sm font-medium text-surface-700">Daily Usage</th>
-                    <th className="text-right px-6 py-4 text-sm font-medium text-surface-700">Days Until Empty</th>
-                    <th className="text-center px-6 py-4 text-sm font-medium text-surface-700">Status</th>
-                    <th className="text-left px-6 py-4 text-sm font-medium text-surface-700">Recommended Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-surface-200">
-                  {inventoryAnalytics.stockPredictions.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center">
-                        <div className="flex flex-col items-center">
-                          <svg className="w-12 h-12 text-surface-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 012-2h2a2 2 0 012 2v15" />
-                          </svg>
-                          <p className="text-surface-500 font-medium">No predictions available</p>
-                          <p className="text-surface-400 text-sm">Stock predictions will appear when inventory data is available</p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    inventoryAnalytics.stockPredictions.map((prediction) => (
-                      <tr key={prediction.id} className="hover:bg-surface-50">
-                        <td className="px-6 py-4 font-medium text-surface-900">{prediction.itemName}</td>
-                        <td className="px-6 py-4 text-right text-surface-700">{prediction.currentStock}</td>
-                        <td className="px-6 py-4 text-right text-surface-700">{prediction.dailyUsage.toFixed(1)}</td>
-                        <td className="px-6 py-4 text-right text-surface-700">{prediction.daysUntilEmpty}</td>
-                        <td className="px-6 py-4 text-center">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            prediction.status === 'critical' ? 'bg-red-100 text-red-800' :
-                            prediction.status === 'warning' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-green-100 text-green-800'
-                          }`}>
-                            {prediction.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-surface-700">{prediction.recommendedAction}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
             </div>
           </div>
         </div>

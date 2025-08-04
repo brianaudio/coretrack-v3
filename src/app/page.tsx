@@ -20,6 +20,11 @@ export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [hasInitialized, setHasInitialized] = useState(false)
 
+  // Debug mode changes
+  useEffect(() => {
+    console.log('🔧 Mode changed to:', mode)
+  }, [mode])
+
   useEffect(() => {
     // Wait for auth to initialize
     if (loading) {
@@ -97,12 +102,19 @@ export default function Home() {
   }
 
   const renderContent = () => {
+    console.log('🔧 Current mode:', mode)
     switch (mode) {
       case 'landing':
         return (
           <LandingPage
-            onGetStarted={() => setMode('signup')}
-            onSignIn={() => setMode('login')}
+            onGetStarted={() => {
+              console.log('🔧 Get started clicked')
+              setMode('signup')
+            }}
+            onSignIn={() => {
+              console.log('🔧 Sign in clicked - changing mode from', mode, 'to login')
+              setMode('login')
+            }}
           />
         )
       

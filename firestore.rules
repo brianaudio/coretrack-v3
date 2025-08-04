@@ -1,20 +1,71 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper functions for security validation
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function isTenantMember(tenantId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        getUserData().tenantId == tenantId;
+    }
+    
+    function canAccessBranch(tenantId, locationId) {
+      let userData = getUserData();
+      // Owners and managers can access all branches
+      return userData.role in ['owner', 'manager'] ||
+        // Staff can only access assigned branches  
+        (locationId != null && locationId in userData.assignedBranches);
+    }
+    
     // Users can only access their own profile
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
     }
     
     // Tenant-based security: Users can only access their tenant's data
     match /tenants/{tenantId} {
+      allow read, write: if isTenantMember(tenantId);
+    }
+    
+    // Branch-aware nested tenant collections with locationId validation
+    match /tenants/{tenantId}/{collection}/{docId} {
+      allow read: if isTenantMember(tenantId) && 
+        (resource.data.locationId == null || canAccessBranch(tenantId, resource.data.locationId));
+      allow write: if isTenantMember(tenantId) && 
+        (request.resource.data.locationId == null || canAccessBranch(tenantId, request.resource.data.locationId));
+    }
+    
+    // Deep nested collections (subcollections)
+    match /tenants/{tenantId}/{collection}/{docId}/{subcollection}/{subdocId} {
+      allow read: if isTenantMember(tenantId) && 
+        (resource.data.locationId == null || canAccessBranch(tenantId, resource.data.locationId));
+      allow write: if isTenantMember(tenantId) && 
+        (request.resource.data.locationId == null || canAccessBranch(tenantId, request.resource.data.locationId));
+    }
+    
+    // Specific rules for shifts collection
+    match /tenants/{tenantId}/shifts/{shiftId} {
       allow read, write: if request.auth != null && 
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.tenantId == tenantId;
     }
     
-    // Nested tenant collections (inventory, orders, etc.)
-    match /tenants/{tenantId}/{document=**} {
+    // Archives collections
+    match /tenants/{tenantId}/archives/{date}/{document=**} {
+      allow read, write: if request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.tenantId == tenantId;
+    }
+    
+    // Reset logs
+    match /tenants/{tenantId}/reset_logs/{logId} {
       allow read, write: if request.auth != null && 
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.tenantId == tenantId;
@@ -23,6 +74,56 @@ service cloud.firestore {
     // Public collections (if any) - be very specific
     match /public/{document} {
       allow read: if request.auth != null;
+    }
+    
+    // Platform Admin Collections - Only accessible by platform admins
+    function isPlatformAdmin() {
+      let adminEmails = ['brianbasa@gmail.com', 'admin@coretrack.com'];
+      return request.auth != null && request.auth.token.email in adminEmails;
+    }
+    
+    // Menu Builder - additional specific rules for menu items and addons
+    match /menuItems/{itemId} {
+      allow read, write: if isTenantMember(resource.data.tenantId) && 
+        canAccessBranch(resource.data.tenantId, resource.data.locationId);
+    }
+    
+    match /addons/{addonId} {
+      allow read, write: if isTenantMember(resource.data.tenantId) && 
+        canAccessBranch(resource.data.tenantId, resource.data.locationId);
+    }
+
+    // Support Tickets - Platform admins and ticket owners
+    match /supportTickets/{ticketId} {
+      allow read, write: if isPlatformAdmin() || 
+        (request.auth != null && resource.data.customerEmail == request.auth.token.email);
+      allow create: if request.auth != null;
+    }
+    
+    // System Metrics - Platform admins only
+    match /systemMetrics/{document=**} {
+      allow read, write: if isPlatformAdmin();
+    }
+    
+    // System Alerts - Platform admins only
+    match /systemAlerts/{document=**} {
+      allow read, write: if isPlatformAdmin();
+    }
+    
+    // Tenant Billing - Platform admins only
+    match /tenantBilling/{document=**} {
+      allow read, write: if isPlatformAdmin();
+    }
+    
+    // Billing Transactions - Platform admins only
+    match /billingTransactions/{document=**} {
+      allow read, write: if isPlatformAdmin();
+    }
+    
+    // Audit Logs - Platform admins only (read-only for security)
+    match /auditLogs/{document=**} {
+      allow read: if isPlatformAdmin();
+      allow write: if isPlatformAdmin() && request.method == 'create';
     }
     
     // Deny all other access

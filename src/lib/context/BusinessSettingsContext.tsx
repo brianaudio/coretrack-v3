@@ -33,8 +33,18 @@ export const BusinessSettingsProvider: React.FC<BusinessSettingsProviderProps> =
   const [settings, setSettings] = useState<BusinessSettings>(DEFAULT_BUSINESS_SETTINGS);
   const [loading, setLoading] = useState(true);
 
+  // Development mode detection
+  const isDevelopment = process.env.NODE_ENV === 'development';
+
   // Load settings when user/profile changes
   useEffect(() => {
+    if (isDevelopment) {
+      console.log('🔧 Development Mode: Using default business settings');
+      setSettings(DEFAULT_BUSINESS_SETTINGS);
+      setLoading(false);
+      return;
+    }
+
     if (!user || !profile?.tenantId) {
       setSettings(DEFAULT_BUSINESS_SETTINGS);
       setLoading(false);
@@ -53,9 +63,15 @@ export const BusinessSettingsProvider: React.FC<BusinessSettingsProviderProps> =
     return () => {
       unsubscribe();
     };
-  }, [user, profile?.tenantId]);
+  }, [user, profile?.tenantId, isDevelopment]);
 
   const refreshSettings = async () => {
+    if (isDevelopment) {
+      console.log('🔧 Development Mode: Mock settings refresh');
+      setSettings(DEFAULT_BUSINESS_SETTINGS);
+      return;
+    }
+
     if (!profile?.tenantId) return;
     
     try {

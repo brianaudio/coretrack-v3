@@ -20,6 +20,15 @@ import {
   type InventoryItem
 } from '../../lib/firebase/inventory'
 import {
+  getAddons,
+  createAddon,
+  updateAddon,
+  deleteAddon,
+  toggleAddonStatus,
+  type Addon,
+  type CreateAddon
+} from '../../lib/firebase/addons'
+import {
   syncMenuItemToPOS,
   handleMenuItemUpdate,
   handleMenuItemDeletion,
@@ -32,6 +41,25 @@ export default function MenuBuilder() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [categories, setCategories] = useState<MenuCategory[]>([])
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
+  const [addons, setAddons] = useState<Addon[]>([])
+  const [editingAddon, setEditingAddon] = useState<Addon | null>(null);
+  const [showCreateAddonModal, setShowCreateAddonModal] = useState(false);
+  const [newAddon, setNewAddon] = useState({
+    name: '',
+    description: '',
+    price: 0,
+    cost: 0,
+    inventoryItemId: '', // Keep for backward compatibility
+    inventoryItemName: '', // Keep for backward compatibility  
+    inventoryQuantity: 1, // Keep for backward compatibility
+    ingredients: [] as Array<{
+      inventoryItemId: string;
+      inventoryItemName: string;
+      quantity: number;
+      unit: string;
+      cost: number;
+    }>
+  });
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null)
@@ -39,10 +67,12 @@ export default function MenuBuilder() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [stockFilter, setStockFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [addonSearchQuery, setAddonSearchQuery] = useState('')
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
   const [bulkMode, setBulkMode] = useState(false)
   const [sortBy, setSortBy] = useState('name')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
+  const [activeTab, setActiveTab] = useState<'menu-items' | 'addons'>('menu-items')
 
   const [newItem, setNewItem] = useState({
     name: '',
@@ -61,14 +91,24 @@ export default function MenuBuilder() {
       try {
         setLoading(true)
         const locationId = getBranchLocationId(selectedBranch.id)
-        const [itemsData, categoriesData, inventoryData] = await Promise.all([
+        const [itemsData, categoriesData, inventoryData, addonsData] = await Promise.all([
           getMenuItems(profile.tenantId, locationId),
           getMenuCategories(profile.tenantId),
-          getInventoryItems(profile.tenantId, locationId)
+          getInventoryItems(profile.tenantId, locationId),
+          getAddons(profile.tenantId, locationId)
         ])
+        console.log('📊 MenuBuilder: Raw data loaded:', {
+          menuItems: itemsData.length,
+          categories: categoriesData.length,
+          inventory: inventoryData.length,
+          addons: addonsData.length,
+          addonsData
+        })
         setMenuItems(itemsData)
         setCategories(categoriesData)
         setInventoryItems(inventoryData)
+        setAddons(addonsData)
+        console.log('📊 MenuBuilder: State updated, addons.length should be:', addonsData.length)
       } catch (error) {
         console.error('Error loading menu data:', error)
       } finally {
@@ -78,6 +118,11 @@ export default function MenuBuilder() {
 
     loadData()
   }, [profile?.tenantId, selectedBranch?.id])
+
+  // Debug addons state changes
+  useEffect(() => {
+    console.log('🔍 MenuBuilder: addons state changed, length =', addons.length, 'addons =', addons)
+  }, [addons])
 
   const handleCreateMenuItem = async () => {
     if (!profile?.tenantId || !newItem.name || !newItem.category || !newItem.price || !selectedBranch) return
@@ -183,6 +228,134 @@ export default function MenuBuilder() {
     } catch (error) {
       console.error('Error deleting menu item:', error)
       alert('Error deleting menu item. Please try again.')
+    }
+  }
+
+  // Addon handlers
+  const handleDeleteAddon = async (addonId: string) => {
+    if (!profile?.tenantId || !confirm('Are you sure you want to delete this add-on?')) return
+
+    try {
+      await deleteAddon(profile.tenantId, addonId)
+      setAddons(prev => prev.filter(addon => addon.id !== addonId))
+    } catch (error) {
+      console.error('Error deleting add-on:', error)
+      alert('Error deleting add-on. Please try again.')
+    }
+  }
+
+  const handleEditAddon = (addon: Addon) => {
+    setEditingAddon(addon)
+  }
+
+  const handleUpdateAddon = async () => {
+    if (!profile?.tenantId || !editingAddon) return
+
+    try {
+      const updateData: any = {
+        name: editingAddon.name,
+        description: editingAddon.description,
+        price: editingAddon.price,
+        cost: editingAddon.cost
+      }
+
+      // Handle ingredients if they exist
+      if (editingAddon.ingredients && editingAddon.ingredients.length > 0) {
+        updateData.ingredients = editingAddon.ingredients.map(ingredient => ({
+          inventoryItemId: ingredient.inventoryItemId,
+          inventoryItemName: ingredient.inventoryItemName,
+          quantity: ingredient.quantity,
+          unit: ingredient.unit,
+          costPerUnit: ingredient.costPerUnit
+        }))
+      } else {
+        // Handle legacy single inventory item
+        const inventoryItem = inventoryItems.find(item => item.id === editingAddon.inventoryItemId)
+        if (inventoryItem) {
+          updateData.inventoryItemId = editingAddon.inventoryItemId
+          updateData.inventoryItemName = inventoryItem.name
+          updateData.inventoryQuantity = editingAddon.inventoryQuantity
+        }
+      }
+
+      await updateAddon(profile.tenantId, editingAddon.id, updateData)
+      
+      // Reload addons to get fresh data
+      const locationId = getBranchLocationId(selectedBranch?.id || '')
+      const updatedAddons = await getAddons(profile.tenantId, locationId)
+      setAddons(updatedAddons)
+      
+      setEditingAddon(null)
+    } catch (error) {
+      console.error('Error updating add-on:', error)
+      alert('Error updating add-on. Please try again.')
+    }
+  }
+
+  const handleToggleAddon = async (addon: Addon) => {
+    if (!profile?.tenantId) return
+
+    try {
+      const newStatus = addon.status === 'active' ? 'inactive' : 'active'
+      await updateAddon(profile.tenantId, addon.id, { status: newStatus })
+      setAddons(prev => prev.map(a => 
+        a.id === addon.id ? { ...a, status: newStatus } : a
+      ))
+    } catch (error) {
+      console.error('Error toggling add-on status:', error)
+      alert('Error updating add-on status. Please try again.')
+    }
+  }
+
+  const handleCreateAddon = async () => {
+    if (!profile?.tenantId || !selectedBranch?.id || !newAddon.name) return
+    
+    // Validate that we have either ingredients or a single inventory item
+    if (newAddon.ingredients.length === 0 && !newAddon.inventoryItemId) {
+      alert('Please add at least one ingredient or select a single inventory item.')
+      return
+    }
+
+    try {
+      const addonData: any = {
+        name: newAddon.name,
+        description: newAddon.description,
+        price: newAddon.price,
+        cost: newAddon.cost,
+        status: 'active' as const
+      }
+
+      // If using multiple ingredients, include them
+      if (newAddon.ingredients.length > 0) {
+        addonData.ingredients = newAddon.ingredients.map(ingredient => ({
+          inventoryItemId: ingredient.inventoryItemId,
+          inventoryItemName: ingredient.inventoryItemName,
+          quantity: ingredient.quantity,
+          unit: ingredient.unit,
+          costPerUnit: (inventoryItems.find(item => item.id === ingredient.inventoryItemId)?.costPerUnit || 0)
+        }))
+      } else {
+        // Fallback to single inventory item for backward compatibility
+        const inventoryItem = inventoryItems.find(item => item.id === newAddon.inventoryItemId)
+        if (inventoryItem) {
+          addonData.inventoryItemId = newAddon.inventoryItemId
+          addonData.inventoryItemName = inventoryItem.name
+          addonData.inventoryQuantity = newAddon.inventoryQuantity
+        }
+      }
+
+      const locationId = getBranchLocationId(selectedBranch.id)
+      await createAddon(profile.tenantId, locationId, addonData)
+      
+      // Reset form and close modal using the reset function
+      resetAddonForm()
+      
+      // Reload addons
+      const updatedAddons = await getAddons(profile.tenantId, locationId)
+      setAddons(updatedAddons)
+    } catch (error) {
+      console.error('Error creating add-on:', error)
+      alert('Error creating add-on. Please try again.')
     }
   }
 
@@ -427,6 +600,130 @@ export default function MenuBuilder() {
     }) : null)
   }
 
+  // Helper functions for addon ingredient management
+  const addAddonIngredient = () => {
+    setNewAddon(prev => ({
+      ...prev,
+      ingredients: [...prev.ingredients, {
+        inventoryItemId: '',
+        inventoryItemName: '',
+        quantity: 0,
+        unit: '',
+        cost: 0
+      }],
+      cost: prev.ingredients.reduce((total, ing) => total + ing.cost, 0)
+    }))
+  }
+
+  const updateAddonIngredient = (index: number, field: string, value: any) => {
+    setNewAddon(prev => {
+      const updatedIngredients = prev.ingredients.map((ingredient, i) => {
+        if (i === index) {
+          if (field === 'inventoryItemId') {
+            const selectedItem = inventoryItems.find(item => item.id === value)
+            if (selectedItem) {
+              const cost = (selectedItem.costPerUnit || 0) * ingredient.quantity
+              return {
+                ...ingredient,
+                inventoryItemId: value,
+                inventoryItemName: selectedItem.name,
+                unit: selectedItem.unit,
+                cost: cost
+              }
+            }
+          } else if (field === 'quantity') {
+            const inventoryItem = inventoryItems.find(item => item.id === ingredient.inventoryItemId)
+            const cost = inventoryItem ? (inventoryItem.costPerUnit || 0) * value : 0
+            return {
+              ...ingredient,
+              quantity: value,
+              cost: cost
+            }
+          }
+          return { ...ingredient, [field]: value }
+        }
+        return ingredient
+      })
+      
+      return {
+        ...prev,
+        ingredients: updatedIngredients,
+        cost: updatedIngredients.reduce((total, ing) => total + ing.cost, 0)
+      }
+    })
+  }
+
+  const removeAddonIngredient = (index: number) => {
+    setNewAddon(prev => {
+      const filteredIngredients = prev.ingredients.filter((_, i) => i !== index)
+      return {
+        ...prev,
+        ingredients: filteredIngredients,
+        cost: filteredIngredients.reduce((total, ing) => total + ing.cost, 0)
+      }
+    })
+  }
+
+  // Helper functions for addon ingredient management in edit mode
+  const addAddonIngredientToEdit = () => {
+    setEditingAddon(prev => prev ? ({
+      ...prev,
+      ingredients: [...(prev.ingredients || []), {
+        inventoryItemId: '',
+        inventoryItemName: '',
+        quantity: 0,
+        unit: '',
+        costPerUnit: 0
+      }]
+    }) : null)
+  }
+
+  const updateAddonIngredientInEdit = (index: number, field: string, value: any) => {
+    setEditingAddon(prev => prev ? ({
+      ...prev,
+      ingredients: (prev.ingredients || []).map((ingredient, i) => {
+        if (i === index) {
+          if (field === 'inventoryItemId') {
+            const selectedItem = inventoryItems.find(item => item.id === value)
+            if (selectedItem) {
+              return {
+                ...ingredient,
+                inventoryItemId: value,
+                inventoryItemName: selectedItem.name,
+                unit: selectedItem.unit,
+                costPerUnit: selectedItem.costPerUnit || 0
+              }
+            }
+          }
+          return { ...ingredient, [field]: value }
+        }
+        return ingredient
+      })
+    }) : null)
+  }
+
+  const removeAddonIngredientFromEdit = (index: number) => {
+    setEditingAddon(prev => prev ? ({
+      ...prev,
+      ingredients: (prev.ingredients || []).filter((_, i) => i !== index)
+    }) : null)
+  }
+
+  // Helper function to reset addon form
+  const resetAddonForm = () => {
+    setNewAddon({
+      name: '',
+      description: '',
+      price: 0,
+      cost: 0,
+      inventoryItemId: '',
+      inventoryItemName: '',
+      inventoryQuantity: 1,
+      ingredients: []
+    })
+    setShowCreateAddonModal(false)
+  }
+
   // Inventory Integration Helper Functions
   const calculateMaxServings = (item: MenuItem) => {
     if (item.ingredients.length === 0) return Infinity
@@ -591,6 +888,15 @@ export default function MenuBuilder() {
 
   const filteredItems = getFilteredItems()
 
+  // Filter add-ons based on search query
+  const filteredAddons = addons.filter(addon => {
+    const matchesSearch = addonSearchQuery === '' || 
+      addon.name.toLowerCase().includes(addonSearchQuery.toLowerCase()) ||
+      addon.description.toLowerCase().includes(addonSearchQuery.toLowerCase())
+    
+    return matchesSearch
+  })
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -600,341 +906,455 @@ export default function MenuBuilder() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <h2 className="text-2xl font-bold text-gray-900">Product Builder</h2>
-          {bulkMode && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">
-                {selectedItems.size} selected
-              </span>
+    <div className="h-full flex flex-col">
+      {/* Header with Tabs */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="flex items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-6">
+            <h2 className="text-xl font-semibold text-gray-900">Menu Builder</h2>
+            
+            {/* Tab Navigation */}
+            <div className="flex bg-gray-100 rounded-lg p-1">
               <button
-                onClick={handleSelectAll}
-                className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded"
+                onClick={() => setActiveTab('menu-items')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'menu-items'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
               >
-                Select All
+                Menu Items
               </button>
               <button
-                onClick={handleDeselectAll}
-                className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded"
+                onClick={() => setActiveTab('addons')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'addons'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
               >
-                Clear
-              </button>
-              <button
-                onClick={() => setBulkMode(false)}
-                className="px-3 py-1 text-xs text-red-600 hover:bg-red-50 rounded"
-              >
-                Cancel
+                Add-ons
               </button>
             </div>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {bulkMode && selectedItems.size > 0 && (
-            <>
-              <button
-                onClick={() => handleBulkStatusChange('active')}
-                className="px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700"
-              >
-                Activate ({selectedItems.size})
-              </button>
-              <button
-                onClick={() => handleBulkStatusChange('inactive')}
-                className="px-3 py-2 text-sm bg-yellow-600 text-white rounded-lg hover:bg-yellow-700"
-              >
-                Deactivate ({selectedItems.size})
-              </button>
-              <button
-                onClick={handleBulkDelete}
-                className="px-3 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700"
-              >
-                Delete ({selectedItems.size})
-              </button>
-            </>
-          )}
-          {!bulkMode && (
-            <>
-              <button
-                onClick={() => setBulkMode(true)}
-                className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Select Items
-              </button>
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="bg-blue-600 text-white px-4 py-2 border border-transparent rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Add Product
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+          </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-sm font-medium text-gray-500">Total Items</div>
-          <div className="text-2xl font-bold text-gray-900">{menuItems.length}</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-sm font-medium text-gray-500">Active</div>
-          <div className="text-2xl font-bold text-green-600">
-            {menuItems.filter(item => item.status === 'active').length}
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-sm font-medium text-gray-500">In Stock</div>
-          <div className="text-2xl font-bold text-blue-600">
-            {menuItems.filter(item => {
-              const status = getStockStatus(item)
-              return status === 'in_stock' || status === 'medium_stock'
-            }).length}
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-sm font-medium text-gray-500">Low Stock</div>
-          <div className="text-2xl font-bold text-orange-600">
-            {menuItems.filter(item => getStockStatus(item) === 'low_stock').length}
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-sm font-medium text-gray-500">Avg Price</div>
-          <div className="text-2xl font-bold text-purple-600">
-            ₱{menuItems.length > 0 ? (menuItems.reduce((sum, item) => sum + item.price, 0) / menuItems.length).toFixed(2) : '0.00'}
-          </div>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap gap-4">
-        <div className="flex-1 min-w-64">
-          <input
-            type="text"
-            placeholder="Search products by name, description, or category..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="all">All Categories</option>
-          {Array.from(new Set(menuItems.map(item => item.category)))
-            .filter(category => category.trim() !== '')
-            .sort()
-            .map((category) => (
-            <option key={category} value={category}>
-              {category}
-            </option>
-          ))}
-        </select>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="all">All Items</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-          <option value="out_of_stock">Out of Stock</option>
-        </select>
-        <select
-          value={stockFilter}
-          onChange={(e) => setStockFilter(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="all">All Stock Levels</option>
-          <option value="in_stock">In Stock</option>
-          <option value="low_stock">Low Stock</option>
-          <option value="out_of_stock">No Stock</option>
-        </select>
-        <div className="flex gap-2">
-          <select
-            value={sortBy}
-            onChange={(e) => handleSortChange(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="name">Sort by Name</option>
-            <option value="price">Sort by Price</option>
-            <option value="cost">Sort by Cost</option>
-            <option value="margin">Sort by Profit Margin</option>
-            <option value="category">Sort by Category</option>
-            <option value="status">Sort by Status</option>
-          </select>
-          <button
-            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-            className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-            title={`Sort ${sortOrder === 'asc' ? 'Descending' : 'Ascending'}`}
-          >
-            {sortOrder === 'asc' ? (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
-              </svg>
-            ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 13l-5 5m0 0l-5-5m5 5V6" />
-              </svg>
+          {/* Primary Action Buttons - Clean Layout */}
+          <div className="flex items-center gap-3">
+            {activeTab === 'menu-items' && !bulkMode && (
+              <>
+                <button
+                  onClick={() => setBulkMode(true)}
+                  className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Bulk Operations
+                </button>
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add Menu Item
+                </button>
+              </>
             )}
-          </button>
+            {activeTab === 'addons' && (
+              <button
+                onClick={() => setShowCreateAddonModal(true)}
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Add-on
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Bulk Mode Bar - Separate Clean Row */}
+        {activeTab === 'menu-items' && bulkMode && (
+          <div className="px-6 py-3 bg-blue-50 border-t border-blue-100">
+            <div className="flex items-center justify-between">
+              {/* Left: Mode Indicator & Selection Status */}
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-sm font-medium text-blue-900">Bulk Selection Mode</span>
+                </div>
+                {selectedItems.size > 0 ? (
+                  <div className="flex items-center gap-2 px-3 py-1 bg-blue-100 border border-blue-200 rounded-lg">
+                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+                    <span className="text-sm font-medium text-blue-800">
+                      {selectedItems.size} item{selectedItems.size !== 1 ? 's' : ''} selected
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-sm text-blue-700">Click items to select for bulk operations</span>
+                )}
+              </div>
+
+              {/* Right: Action Controls */}
+              <div className="flex items-center gap-2">
+                {selectedItems.size > 0 && (
+                  <>
+                    {/* Selection Controls */}
+                    <div className="flex items-center gap-1 mr-2">
+                      <button
+                        onClick={handleSelectAll}
+                        className="px-2 py-1 text-xs text-blue-700 hover:bg-blue-100 rounded transition-colors font-medium"
+                      >
+                        All
+                      </button>
+                      <span className="text-blue-300">|</span>
+                      <button
+                        onClick={handleDeselectAll}
+                        className="px-2 py-1 text-xs text-blue-700 hover:bg-blue-100 rounded transition-colors font-medium"
+                      >
+                        None
+                      </button>
+                    </div>
+                    
+                    {/* Bulk Actions */}
+                    <div className="flex items-center gap-1 mr-2">
+                      <button
+                        onClick={() => handleBulkStatusChange('active')}
+                        className="px-3 py-1 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors font-medium"
+                      >
+                        Activate
+                      </button>
+                      <button
+                        onClick={() => handleBulkStatusChange('inactive')}
+                        className="px-3 py-1 text-xs bg-amber-600 text-white rounded hover:bg-amber-700 transition-colors font-medium"
+                      >
+                        Deactivate
+                      </button>
+                      <button
+                        onClick={handleBulkDelete}
+                        className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors font-medium"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </>
+                )}
+                
+                {/* Exit Button */}
+                <button
+                  onClick={() => setBulkMode(false)}
+                  className="px-3 py-1 text-xs text-gray-700 hover:bg-white border border-blue-200 rounded transition-colors font-medium"
+                >
+                  Exit
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Stats Bar */}
+        {activeTab === 'menu-items' && (
+          <div className="px-6 py-3 bg-gray-50 border-t border-gray-200">
+            <div className="flex items-center gap-8 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500">Total:</span>
+                <span className="font-semibold text-gray-900">{menuItems.length}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500">Active:</span>
+                <span className="font-semibold text-green-600">
+                  {menuItems.filter(item => item.status === 'active').length}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500">In Stock:</span>
+                <span className="font-semibold text-blue-600">
+                  {menuItems.filter(item => {
+                    const status = getStockStatus(item)
+                    return status === 'in_stock' || status === 'medium_stock'
+                  }).length}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500">Low Stock:</span>
+                <span className="font-semibold text-orange-600">
+                  {menuItems.filter(item => getStockStatus(item) === 'low_stock').length}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Menu Items Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredItems.map((item) => (
-          <div key={item.id} className="bg-white rounded-lg shadow p-6 relative">
-            {bulkMode && (
-              <div className="absolute top-4 left-4">
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-hidden">
+        {activeTab === 'menu-items' ? (
+          <div className="h-full flex flex-col">
+            {/* Filters */}
+            <div className="px-6 py-3 bg-white border-b border-gray-200">
+              <div className="flex items-center gap-3">
                 <input
-                  type="checkbox"
-                  checked={selectedItems.has(item.id!)}
-                  onChange={() => handleSelectItem(item.id!)}
-                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                  type="text"
+                  placeholder="Search items..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="all">All Categories</option>
+                  {Array.from(new Set(menuItems.map(item => item.category)))
+                    .filter(category => category.trim() !== '')
+                    .sort()
+                    .map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="all">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Menu Items Content */}
+            <div className="flex-1 overflow-auto p-6 bg-gray-50">
+              <div className="flex justify-between items-center mb-4">
+                <div className="text-sm text-gray-600">
+                  Showing {filteredItems.length} of {menuItems.length} items
+                </div>
+                <div className="flex gap-2">
+                  <select
+                    value={sortBy}
+                    onChange={(e) => handleSortChange(e.target.value)}
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="name">Sort by Name</option>
+                    <option value="price">Sort by Price</option>
+                    <option value="cost">Sort by Cost</option>
+                    <option value="category">Sort by Category</option>
+                  </select>
+                  <button
+                    onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                    className="px-3 py-1.5 border border-gray-300 rounded-md hover:bg-gray-50 text-sm"
+                  >
+                    {sortOrder === 'asc' ? '↑' : '↓'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Improved Menu Items Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filteredItems.map((item) => (
+                  <div 
+                    key={item.id} 
+                    className={`relative bg-white rounded-lg border overflow-hidden hover:shadow-lg transition-all ${
+                      bulkMode ? 'cursor-pointer' : ''
+                    } ${
+                      bulkMode 
+                        ? selectedItems.has(item.id!) 
+                          ? 'border-blue-500 bg-blue-50' 
+                          : 'border-gray-200 hover:border-blue-300'
+                        : 'border-gray-200'
+                    }`}
+                    onClick={bulkMode ? (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleSelectItem(item.id!);
+                    } : undefined}
+                  >
+                    {/* Bulk Mode Checkbox */}
+                    {bulkMode && (
+                      <div className="absolute top-2 left-2 z-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.has(item.id!)}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            handleSelectItem(item.id!);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500"
+                        />
+                      </div>
+                    )}
+                    
+                    {/* Card Header */}
+                    <div className="p-4 pb-2">
+                      <div className="flex items-start justify-between mb-2">
+                        <h3 className="font-semibold text-gray-900 text-sm truncate flex-1">{item.name}</h3>
+                        <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(item.status)}`}>
+                          {item.status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600 line-clamp-2 mb-2">{item.description}</p>
+                      <div className="text-xs text-gray-500">{item.category}</div>
+                    </div>
+
+                    {/* Card Body */}
+                    <div className="px-4 pb-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-lg font-bold text-gray-900">₱{item.price.toFixed(2)}</span>
+                        <span className="text-xs text-gray-500">Cost: ₱{item.cost.toFixed(2)}</span>
+                      </div>
+                      
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs font-medium text-green-600">
+                          Profit: ₱{(item.price - item.cost).toFixed(2)}
+                        </span>
+                        <span className={`text-xs px-2 py-1 rounded-full ${getStockStatusColor(getStockStatus(item))}`}>
+                          {getStockStatusText(getStockStatus(item), calculateMaxServings(item))}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Card Actions */}
+                    {!bulkMode && (
+                      <div className="px-4 pb-4">
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => setEditingItem(item)}
+                            className="flex-1 px-2 py-1.5 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDuplicateMenuItem(item)}
+                            className="flex-1 px-2 py-1.5 text-xs bg-green-50 text-green-700 rounded hover:bg-green-100"
+                          >
+                            Copy
+                          </button>
+                          <button
+                            onClick={() => handleDeleteMenuItem(item.id!)}
+                            className="flex-1 px-2 py-1.5 text-xs bg-red-50 text-red-700 rounded hover:bg-red-100"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Add-ons Tab Content */
+          <div className="h-full flex flex-col">
+            {/* Add-ons Filters */}
+            <div className="px-6 py-3 bg-white border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  placeholder="Search add-ons..."
+                  value={addonSearchQuery}
+                  onChange={(e) => setAddonSearchQuery(e.target.value)}
+                  className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-            )}
-            <div className={`flex justify-between items-start mb-4 ${bulkMode ? 'ml-6' : ''}`}>
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-gray-900">{item.name}</h3>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs text-gray-500">{item.category}</span>
-                  <div className="flex items-center gap-1 text-xs text-green-600">
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                    </svg>
-                    Synced to POS
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => toggleStatus(item)}
-                className={`px-3 py-1 text-xs font-medium rounded-full ${getStatusColor(item.status)}`}
-              >
-                {item.status}
-              </button>
-            </div>
-            
-            <p className="text-sm text-gray-600 mb-3">{item.description}</p>
-            
-            <div className="space-y-2 mb-4">
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-500">Category:</span>
-                <span className="text-sm font-medium">{item.category}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-500">Price:</span>
-                <span className="text-sm font-medium">₱{item.price.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-500">Cost:</span>
-                <span className="text-sm font-medium">₱{item.cost.toFixed(2)}</span>
-              </div>
-              {(item.price > 0 && item.cost > 0) && (
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-500">Margin:</span>
-                  <span className="text-sm font-medium">
-                    {calculateProfitMargin(item.price, item.cost).toFixed(1)}%
-                  </span>
-                </div>
-              )}
-              {item.preparationTime > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-500">Prep Time:</span>
-                  <span className="text-sm font-medium">{item.preparationTime} min</span>
-                </div>
-              )}
-              {item.calories && item.calories > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-500">Calories:</span>
-                  <span className="text-sm font-medium">{item.calories}</span>
-                </div>
-              )}
             </div>
 
-            {item.allergens && item.allergens.length > 0 && (
-              <div className="mb-4">
-                <span className="text-sm text-gray-500">Allergens:</span>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {item.allergens.map((allergen) => (
-                    <span
-                      key={allergen}
-                      className="px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-full"
-                    >
-                      {allergen}
-                    </span>
+            {/* Add-ons Content */}
+            <div className="flex-1 overflow-auto p-6 bg-gray-50">
+              {filteredAddons.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-4xl mb-4">🥤</div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    {addons.length === 0 ? 'No Add-ons Yet' : 'No Matching Add-ons'}
+                  </h3>
+                  <p className="text-gray-600 mb-4">
+                    {addons.length === 0 
+                      ? 'Create your first add-on using the "Add Add-on" button above.' 
+                      : 'Try adjusting your search criteria.'
+                    }
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {filteredAddons.map((addon) => (
+                    <div key={addon.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow">
+                      {/* Card Header */}
+                      <div className="p-4 pb-2">
+                        <div className="flex items-start justify-between mb-2">
+                          <h3 className="font-semibold text-gray-900 text-sm truncate flex-1">{addon.name}</h3>
+                          <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full ${addon.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                            {addon.status === 'active' ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-600 line-clamp-2 mb-2">{addon.description}</p>
+                        <div className="text-xs text-gray-500">
+                          {addon.ingredients && addon.ingredients.length > 0 
+                            ? `Multi-ingredient (${addon.ingredients.length} items)`
+                            : `Inventory: ${addon.inventoryItemName || 'N/A'}`
+                          }
+                        </div>
+                      </div>
+
+                      {/* Card Body */}
+                      <div className="px-4 pb-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-lg font-bold text-gray-900">₱{addon.price.toFixed(2)}</span>
+                          <span className="text-xs text-gray-500">Cost: ₱{addon.cost.toFixed(2)}</span>
+                        </div>
+                        
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-xs font-medium text-green-600">
+                            Profit: ₱{(addon.price - addon.cost).toFixed(2)}
+                          </span>
+                          <span className="text-xs text-blue-600">
+                            {addon.ingredients && addon.ingredients.length > 0 
+                              ? `${addon.ingredients.length} ingredients`
+                              : `Qty: ${addon.inventoryQuantity || 'N/A'}`
+                            }
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Card Actions */}
+                      <div className="px-4 pb-4">
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleEditAddon(addon)}
+                            className="flex-1 px-2 py-1.5 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleToggleAddon(addon)}
+                            className={`flex-1 px-2 py-1.5 text-xs rounded ${addon.status === 'active' ? 'bg-orange-50 text-orange-700 hover:bg-orange-100' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}
+                          >
+                            {addon.status === 'active' ? 'Disable' : 'Enable'}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteAddon(addon.id!)}
+                            className="flex-1 px-2 py-1.5 text-xs bg-red-50 text-red-700 rounded hover:bg-red-100"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {/* Stock Info */}
-            <div className="mb-4">
-              <span className="text-sm text-gray-500">Stock Status:</span>
-              <div className="flex items-center gap-2 mt-1">
-                <span className={`text-xs font-medium rounded-full px-3 py-1 ${getStockStatusColor(getStockStatus(item))}`}>
-                  {getStockStatusText(getStockStatus(item), calculateMaxServings(item))}
-                </span>
-                {getStockStatus(item) === 'low_stock' && (
-                  <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                  </svg>
-                )}
-                {getStockStatus(item) === 'out_of_stock' && (
-                  <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                )}
-              </div>
+              )}
             </div>
-
-            {/* Low Stock Ingredients Warning */}
-            {(() => {
-              const lowStockIngredients = getLowStockIngredients(item)
-              return lowStockIngredients.length > 0 ? (
-                <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                  <p className="text-sm font-medium text-orange-800 mb-2">⚠️ Low Stock Ingredients:</p>
-                  <ul className="text-xs text-orange-700 space-y-1">
-                    {lowStockIngredients.map((ingredient, index) => (
-                      <li key={index} className="flex justify-between">
-                        <span>{ingredient.name}</span>
-                        <span>{ingredient.available} {ingredient.unit} (need {ingredient.needed})</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null
-            })()}
-
-            {!bulkMode && (
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => setEditingItem(item)}
-                  className="flex-1 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => handleDuplicateMenuItem(item)}
-                  className="flex-1 px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700"
-                >
-                  Duplicate
-                </button>
-                <button
-                  onClick={() => handleDeleteMenuItem(item.id!)}
-                  className="flex-1 px-3 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700"
-                >
-                  Delete
-                </button>
-              </div>
-            )}
           </div>
-        ))}
+        )}
       </div>
 
       {/* Create Menu Item Modal */}
@@ -1389,6 +1809,417 @@ export default function MenuBuilder() {
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 Update Item
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Addon Modal */}
+      {showCreateAddonModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Create Add-on</h3>
+            
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newAddon.name}
+                    onChange={(e) => setNewAddon(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Add-on name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Price
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={newAddon.price}
+                    onChange={(e) => setNewAddon(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={newAddon.description}
+                  onChange={(e) => setNewAddon(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={2}
+                  placeholder="Brief description"
+                />
+              </div>
+
+              {/* Ingredients Section */}
+              <div className="border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h4 className="text-md font-medium text-gray-900">Add-on Ingredients</h4>
+                    <p className="text-sm text-gray-600">Add ingredients from your inventory to calculate add-on cost</p>
+                  </div>
+                  <button
+                    onClick={addAddonIngredient}
+                    className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Add Ingredient
+                  </button>
+                </div>
+
+                {newAddon.ingredients.length > 0 && (
+                  <div className="space-y-3">
+                    {newAddon.ingredients.map((ingredient, index) => (
+                      <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div className="flex-1">
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Inventory Item
+                          </label>
+                          <select
+                            value={ingredient.inventoryItemId}
+                            onChange={(e) => updateAddonIngredient(index, 'inventoryItemId', e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="">Select ingredient</option>
+                            {inventoryItems.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.name} ({item.unit})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="w-24">
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Quantity
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={ingredient.quantity}
+                            onChange={(e) => updateAddonIngredient(index, 'quantity', parseFloat(e.target.value) || 0)}
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div className="w-20">
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Unit
+                          </label>
+                          <input
+                            type="text"
+                            value={ingredient.unit}
+                            readOnly
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-100 text-gray-600"
+                          />
+                        </div>
+                        <div className="w-24">
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Cost
+                          </label>
+                          <input
+                            type="text"
+                            value={`₱${ingredient.cost.toFixed(2)}`}
+                            readOnly
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-100 text-gray-600"
+                          />
+                        </div>
+                        <button
+                          onClick={() => removeAddonIngredient(index)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-gray-900">
+                        Total Ingredient Cost: <span className="text-green-600">₱{newAddon.cost.toFixed(2)}</span>
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Profit: <span className="text-green-600">₱{(newAddon.price - newAddon.cost).toFixed(2)}</span>
+                        {newAddon.price > 0 && ` (${(((newAddon.price - newAddon.cost) / newAddon.price) * 100).toFixed(1)}%)`}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {newAddon.ingredients.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>No ingredients added yet</p>
+                    <p className="text-sm">Add ingredients to automatically calculate add-on cost</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Legacy single inventory item support for backward compatibility */}
+              {newAddon.ingredients.length === 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Single Inventory Item (Legacy)
+                  </label>
+                  <select 
+                    value={newAddon.inventoryItemId}
+                    onChange={(e) => {
+                      const selectedItem = inventoryItems.find(item => item.id === e.target.value)
+                      setNewAddon(prev => ({ 
+                        ...prev, 
+                        inventoryItemId: e.target.value,
+                        inventoryItemName: selectedItem?.name || '',
+                        cost: selectedItem?.costPerUnit || 0
+                      }))
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select inventory item (or use ingredients above)</option>
+                    {inventoryItems.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} ({item.currentStock} {item.unit})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
+              <button
+                onClick={resetAddonForm}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateAddon}
+                disabled={!newAddon.name || (!newAddon.inventoryItemId && newAddon.ingredients.length === 0) || !newAddon.price}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300"
+              >
+                Create Add-on
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Addon Modal */}
+      {editingAddon && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Edit Add-on</h3>
+            
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editingAddon.name}
+                    onChange={(e) => setEditingAddon(prev => prev ? { ...prev, name: e.target.value } : null)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Add-on name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Price
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editingAddon.price}
+                    onChange={(e) => setEditingAddon(prev => prev ? { ...prev, price: parseFloat(e.target.value) || 0 } : null)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={editingAddon.description}
+                  onChange={(e) => setEditingAddon(prev => prev ? { ...prev, description: e.target.value } : null)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={2}
+                  placeholder="Brief description"
+                />
+              </div>
+
+              {/* Ingredients Section */}
+              <div className="border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h4 className="text-md font-medium text-gray-900">Add-on Ingredients</h4>
+                    <p className="text-sm text-gray-600">Manage ingredients to calculate add-on cost</p>
+                  </div>
+                  <button
+                    onClick={addAddonIngredientToEdit}
+                    className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Add Ingredient
+                  </button>
+                </div>
+
+                {editingAddon.ingredients && editingAddon.ingredients.length > 0 ? (
+                  <div className="space-y-3">
+                    {editingAddon.ingredients.map((ingredient, index) => (
+                      <div key={index} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                        <div className="flex-1 min-w-0">
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Inventory Item
+                          </label>
+                          <select
+                            value={ingredient.inventoryItemId}
+                            onChange={(e) => updateAddonIngredientInEdit(index, 'inventoryItemId', e.target.value)}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          >
+                            <option value="">Select ingredient</option>
+                            {inventoryItems.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.name} ({item.unit})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="w-16">
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Qty
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={ingredient.quantity}
+                            onChange={(e) => updateAddonIngredientInEdit(index, 'quantity', parseFloat(e.target.value) || 0)}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div className="w-12">
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Unit
+                          </label>
+                          <input
+                            type="text"
+                            value={ingredient.unit}
+                            readOnly
+                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-gray-100 text-gray-600"
+                          />
+                        </div>
+                        <div className="w-16">
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Cost/U
+                          </label>
+                          <input
+                            type="text"
+                            value={`₱${ingredient.costPerUnit.toFixed(2)}`}
+                            readOnly
+                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-gray-100 text-gray-600"
+                          />
+                        </div>
+                        <button
+                          onClick={() => removeAddonIngredientFromEdit(index)}
+                          className="p-1 text-red-600 hover:bg-red-50 rounded mt-5"
+                          title="Remove ingredient"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-gray-900">
+                        Total Ingredient Cost: <span className="text-green-600">₱{((editingAddon.ingredients || []).reduce((sum, ing) => sum + (ing.quantity * ing.costPerUnit), 0)).toFixed(2)}</span>
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Profit: <span className="text-green-600">₱{(editingAddon.price - (editingAddon.ingredients || []).reduce((sum, ing) => sum + (ing.quantity * ing.costPerUnit), 0)).toFixed(2)}</span>
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <svg className="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                    <p className="text-sm">No ingredients added yet</p>
+                    <p className="text-xs text-gray-400">Click "Add Ingredient" to start building your add-on recipe</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Legacy single inventory item support for backward compatibility */}
+              {(!editingAddon.ingredients || editingAddon.ingredients.length === 0) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Legacy Single Inventory Item
+                  </label>
+                  <select 
+                    value={editingAddon.inventoryItemId || ''}
+                    onChange={(e) => {
+                      const selectedItem = inventoryItems.find(item => item.id === e.target.value)
+                      setEditingAddon(prev => prev ? { 
+                        ...prev, 
+                        inventoryItemId: e.target.value,
+                        inventoryItemName: selectedItem?.name || '',
+                        cost: selectedItem?.costPerUnit || prev.cost
+                      } : null)
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select inventory item (or use ingredients above)</option>
+                    {inventoryItems.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} ({item.currentStock} {item.unit})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Manual Cost Override
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editingAddon.cost || 0}
+                  onChange={(e) => setEditingAddon(prev => prev ? { ...prev, cost: parseFloat(e.target.value) || 0 } : null)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="0.00"
+                />
+                <p className="text-xs text-gray-500 mt-1">Override calculated cost from ingredients if needed</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
+              <button
+                onClick={() => setEditingAddon(null)}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateAddon}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Update Add-on
               </button>
             </div>
           </div>

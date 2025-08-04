@@ -11,10 +11,13 @@ import {
   updateLocation,
   deleteLocation
 } from '../../lib/firebase/locationManagement';
+import { createBranchFromLocation, deleteBranchByLocationId } from '../../lib/firebase/branches';
+import { useBranch } from '../../lib/context/BranchContext';
 
 const LocationManagement: React.FC = () => {
   const { profile } = useAuth();
   const { canManageSettings, isOwner } = useUserPermissions();
+  const { refreshBranches } = useBranch();
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -58,8 +61,14 @@ const LocationManagement: React.FC = () => {
   });
 
   useEffect(() => {
+    console.log('🏢 LocationManagement loaded, tenantId:', profile?.tenantId);
+    console.log('🏢 Can manage settings:', canManageSettings());
     loadLocations();
   }, [profile?.tenantId]);
+
+  useEffect(() => {
+    console.log('🏢 Modal state changed - showCreateModal:', showCreateModal, 'editingLocation:', !!editingLocation);
+  }, [showCreateModal, editingLocation]);
 
   const loadLocations = async () => {
     if (!profile?.tenantId) return;
@@ -79,14 +88,41 @@ const LocationManagement: React.FC = () => {
     if (!profile?.tenantId) return;
 
     try {
-      await createLocation({
+      console.log('🏢 Creating location...', locationForm);
+      
+      // Create the location first
+      const locationData = {
         ...locationForm,
         tenantId: profile.tenantId
-      });
-
+      };
+      
+      const locationId = await createLocation(locationData);
+      console.log('🏢 Location created with ID:', locationId);
+      
+      // Create a corresponding branch for the branch selector
+      const createdLocation: Location = {
+        id: locationId,
+        ...locationData,
+        createdAt: new Date() as any,
+        updatedAt: new Date() as any
+      };
+      
+      console.log('🏢 Creating corresponding branch...');
+      const createdBranch = await createBranchFromLocation(createdLocation);
+      console.log('🏢 Branch created successfully:', createdBranch);
+      
+      // Force refresh branches with a slight delay to ensure Firebase has processed
+      console.log('🏢 Forcing branch refresh...');
+      setTimeout(async () => {
+        await refreshBranches();
+        console.log('🏢 Branch refresh completed');
+      }, 1000);
+      
+      // Refresh locations
+      await loadLocations();
+      
       setShowCreateModal(false);
       resetForm();
-      await loadLocations();
     } catch (error) {
       console.error('Error creating location:', error);
     }
@@ -109,8 +145,17 @@ const LocationManagement: React.FC = () => {
     if (!confirm(`Delete ${location.name}? This action cannot be undone.`)) return;
 
     try {
+      // Delete the location
       await deleteLocation(location.id);
+      
+      // Delete the corresponding branch
+      if (profile?.tenantId) {
+        await deleteBranchByLocationId(profile.tenantId, location.id);
+      }
+      
+      // Refresh both locations and branches
       await loadLocations();
+      refreshBranches();
     } catch (error) {
       console.error('Error deleting location:', error);
     }
@@ -223,17 +268,35 @@ const LocationManagement: React.FC = () => {
       <div className="p-6 max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-surface-900">Location Management</h1>
-          {canManageSettings() && (
+          <div className="flex gap-2">
+            {/* Debug button to force branch refresh */}
             <button
-              onClick={() => setShowCreateModal(true)}
-              className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center gap-2"
+              onClick={async () => {
+                console.log('🔄 Manual branch refresh triggered');
+                await refreshBranches();
+                console.log('🔄 Manual branch refresh completed');
+              }}
+              className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 text-sm"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              Add Location
+              🔄 Refresh Branches
             </button>
-          )}
+            
+            {canManageSettings() && (
+              <button
+                onClick={() => {
+                  console.log('🏢 Add Location button clicked');
+                  console.log('🏢 Setting showCreateModal to true');
+                  setShowCreateModal(true);
+                }}
+                className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Add Location
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -326,8 +389,17 @@ const LocationManagement: React.FC = () => {
 
         {/* Create/Edit Modal */}
         {(showCreateModal || editingLocation) && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            onMouseDown={() => console.log('🏢 Modal backdrop clicked')}
+          >
+            <div 
+              className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                console.log('🏢 Modal content clicked');
+              }}
+            >
               <div className="p-6">
                 <h3 className="text-lg font-semibold mb-6">
                   {editingLocation ? 'Edit Location' : 'Add New Location'}
@@ -335,6 +407,7 @@ const LocationManagement: React.FC = () => {
                 
                 <form onSubmit={(e) => { 
                   e.preventDefault(); 
+                  console.log('🏢 Form submitted!');
                   editingLocation ? handleUpdateLocation() : handleCreateLocation();
                 }}>
                   <div className="space-y-6">

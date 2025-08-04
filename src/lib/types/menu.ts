@@ -25,6 +25,7 @@ export interface MenuItem {
     unit: string
   }>
   profitMargin?: number
+  profitAmount?: number
   createdAt: Date
   updatedAt: Date
 }
@@ -34,6 +35,7 @@ export interface CreateMenuItem {
   description: string
   price: number
   category: string
+  emoji?: string
   status: 'active' | 'inactive' | 'out_of_stock'
   isAvailable: boolean
   image?: string
@@ -53,6 +55,16 @@ export interface CreateMenuItem {
     quantity: number
     unit: string
   }>
+  cost?: number
+  profitMargin?: number
+  profitAmount?: number
+  // 🎯 Add-on specific fields
+  isAddonOnly?: boolean
+  addonType?: 'ingredient' | 'size' | 'modification' | 'special'
+  applicableItems?: string[]
+  isRequired?: boolean
+  maxQuantity?: number
+  priceType?: 'fixed' | 'percentage'
 }
 
 export interface InventoryItem {

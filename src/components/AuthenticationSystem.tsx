@@ -146,14 +146,14 @@ const AuthenticationSystem: React.FC<AuthenticationSystemProps> = ({ onLoginSucc
       // For production, this would integrate with Firebase Auth or another auth service
       // For now, we'll use a simple validation
       if (!formData.email || !formData.password) {
-        debugValidation(false, {
+        debugValidation('Login form validation', false, {
           email: !!formData.email,
           password: !!formData.password
         }, { component: 'AuthenticationSystem' })
         throw new Error('Please enter both email and password.')
       }
 
-      debugValidation(true, { 
+      debugValidation('Form data validation', true, { 
         message: 'Form data validation passed' 
       }, { component: 'AuthenticationSystem' })
 

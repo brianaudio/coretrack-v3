@@ -38,18 +38,28 @@ import { InventoryItem } from './inventory';
  */
 export const syncMenuItemToPOS = async (menuItem: MenuItem): Promise<void> => {
   try {
-    const posItem: CreatePOSItem = {
+    // Create base POS item object, filtering out undefined values
+    const posItemData: any = {
       name: menuItem.name,
       category: menuItem.category,
       price: menuItem.price,
       cost: calculateItemCost(menuItem.ingredients),
       description: menuItem.description,
       image: menuItem.image || getDefaultEmoji(menuItem.category),
+      emoji: menuItem.emoji || getDefaultEmoji(menuItem.category), // Use default if undefined
       isAvailable: menuItem.status === 'active',
-      preparationTime: menuItem.preparationTime,
+      preparationTime: menuItem.preparationTime || 0, // Default to 0 if undefined
       tenantId: menuItem.tenantId,
-      locationId: menuItem.locationId // Include locationId for branch-specific POS items
+      // 🔥 CRITICAL FIX: Sync ingredients to POS for inventory deduction
+      ingredients: menuItem.ingredients || []
     };
+
+    // Only add locationId if it's defined
+    if (menuItem.locationId) {
+      posItemData.locationId = menuItem.locationId;
+    }
+
+    const posItem = posItemData as CreatePOSItem;
 
     // Check if POS item already exists
     const posItemsRef = collection(db, `tenants/${menuItem.tenantId}/posItems`);
@@ -72,11 +82,12 @@ export const syncMenuItemToPOS = async (menuItem: MenuItem): Promise<void> => {
     } else {
       // Update existing POS item
       const existingDoc = existingDocs.docs[0];
-      await updateDoc(existingDoc.ref, {
+      const updateData = {
         ...posItem,
         menuItemId: menuItem.id,
         updatedAt: Timestamp.now()
-      });
+      };
+      await updateDoc(existingDoc.ref, updateData);
     }
   } catch (error) {
     console.error('POS sync error:', error);
@@ -141,37 +152,79 @@ export const processInventoryDeduction = async (
     quantity: number;
   }>
 ): Promise<void> => {
+  console.log('🚨 INVENTORY DEDUCTION FUNCTION CALLED! 🚨');
+  console.log('🚨 Tenant ID:', tenantId);
+  console.log('🚨 Order Items:', orderItems);
+  
   try {
+    console.log('🔄 Processing inventory deduction for', orderItems.length, 'items')
+    
     const batch = writeBatch(db);
+    let deductionsMade = 0;
     
     for (const orderItem of orderItems) {
-      // Try to get the menu item to find its ingredients
+      console.log(`📦 Processing: ${orderItem.name} (x${orderItem.quantity})`)
+      console.log(`🔍 Looking for POS item ID: ${orderItem.itemId}`)
+      
+      // PRIORITIZE ingredient-based deduction (proper restaurant inventory)
+      console.log(`🔍 [INVENTORY DEDUCTION] Looking for menu item with ingredients: ${orderItem.name}`)
       const menuItem = await getMenuItemByPOSItemId(tenantId, orderItem.itemId);
       
-      if (menuItem && menuItem.ingredients) {
+      console.log(`🔍 [INVENTORY DEDUCTION] getMenuItemByPOSItemId returned:`, {
+        found: !!menuItem,
+        name: menuItem?.name,
+        ingredientCount: menuItem?.ingredients?.length || 0,
+        ingredients: menuItem?.ingredients?.map(ing => `${ing.inventoryItemName} (${ing.quantity} ${ing.unit})`) || []
+      });
+      
+      if (menuItem && menuItem.ingredients && menuItem.ingredients.length > 0) {
+        console.log(`✅ [INVENTORY DEDUCTION] Found menu item with ${menuItem.ingredients.length} ingredients:`, menuItem.name)
+        
         // Deduct each ingredient from inventory
         for (const ingredient of menuItem.ingredients) {
           const totalQuantityUsed = ingredient.quantity * orderItem.quantity;
+          console.log(`  📉 [INVENTORY DEDUCTION] Deducting ingredient: ${ingredient.inventoryItemName} (-${totalQuantityUsed} ${ingredient.unit}) from inventory ID: ${ingredient.inventoryItemId}`)
+          
           await deductInventoryQuantity(
             batch,
             tenantId,
             ingredient.inventoryItemId,
             totalQuantityUsed
           );
+          deductionsMade++;
         }
+        console.log(`✅ Ingredient-based deduction completed for: ${orderItem.name}`)
       } else {
-        // Fallback: Try to find inventory item by matching name
-        await deductInventoryByName(batch, tenantId, orderItem.name, orderItem.quantity);
+        // Fallback: Try direct inventory deduction only if no ingredients found
+        console.log(`⚠️ [INVENTORY DEDUCTION] No ingredients found, trying direct inventory deduction for: ${orderItem.name}`)
+        const directDeduction = await deductInventoryByName(batch, tenantId, orderItem.name, orderItem.quantity);
+        
+        if (directDeduction) {
+          deductionsMade++;
+          console.log(`✅ Direct deduction successful for: ${orderItem.name}`)
+        } else {
+          // Create inventory item automatically if it doesn't exist
+          const created = await autoCreateInventoryItem(batch, tenantId, orderItem.name, orderItem.quantity);
+          if (created) {
+            deductionsMade++;
+          }
+        }
       }
     }
     
-    await batch.commit();
-    
-    // After deducting inventory, check item availability
-    await updateItemAvailability(tenantId);
+    if (deductionsMade > 0) {
+      console.log(`💾 Committing ${deductionsMade} inventory deductions...`)
+      await batch.commit();
+      console.log(`✅ Inventory deduction completed successfully`)
+      
+      // After deducting inventory, check item availability
+      await updateItemAvailability(tenantId);
+    } else {
+      console.log('⚠️ No inventory deductions were made')
+    }
   } catch (error) {
-    console.error('Error processing inventory deduction:', error);
-    throw error;
+    console.error('❌ Error processing inventory deduction:', error);
+    // Don't throw - let the sale complete even if inventory deduction fails
   }
 };
 
@@ -183,23 +236,59 @@ const deductInventoryByName = async (
   tenantId: string,
   itemName: string,
   quantitySold: number
-): Promise<void> => {
+): Promise<boolean> => {
   try {
+    console.log(`🔍 [INVENTORY DEDUCTION] Searching for inventory item by name: "${itemName}"`);
+    
     // Find inventory item by name (case-insensitive)
     const inventoryRef = collection(db, `tenants/${tenantId}/inventory`);
     const inventoryQuery = query(inventoryRef);
     const inventorySnapshot = await getDocs(inventoryQuery);
     
-    // Find matching inventory item
-    const matchingItem = inventorySnapshot.docs.find(doc => {
+    console.log(`📋 [INVENTORY DEDUCTION] Found ${inventorySnapshot.docs.length} inventory items to search through`);
+    
+    // List all inventory items for debugging
+    inventorySnapshot.docs.forEach(doc => {
       const data = doc.data();
-      return data.name?.toLowerCase() === itemName.toLowerCase();
+      console.log(`  - "${data.name}" (Stock: ${data.currentStock})`);
     });
+    
+    // Find matching inventory item (try exact match first, then flexible matching)
+    let matchingItem = inventorySnapshot.docs.find(doc => {
+      const data = doc.data();
+      const exactMatch = data.name?.toLowerCase() === itemName.toLowerCase();
+      if (exactMatch) {
+        console.log(`🎯 [INVENTORY DEDUCTION] Found exact match: "${data.name}" for "${itemName}"`);
+      }
+      return exactMatch;
+    });
+    
+    // If no exact match, try partial matching
+    if (!matchingItem) {
+      console.log(`🔍 [INVENTORY DEDUCTION] No exact match found, trying partial matching...`);
+      matchingItem = inventorySnapshot.docs.find(doc => {
+        const data = doc.data();
+        const itemNameLower = itemName.toLowerCase();
+        const dataNameLower = data.name?.toLowerCase() || '';
+        
+        // Try various matching strategies
+        const partialMatch = dataNameLower.includes(itemNameLower) || 
+                           itemNameLower.includes(dataNameLower) ||
+                           dataNameLower.replace(/\s+/g, '') === itemNameLower.replace(/\s+/g, '');
+        
+        if (partialMatch) {
+          console.log(`🎯 [INVENTORY DEDUCTION] Found partial match: "${data.name}" for "${itemName}"`);
+        }
+        return partialMatch;
+      });
+    }
     
     if (matchingItem) {
       const inventoryData = matchingItem.data();
       const currentStock = inventoryData.currentStock || 0;
       const newStock = Math.max(0, currentStock - quantitySold);
+      
+      console.log(`📉 [INVENTORY DEDUCTION] Deducting ${quantitySold} from "${inventoryData.name}": ${currentStock} → ${newStock}`);
       
       // Update the inventory item
       const inventoryItemRef = doc(db, `tenants/${tenantId}/inventory`, matchingItem.id);
@@ -210,11 +299,134 @@ const deductInventoryByName = async (
                 newStock <= (inventoryData.minStock * 0.25) ? 'critical' : 
                 newStock <= inventoryData.minStock ? 'low' : 'good'
       });
+      
+      // Log the transaction
+      const transactionRef = collection(db, `tenants/${tenantId}/inventoryTransactions`);
+      batch.set(doc(transactionRef), {
+        inventoryItemId: matchingItem.id,
+        type: 'sale',
+        quantityChange: -quantitySold,
+        newQuantity: newStock,
+        reason: 'POS Sale - Name Match',
+        timestamp: Timestamp.now(),
+        itemName: itemName,
+        matchedItemName: inventoryData.name
+      });
+      
+      console.log(`✅ [INVENTORY DEDUCTION] Successfully prepared batch update for "${itemName}" → "${inventoryData.name}"`);
+      return true;
     } else {
-      // No matching inventory item found
+      console.log(`❌ [INVENTORY DEDUCTION] No matching inventory item found for: "${itemName}"`);
+      console.log(`💡 [INVENTORY DEDUCTION] Available inventory items:`);
+      inventorySnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        console.log(`    - "${data.name}"`);
+      });
+      
+      // Auto-create missing inventory item if enabled
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`🏗️ [INVENTORY DEDUCTION] Auto-creating inventory item for "${itemName}"`);
+        
+        try {
+          // Create a basic inventory item
+          const newInventoryRef = doc(collection(db, `tenants/${tenantId}/inventory`));
+          batch.set(newInventoryRef, {
+            name: itemName,
+            description: `Auto-created for POS item: ${itemName}`,
+            sku: `AUTO-${Date.now()}`,
+            category: 'Auto-Created',
+            currentStock: Math.max(0, 100 - quantitySold), // Start with 100, then deduct
+            unit: 'piece',
+            costPerUnit: 0,
+            price: 0,
+            minStock: 5,
+            maxStock: 1000,
+            supplier: 'Auto-Created',
+            locationId: `location_default`,
+            status: 'good',
+            lastUpdated: Timestamp.now(),
+            tenantId: tenantId,
+            autoCreated: true
+          });
+          
+          // Log the transaction
+          const transactionRef = collection(db, `tenants/${tenantId}/inventoryTransactions`);
+          batch.set(doc(transactionRef), {
+            inventoryItemId: newInventoryRef.id,
+            type: 'sale',
+            quantityChange: -quantitySold,
+            newQuantity: Math.max(0, 100 - quantitySold),
+            reason: 'POS Sale - Auto-Created Item',
+            timestamp: Timestamp.now(),
+            itemName: itemName
+          });
+          
+          console.log(`✅ [INVENTORY DEDUCTION] Auto-created inventory item for "${itemName}"`);
+          return true;
+        } catch (autoCreateError) {
+          console.error(`❌ [INVENTORY DEDUCTION] Failed to auto-create inventory item:`, autoCreateError);
+        }
+      }
+      
+      console.log(`💡 [INVENTORY DEDUCTION] Consider creating an inventory item named "${itemName}" or linking this POS item to a menu item with ingredients`);
+      return false;
     }
   } catch (error) {
-    console.error(`Error deducting inventory for ${itemName}:`, error);
+    console.error(`❌ [INVENTORY DEDUCTION] Error deducting inventory for ${itemName}:`, error);
+    return false;
+  }
+};
+
+/**
+ * Auto-create inventory item when it doesn't exist
+ */
+const autoCreateInventoryItem = async (
+  batch: any,
+  tenantId: string,
+  itemName: string,
+  quantitySold: number
+): Promise<boolean> => {
+  try {
+    console.log(`🏗️ [INVENTORY DEDUCTION] Auto-creating inventory item for "${itemName}"`);
+    
+    // Create a basic inventory item
+    const newInventoryRef = doc(collection(db, `tenants/${tenantId}/inventory`));
+    batch.set(newInventoryRef, {
+      name: itemName,
+      description: `Auto-created for POS item: ${itemName}`,
+      sku: `AUTO-${Date.now()}`,
+      category: 'Auto-Created',
+      currentStock: Math.max(0, 1000 - quantitySold), // Start with 1000, then deduct
+      unit: 'piece',
+      costPerUnit: 0,
+      price: 0,
+      minStock: 5,
+      maxStock: 10000,
+      supplier: 'Auto-Created',
+      locationId: `location_default`,
+      status: 'good',
+      lastUpdated: Timestamp.now(),
+      tenantId: tenantId,
+      autoCreated: true
+    });
+    
+    // Log the transaction
+    const transactionRef = collection(db, `tenants/${tenantId}/inventoryTransactions`);
+    batch.set(doc(transactionRef), {
+      inventoryItemId: newInventoryRef.id,
+      type: 'sale',
+      quantityChange: -quantitySold,
+      newQuantity: Math.max(0, 1000 - quantitySold),
+      reason: 'POS Sale - Auto-Created Item',
+      timestamp: Timestamp.now(),
+      itemName: itemName
+    });
+    
+    console.log(`✅ [INVENTORY DEDUCTION] Auto-created inventory item for "${itemName}" with 1000 starting units`);
+    return true;
+  } catch (error) {
+    console.error(`❌ [INVENTORY DEDUCTION] Failed to auto-create inventory item:`, error);
+    return false;
   }
 };
 
@@ -226,18 +438,69 @@ const getMenuItemByPOSItemId = async (
   posItemId: string
 ): Promise<MenuItem | null> => {
   try {
-    // First get the POS item to find the menu item ID
+    console.log(`🔍 Looking for POS item with ingredients: ${posItemId}`);
+    
+    // Get the POS item to check if it has ingredients directly
     const posItemDoc = await getDoc(doc(db, `tenants/${tenantId}/posItems`, posItemId));
     
     if (!posItemDoc.exists()) {
+      console.log(`❌ POS item not found: ${posItemId}`);
       return null;
     }
     
     const posItemData = posItemDoc.data();
+    console.log(`📋 POS item data:`, { 
+      name: posItemData.name, 
+      category: posItemData.category, 
+      hasIngredients: !!posItemData.ingredients,
+      ingredientCount: posItemData.ingredients?.length || 0
+    });
+    
+    // Check if POS item has ingredients directly (new format)
+    if (posItemData.ingredients && posItemData.ingredients.length > 0) {
+      console.log(`✅ Found POS item with ${posItemData.ingredients.length} ingredients stored directly`);
+      
+      // Convert POS item to MenuItem format for compatibility
+      const menuItem: MenuItem = {
+        id: posItemId,
+        name: posItemData.name,
+        description: posItemData.description || '',
+        category: posItemData.category || 'Uncategorized',
+        price: posItemData.price || 0,
+        cost: posItemData.cost || 0,
+        ingredients: posItemData.ingredients.map((ing: any) => ({
+          inventoryItemId: ing.inventoryItemId,
+          inventoryItemName: ing.inventoryItemName || 'Unknown',
+          quantity: ing.quantity || 1,
+          unit: ing.unit || 'piece',
+          cost: 0 // Will be calculated from inventory
+        })),
+        preparationTime: posItemData.preparationTime || 15,
+        calories: 0,
+        allergens: [],
+        image: posItemData.image || undefined,
+        status: 'active' as const,
+        isPopular: false,
+        displayOrder: 0,
+        tenantId: tenantId,
+        locationId: `location_default`,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
+      };
+      
+      console.log(`✅ Converted POS item to MenuItem format with ingredients:`, 
+        menuItem.ingredients.map(ing => `${ing.inventoryItemName} (${ing.quantity} ${ing.unit})`));
+      
+      return menuItem;
+    }
+    
+    // Fallback: Try to find separate menu item (old format)
     const menuItemId = posItemData.menuItemId;
     
     if (!menuItemId) {
-      // If no direct link, try to find by name and category
+      console.log(`⚠️ No ingredients in POS item and no menuItemId found, trying to find by name and category`);
+      
+      // Try to find by name and category in menuItems collection
       const menuItemsRef = collection(db, `tenants/${tenantId}/menuItems`);
       const menuQuery = query(
         menuItemsRef,
@@ -248,20 +511,35 @@ const getMenuItemByPOSItemId = async (
       const menuSnapshot = await getDocs(menuQuery);
       if (!menuSnapshot.empty) {
         const menuDoc = menuSnapshot.docs[0];
-        return { id: menuDoc.id, ...menuDoc.data() } as MenuItem;
+        const menuItem = { id: menuDoc.id, ...menuDoc.data() } as MenuItem;
+        console.log(`✅ Found menu item by name/category match:`, { 
+          id: menuItem.id, 
+          name: menuItem.name, 
+          ingredientCount: menuItem.ingredients?.length || 0 
+        });
+        return menuItem;
       }
       
+      console.log(`❌ No menu item found with name: ${posItemData.name}, category: ${posItemData.category}`);
       return null;
     }
     
-    // Get menu item by ID
+    // Get menu item by ID (old format)
     const menuItemDoc = await getDoc(doc(db, `tenants/${tenantId}/menuItems`, menuItemId));
     
     if (!menuItemDoc.exists()) {
+      console.log(`❌ Menu item not found with ID: ${menuItemId}`);
       return null;
     }
 
-    return { id: menuItemDoc.id, ...menuItemDoc.data() } as MenuItem;
+    const menuItem = { id: menuItemDoc.id, ...menuItemDoc.data() } as MenuItem;
+    console.log(`✅ Found menu item by ID:`, { 
+      id: menuItem.id, 
+      name: menuItem.name, 
+      ingredientCount: menuItem.ingredients?.length || 0 
+    });
+    
+    return menuItem;
   } catch (error) {
     console.error('Error getting menu item by POS item ID:', error);
     return null;
@@ -278,15 +556,21 @@ const deductInventoryQuantity = async (
   quantityToDeduct: number
 ): Promise<void> => {
   try {
+    console.log(`  🔍 [INVENTORY DEDUCTION] Attempting to deduct ${quantityToDeduct} from inventory item: ${inventoryItemId}`)
+    
     const inventoryItemRef = doc(db, `tenants/${tenantId}/inventory`, inventoryItemId);
     const inventoryItemDoc = await getDoc(inventoryItemRef);
     
     if (!inventoryItemDoc.exists()) {
+      console.log(`  ❌ [INVENTORY DEDUCTION] Inventory item not found: ${inventoryItemId}`)
       return;
     }
     
     const inventoryItem = inventoryItemDoc.data() as InventoryItem;
-    const newQuantity = Math.max(0, inventoryItem.currentStock - quantityToDeduct);
+    const currentStock = inventoryItem.currentStock || 0;
+    const newQuantity = Math.max(0, currentStock - quantityToDeduct);
+    
+    console.log(`  📊 [INVENTORY DEDUCTION] ${inventoryItem.name}: ${currentStock} → ${newQuantity} (deducted: ${quantityToDeduct})`)
     
     batch.update(inventoryItemRef, {
       currentStock: newQuantity,
@@ -297,15 +581,19 @@ const deductInventoryQuantity = async (
     const transactionRef = collection(db, `tenants/${tenantId}/inventoryTransactions`);
     batch.set(doc(transactionRef), {
       inventoryItemId,
+      itemName: inventoryItem.name,
       type: 'sale',
       quantityChange: -quantityToDeduct,
+      previousStock: currentStock,
       newQuantity,
-      reason: 'POS Sale',
+      reason: 'POS Sale - Ingredient Deduction',
       createdAt: Timestamp.now(),
       tenantId
     });
+    
+    console.log(`  ✅ [INVENTORY DEDUCTION] Successfully queued deduction for: ${inventoryItem.name}`)
   } catch (error) {
-    console.error('Error deducting inventory quantity:', error);
+    console.error('  ❌ [INVENTORY DEDUCTION] Error deducting inventory quantity:', error);
     throw error;
   }
 };
@@ -495,6 +783,69 @@ export const handleMenuItemDeletion = async (
   } catch (error) {
     console.error('Error handling menu item deletion:', error);
     throw error;
+  }
+};
+
+/**
+ * Debug function to check inventory deduction setup
+ */
+export const debugInventoryDeductionSetup = async (tenantId: string): Promise<void> => {
+  try {
+    console.log('🔍 Debugging inventory deduction setup...');
+    
+    // Check POS items
+    const posItemsRef = collection(db, `tenants/${tenantId}/posItems`);
+    const posSnapshot = await getDocs(posItemsRef);
+    console.log(`📋 Found ${posSnapshot.docs.length} POS items`);
+    
+    // Check menu items
+    const menuItemsRef = collection(db, `tenants/${tenantId}/menuItems`);
+    const menuSnapshot = await getDocs(menuItemsRef);
+    console.log(`🍽️ Found ${menuSnapshot.docs.length} menu items`);
+    
+    // Check inventory items
+    const inventoryRef = collection(db, `tenants/${tenantId}/inventory`);
+    const inventorySnapshot = await getDocs(inventoryRef);
+    console.log(`📦 Found ${inventorySnapshot.docs.length} inventory items`);
+    
+    // Check linking between POS and menu items
+    let linkedCount = 0;
+    let unlinkedCount = 0;
+    
+    for (const posDoc of posSnapshot.docs) {
+      const posData = posDoc.data();
+      if (posData.menuItemId) {
+        linkedCount++;
+      } else {
+        unlinkedCount++;
+        console.log(`⚠️ Unlinked POS item: ${posData.name}`);
+      }
+    }
+    
+    console.log(`🔗 POS items linked to menu: ${linkedCount}/${posSnapshot.docs.length}`);
+    console.log(`❌ Unlinked POS items: ${unlinkedCount}`);
+    
+    // Check menu items with ingredients
+    let menuItemsWithIngredients = 0;
+    let menuItemsWithoutIngredients = 0;
+    
+    for (const menuDoc of menuSnapshot.docs) {
+      const menuData = menuDoc.data();
+      if (menuData.ingredients && menuData.ingredients.length > 0) {
+        menuItemsWithIngredients++;
+        console.log(`✅ Menu item "${menuData.name}" has ${menuData.ingredients.length} ingredients`);
+      } else {
+        menuItemsWithoutIngredients++;
+        console.log(`⚠️ Menu item "${menuData.name}" has no ingredients`);
+      }
+    }
+    
+    console.log(`🧾 Menu items with ingredients: ${menuItemsWithIngredients}/${menuSnapshot.docs.length}`);
+    console.log(`❌ Menu items without ingredients: ${menuItemsWithoutIngredients}`);
+    
+    console.log('🔍 Inventory deduction setup debug complete');
+  } catch (error) {
+    console.error('❌ Error debugging inventory deduction setup:', error);
   }
 };
 

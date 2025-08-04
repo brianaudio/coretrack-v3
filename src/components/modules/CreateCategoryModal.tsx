@@ -178,7 +178,7 @@ const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({
                   <span className="ml-2 text-sm text-surface-700">Category is active</span>
                 </label>
                 <p className="text-xs text-surface-500 mt-1">
-                  Inactive categories won't be shown in the menu
+                  Inactive categories won&apos;t be shown in the menu
                 </p>
               </div>
 

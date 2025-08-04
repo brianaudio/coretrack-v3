@@ -15,6 +15,7 @@ import {
   DocumentData 
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import { processInventoryDeduction } from './integration';
 
 export interface POSItem {
   id: string;
@@ -24,10 +25,18 @@ export interface POSItem {
   cost: number;
   description: string;
   image?: string;
+  emoji?: string; // Emoji for visual representation
   isAvailable: boolean;
   preparationTime: number; // in minutes
   tenantId: string;
   locationId?: string; // Added for branch-specific filtering
+  menuItemId?: string; // Link to original menu item
+  ingredients?: Array<{
+    inventoryItemId: string;
+    inventoryItemName: string;
+    quantity: number;
+    unit: string;
+  }>; // Added for ingredient-based inventory deduction
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -65,6 +74,7 @@ export interface CreatePOSItem {
   cost: number;
   description: string;
   image?: string;
+  emoji?: string; // Emoji for visual representation
   isAvailable: boolean;
   preparationTime: number;
   tenantId: string;
@@ -78,6 +88,12 @@ export interface CreatePOSOrder {
     price: number;
     quantity: number;
     total: number;
+    addons?: Array<{
+      id: string;
+      name: string;
+      price: number;
+      category: string;
+    }>;
   }[];
   subtotal: number;
   total: number;
@@ -119,6 +135,17 @@ export const getPOSItems = async (tenantId: string, locationId?: string): Promis
     }
     
     console.log(`📦 POS: Loaded ${items.length} items${locationId ? ` for location ${locationId}` : ''}`);
+    
+    // Debug: Log ingredient information for each item
+    items.forEach(item => {
+      if (item.ingredients && item.ingredients.length > 0) {
+        console.log(`🧾 POS Item "${item.name}" has ${item.ingredients.length} ingredients:`, 
+          item.ingredients.map(ing => `${ing.inventoryItemName} (${ing.quantity} ${ing.unit})`));
+      } else {
+        console.log(`⚠️ POS Item "${item.name}" has NO ingredients configured`);
+      }
+    });
+    
     return items;
   } catch (error) {
     console.error('❌ Error fetching POS items:', error);
@@ -218,23 +245,26 @@ const generateOrderNumber = (): string => {
 // Create new POS order
 export const createPOSOrder = async (order: CreatePOSOrder): Promise<string> => {
   try {
-    const ordersRef = getPOSOrdersCollection(order.tenantId);
-    const now = Timestamp.now();
+    const ordersCollection = getPOSOrdersCollection(order.tenantId);
     
-    const docRef = await addDoc(ordersRef, {
+    // Generate order number
+    const orderNumber = generateOrderNumber();
+    
+    // Create the order document
+    const docRef = await addDoc(ordersCollection, {
       ...order,
-      orderNumber: generateOrderNumber(),
-      // Use the status provided in the order, or default to 'pending' if not specified
-      status: order.status || 'pending' as const,
-      createdAt: now,
-      updatedAt: now
+      orderNumber,
+      status: order.status || 'completed',
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now()
     });
-    
-    // If order is completed, trigger business logic integrations
+
+    // If order is completed, trigger business logic (analytics, inventory, finance)
     if (order.status === 'completed') {
+      console.log('🎯 Order completed! Starting inventory deduction for:', order.items.map(i => i.name).join(', '))
       await handleCompletedOrder(order.tenantId, docRef.id, order);
     }
-    
+
     return docRef.id;
   } catch (error) {
     console.error('Error creating POS order:', error);
@@ -242,24 +272,40 @@ export const createPOSOrder = async (order: CreatePOSOrder): Promise<string> => 
   }
 };
 
-// Handle completed order business logic
+// Handle completed order business logic - processes analytics, inventory, and finance
 const handleCompletedOrder = async (tenantId: string, orderId: string, order: CreatePOSOrder) => {
   try {
+    console.log('🔄 Processing completed order:', orderId, 'with', order.items.length, 'items')
+    
     // 1. Update analytics (sales, revenue, popular items)
-    await updateSalesAnalytics(tenantId, order);
+    await updateSalesAnalytics(tenantId, order)
     
     // 2. Process inventory deductions
-    const { processInventoryDeduction } = require('./integration');
-    await processInventoryDeduction(tenantId, order.items);
+    console.log('📦 Starting inventory deduction...')
+    console.log('📦 Items to process:', order.items.map(item => `${item.name} (x${item.quantity})`).join(', '))
+    console.log('📦 Tenant ID:', tenantId)
+    console.log('📦 About to call processInventoryDeduction...')
+    
+    try {
+      console.log('🚨 CALLING INVENTORY DEDUCTION NOW! 🚨')
+      await processInventoryDeduction(tenantId, order.items)
+      console.log('✅ Inventory deduction completed successfully!')
+    } catch (error) {
+      console.log('❌ Inventory deduction failed:', error instanceof Error ? error.message : String(error))
+      console.log('❌ Full error object:', error)
+      console.log('❌ This error occurred in processInventoryDeduction function')
+    }
     
     // 3. Update financial records
-    await updateFinancialRecords(tenantId, orderId, order);
+    await updateFinancialRecords(tenantId, orderId, order)
     
   } catch (error) {
-    console.error('Error handling completed order business logic:', error);
-    // Don't throw here - order is already created, just log the issue
+    console.error('Error handling completed order business logic:', error)
+    // Don't throw error to prevent order creation failure
   }
-};
+}
+
+// Update sales analytics
 
 // Update sales analytics
 const updateSalesAnalytics = async (tenantId: string, order: CreatePOSOrder) => {
@@ -457,5 +503,115 @@ export const getPOSCategories = async (tenantId: string): Promise<string[]> => {
   } catch (error) {
     console.error('Error fetching POS categories:', error);
     throw new Error('Failed to fetch POS categories');
+  }
+};
+
+// Get today's sales analytics with fallback to real orders
+export const getTodaysSalesAnalytics = async (tenantId: string) => {
+  try {
+    console.log('🔍 Fetching analytics for tenant:', tenantId);
+    
+    // Try to get analytics from the dedicated analytics document first
+    const analyticsRef = doc(db, `tenants/${tenantId}/analytics`, 'sales');
+    const analyticsDoc = await getDoc(analyticsRef);
+    
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    let todayData = { 
+      sales: 0, 
+      orders: 0, 
+      items: {} as Record<string, { name: string; quantity: number; revenue: number }>
+    };
+    
+    if (analyticsDoc.exists()) {
+      const data = analyticsDoc.data();
+      const dailyData = data.daily?.[today] || { sales: 0, orders: 0, items: {} };
+      todayData = {
+        sales: dailyData.sales || 0,
+        orders: dailyData.orders || 0,
+        items: dailyData.items || {}
+      };
+      console.log('📊 Found analytics document:', todayData);
+    } else {
+      console.log('📝 No analytics document found, calculating from orders...');
+      
+      // Fallback: Calculate from actual orders for today
+      try {
+        const ordersRef = collection(db, `tenants/${tenantId}/orders`);
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date();
+        endOfDay.setHours(23, 59, 59, 999);
+        
+        const q = query(
+          ordersRef,
+          where('createdAt', '>=', Timestamp.fromDate(startOfDay)),
+          where('createdAt', '<=', Timestamp.fromDate(endOfDay)),
+          where('status', '==', 'completed')
+        );
+        
+        const querySnapshot = await getDocs(q);
+        console.log(`📈 Found ${querySnapshot.size} completed orders today`);
+        
+        querySnapshot.forEach((doc) => {
+          const order = doc.data();
+          const orderTotal = order.total || 0;
+          todayData.sales += orderTotal;
+          todayData.orders += 1;
+          
+          // Track popular items
+          if (order.items && Array.isArray(order.items)) {
+            order.items.forEach((item: any) => {
+              if (item.itemId) {
+                if (!todayData.items[item.itemId]) {
+                  todayData.items[item.itemId] = { 
+                    name: item.name || 'Unknown Item', 
+                    quantity: 0, 
+                    revenue: 0 
+                  };
+                }
+                todayData.items[item.itemId].quantity += item.quantity || 1;
+                todayData.items[item.itemId].revenue += item.total || item.price || 0;
+              }
+            });
+          }
+        });
+        
+        console.log('💰 Calculated totals:', { sales: todayData.sales, orders: todayData.orders });
+      } catch (orderError) {
+        console.error('❌ Error fetching orders for analytics:', orderError);
+      }
+    }
+    
+    // If still no data, return empty state instead of demo data
+    if (todayData.sales === 0 && todayData.orders === 0) {
+      console.log('📊 No sales data found, returning empty state...');
+      return {
+        todaysSales: 0,
+        todaysOrders: 0,
+        averageOrderValue: 0,
+        popularItems: []
+      };
+    }
+    
+    // Prepare popular items from real data
+    const popularItems = Object.values(todayData.items || {})
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 5);
+
+    return {
+      todaysSales: todayData.sales || 0,
+      todaysOrders: todayData.orders || 0,
+      averageOrderValue: todayData.orders > 0 ? todayData.sales / todayData.orders : 0,
+      popularItems
+    };
+  } catch (error) {
+    console.error('❌ Error fetching sales analytics:', error);
+    // Return empty state on error instead of demo data
+    return {
+      todaysSales: 0,
+      todaysOrders: 0,
+      averageOrderValue: 0,
+      popularItems: []
+    };
   }
 };

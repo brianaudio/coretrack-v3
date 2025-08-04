@@ -99,6 +99,17 @@ const menuItems = [
     )
   },
   {
+    id: 'business-reports' as ModuleType,
+    label: 'Business Reports',
+    icon: (
+      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"/>
+        <path d="M14 2v6h6"/>
+      </svg>
+    )
+  },
+  {
     id: 'settings' as ModuleType,
     label: 'Settings',
     icon: (
@@ -149,20 +160,20 @@ export default function Sidebar({
       {/* Sidebar */}
       <div className={`
         fixed lg:relative z-30 lg:z-0
-        h-full w-80 bg-white border-r border-surface-200
+        h-full w-64 bg-white border-r border-surface-200
         transform transition-all duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-        ${!isOpen ? 'lg:w-20' : 'lg:w-80'}
+        ${!isOpen ? 'lg:w-16' : 'lg:w-64'}
       `}>
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className={`flex items-center justify-between border-b border-surface-200 py-4 transition-all duration-300 ${isOpen ? 'px-6' : 'px-2'}`}>
+          <div className={`flex items-center justify-between border-b border-surface-200 py-3.5 transition-all duration-300 ${isOpen ? 'px-4' : 'px-2'}`}>
             <div className="flex items-center">
               <CoreTrackLogo size="md" />
               {(isOpen) && (
-                <div className="ml-3">
-                  <h1 className="text-xl font-bold text-surface-900">CoreTrack</h1>
-                  <p className="text-sm text-surface-600">Business Management</p>
+                <div className="ml-2.5">
+                  <h1 className="text-base font-bold text-surface-900">CoreTrack</h1>
+                  <p className="text-xs text-surface-600">Business Management</p>
                 </div>
               )}
             </div>
@@ -185,18 +196,10 @@ export default function Sidebar({
           </div>
 
           {/* Navigation */}
-          <nav className={`flex-1 py-6 space-y-2 transition-all duration-300 ${isOpen ? 'px-4' : 'px-2'}`}>
-            {/* Role indicator */}
-            {isOpen && (
-              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-xs font-medium text-blue-800 uppercase tracking-wide">Current Role</p>
-                <p className="text-sm font-semibold text-blue-900 capitalize">{currentRole}</p>
-              </div>
-            )}
-
+          <nav className={`flex-1 py-4 space-y-1.5 transition-all duration-300 ${isOpen ? 'px-2.5' : 'px-1.5'}`}>
             {/* Business Type indicator */}
             {isOpen && (
-              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="mb-3 p-2.5 bg-green-50 border border-green-200 rounded-lg">
                 <p className="text-xs font-medium text-green-800 uppercase tracking-wide">Business Mode</p>
                 <p className="text-sm font-semibold text-green-900 capitalize">
                   {settings.businessType === 'restaurant' && '🍽️ Restaurant'}
@@ -204,7 +207,7 @@ export default function Sidebar({
                   {settings.businessType === 'hybrid' && '🔄 Hybrid'}
                 </p>
                 {isRetail && (
-                  <p className="text-xs text-green-600 mt-1">
+                  <p className="text-xs text-green-600 mt-0.5">
                     Product-focused mode
                   </p>
                 )}

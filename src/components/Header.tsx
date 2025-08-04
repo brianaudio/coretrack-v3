@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { ModuleType } from './Dashboard'
 import { useAuth } from '../lib/context/AuthContext'
-import { useUser } from '../lib/rbac/UserContext'
+import { useShift } from '../lib/context/ShiftContext'
+import { useShiftReset } from '../lib/hooks/useShiftReset'
 import BranchSelector from './BranchSelector'
 import NotificationCenter from './NotificationCenter'
 
@@ -18,17 +19,43 @@ const moduleNames: Record<ModuleType, string> = {
   'inventory': 'Inventory Center',
   'pos': 'Point of Sale',
   'purchase-orders': 'Purchase Orders',
-  'expenses': 'Profit and Expenses',
-  'menu-builder': 'Product Builder',
+  'expenses': 'Expenses',
+  'menu-builder': 'Menu Builder',
   'team-management': 'Team Management',
   'location-management': 'Location Management',
+  'business-reports': 'Business Reports',
   'settings': 'Settings',
-  'discrepancy-monitoring': 'Inventory Discrepancy'
+  'discrepancy-monitoring': 'Discrepancy Monitoring'
 }
 
 export default function Header({ activeModule, onSidebarToggle, onLogout }: HeaderProps) {
-  const { profile, tenant, signOut } = useAuth()
-  const { currentUser, currentRole } = useUser()
+  const { profile, tenant, signOut, user } = useAuth()
+  const { isShiftActive, currentShift, loading } = useShift()
+  const { performReset, isResetting } = useShiftReset()
+
+  const [showEndConfirm, setShowEndConfirm] = useState(false)
+
+  // Get user info from AuthContext instead of UserContext
+  const currentRole = profile?.role || null
+  const currentUser = user && profile ? {
+    uid: user.uid,
+    email: user.email || profile.email || '',
+    role: profile.role
+  } : null
+
+  const handleEndShift = async () => {
+    try {
+      // Perform enterprise-grade shift end with automatic data reset
+      await performReset({
+        resetReason: 'shift_end',
+        shiftId: currentShift?.id,
+        shiftName: currentShift?.name
+      })
+      setShowEndConfirm(false)
+    } catch (error) {
+      console.error('Failed to end shift with reset:', error)
+    }
+  }
 
   const handleLogout = async () => {
     if (confirm('Are you sure you want to log out?')) {
@@ -47,90 +74,156 @@ export default function Header({ activeModule, onSidebarToggle, onLogout }: Head
   }
 
   return (
-    <header className="bg-white border-b border-surface-200 px-6 py-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={onSidebarToggle}
-            className="lg:hidden p-2 rounded-lg hover:bg-surface-100 transition-colors"
-          >
-            <svg className="w-6 h-6 text-surface-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          
-          <div>
-            <h1 className="text-xl font-semibold text-surface-900">
-              {moduleNames[activeModule]}
-            </h1>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-4">
-          {/* Real-time status indicator */}
-          <div className="flex items-center space-x-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-sm text-surface-600 hidden sm:block">Live</span>
-          </div>
-
-          {/* Enterprise Branch Selector */}
-          <BranchSelector />
-
-          {/* Notifications */}
-          {/* Notification Center */}
-          <NotificationCenter />
-
-          {/* Divider */}
-          <div className="h-6 w-px bg-surface-200 hidden sm:block"></div>
-
-          {/* Enterprise User Section */}
-          <div className="flex items-center space-x-3">
-            {/* User Info */}
-            <div className="hidden sm:block text-right">
-              <p className="text-sm font-medium text-surface-900">
-                {currentUser?.email?.split('@')[0] || profile?.displayName || 'User'}
-              </p>
-              <p className="text-xs text-surface-600 capitalize flex items-center justify-end">
-                <span className={`w-2 h-2 rounded-full mr-1 ${
-                  currentRole === 'owner' ? 'bg-purple-500' :
-                  currentRole === 'manager' ? 'bg-green-500' : 'bg-blue-500'
-                }`}></span>
-                {currentRole || profile?.role}
-              </p>
-            </div>
-
-            {/* User Avatar */}
-            <div className="w-8 h-8 bg-surface-100 rounded-full flex items-center justify-center border border-surface-200">
-              <svg className="w-5 h-5 text-surface-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            </div>
-
-            {/* Sign Out Button */}
-            <button 
-              onClick={handleLogout}
-              className="hidden sm:flex items-center space-x-1 text-surface-600 hover:text-red-600 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors text-sm font-medium"
-              title="Sign Out"
+    <header className="bg-white border-b border-surface-200 shadow-sm">
+      <div className="px-6 py-3">
+        <div className="flex items-center justify-between">
+          {/* Left Section - Mobile Menu + Module Title */}
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={onSidebarToggle}
+              className="lg:hidden p-2 rounded-lg hover:bg-surface-100 transition-colors"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-              <span>Sign Out</span>
-            </button>
-
-            {/* Mobile Sign Out */}
-            <button 
-              onClick={handleLogout}
-              className="sm:hidden p-2 rounded-lg hover:bg-red-50 text-surface-600 hover:text-red-600 transition-colors"
-              title="Sign Out"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              <svg className="w-6 h-6 text-surface-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
+            
+            <div className="flex items-center space-x-3">
+              <h1 className="text-xl font-semibold text-surface-900">
+                {moduleNames[activeModule]}
+              </h1>
+            </div>
+          </div>
+
+          {/* Right Section - Enterprise Controls */}
+          <div className="flex items-center space-x-4">
+            {/* Branch Selector */}
+            <BranchSelector />
+
+            {/* Notification Center */}
+            <NotificationCenter />
+
+            {/* User Profile Section */}
+            <div className="flex items-center space-x-3 pl-4 border-l border-surface-200">
+              {/* User Info */}
+              <div className="hidden sm:block text-right">
+                <div className="flex items-center justify-end space-x-2">
+                  <span className="text-sm font-medium text-surface-900">
+                    {profile?.displayName || currentUser?.email?.split('@')[0] || profile?.email?.split('@')[0] || 'User'}
+                  </span>
+                  <div className="flex items-center space-x-1">
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      currentRole === 'owner' ? 'bg-purple-500' :
+                      currentRole === 'manager' ? 'bg-green-500' : 'bg-blue-500'
+                    }`}></span>
+                    <span className="text-xs text-surface-500 capitalize font-medium">
+                      {currentRole || 'staff'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center space-x-2">
+                {/* End Shift Button (when shift is active) */}
+                {isShiftActive && (
+                  <button
+                    onClick={() => setShowEndConfirm(true)}
+                    disabled={loading || isResetting}
+                    className="bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10l6 6m0-6l-6 6" />
+                    </svg>
+                    <span className="hidden md:inline">
+                      {loading || isResetting ? 'Ending...' : 'End Shift'}
+                    </span>
+                  </button>
+                )}
+
+                {/* Sign Out Button */}
+                <button 
+                  onClick={handleLogout}
+                  className="text-surface-500 hover:text-red-600 hover:bg-red-50 p-3 rounded-lg transition-colors"
+                  title="Sign Out"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* End Shift Confirmation Modal */}
+      {showEndConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">End Shift & Reset Data?</h3>
+              <button
+                onClick={() => setShowEndConfirm(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-gray-600 mb-4">
+                This will end the current shift and automatically:
+              </p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
+                <div className="flex items-center gap-2 text-sm text-blue-800">
+                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Archive all shift data (orders, expenses, transactions)
+                </div>
+                <div className="flex items-center gap-2 text-sm text-blue-800">
+                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Reset operational data for the next shift
+                </div>
+                <div className="flex items-center gap-2 text-sm text-blue-800">
+                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Update inventory levels based on sales
+                </div>
+                <div className="flex items-center gap-2 text-sm text-blue-800">
+                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Generate complete audit trail
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowEndConfirm(false)}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEndShift}
+                disabled={loading || isResetting}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-300"
+              >
+                {loading || isResetting ? 'Ending & Resetting...' : 'End Shift & Reset'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   )
 }

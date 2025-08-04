@@ -178,7 +178,7 @@ export default function NotificationCenter() {
                   </svg>
                 </div>
                 <p className="text-sm font-medium text-surface-900 mb-1">No notifications</p>
-                <p className="text-xs text-surface-500">You're all caught up!</p>
+                <p className="text-xs text-surface-500">You&apos;re all caught up!</p>
               </div>
             ) : (
               <div className="divide-y divide-surface-100">

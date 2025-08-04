@@ -14,6 +14,7 @@ import {
   DocumentData 
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import { syncMenuItemToPOS } from './integration';
 
 export interface MenuIngredient {
   inventoryItemId: string;
@@ -35,11 +36,22 @@ export interface MenuItem {
   calories?: number;
   allergens: string[];
   image?: string;
+  emoji?: string; // Emoji for visual representation
   status: 'active' | 'inactive' | 'out_of_stock';
   isPopular: boolean;
   displayOrder: number;
   tenantId: string;
   locationId?: string; // Added for branch-specific menu items
+  
+  // 🎯 Add-on Enhancement Fields
+  isAddonOnly?: boolean; // Mark as add-on only item
+  addonType?: 'size' | 'extra' | 'modification' | 'special'; // Add-on category
+  applicableItems?: string[]; // Menu item IDs this add-on applies to
+  isRequired?: boolean; // Required add-on selection
+  maxQuantity?: number; // Maximum quantity per order
+  priceType?: 'fixed' | 'percentage'; // Fixed price or percentage of base item
+  percentageValue?: number; // If priceType is percentage
+  
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -77,10 +89,18 @@ export interface CreateMenuItem {
   calories?: number;
   allergens: string[];
   image?: string;
+  emoji?: string; // Emoji for visual representation
   isPopular?: boolean;
   displayOrder?: number;
   tenantId: string;
   locationId?: string; // Added for branch-specific menu items
+  // 🎯 Add-on specific fields
+  isAddonOnly?: boolean;
+  addonType?: 'ingredient' | 'size' | 'modification' | 'special';
+  applicableItems?: string[];
+  isRequired?: boolean;
+  maxQuantity?: number;
+  priceType?: 'fixed' | 'percentage';
 }
 
 export interface CreateMenuCategory {
@@ -129,9 +149,20 @@ export const getMenuItems = async (tenantId: string, locationId?: string): Promi
       ...doc.data()
     })) as MenuItem[];
     
+    // Debug: Log all items before filtering
+    console.log(`📋 ALL menu items from Firebase (no location filter): ${items.length}`);
+    console.log('🔍 ALL items details:', items.map(item => ({
+      id: item.id,
+      name: item.name,
+      locationId: item.locationId,
+      category: item.category
+    })));
+    
     // Filter client-side by locationId if specified
     if (locationId) {
+      console.log(`🎯 Filtering for locationId: ${locationId}`);
       items = items.filter(item => item.locationId === locationId);
+      console.log(`📋 After filtering: ${items.length} items match location ${locationId}`);
     }
     
     // Sort in memory by displayOrder, then by name
@@ -179,46 +210,157 @@ export const subscribeToMenuItems = (
 
 export const addMenuItem = async (item: CreateMenuItem): Promise<string> => {
   try {
+    console.log('🔧 addMenuItem: Starting with data:', {
+      name: item.name,
+      category: item.category,
+      price: item.price,
+      tenantId: item.tenantId,
+      locationId: item.locationId,
+      ingredientsCount: item.ingredients?.length || 0
+    });
+    
     const itemsRef = getMenuItemsCollection(item.tenantId);
     const now = Timestamp.now();
     
+    console.log('🔧 addMenuItem: Calculating cost...');
     const cost = calculateMenuItemCost(item.ingredients);
+    const profitAmount = item.price - cost;
+    const profitMargin = item.price > 0 ? (profitAmount / item.price) * 100 : 0;
     
-    const docRef = await addDoc(itemsRef, {
-      ...item,
+    console.log('🔧 addMenuItem: Cost calculations:', {
       cost,
+      profitAmount,
+      profitMargin: `${profitMargin.toFixed(1)}%`
+    });
+    
+    // Create base document data with required fields
+    const baseDocData = {
+      name: item.name,
+      description: item.description,
+      category: item.category,
+      price: item.price,
+      ingredients: item.ingredients,
+      preparationTime: item.preparationTime,
+      allergens: item.allergens,
+      tenantId: item.tenantId,
+      cost,
+      profitAmount,
+      profitMargin,
       status: 'active' as const,
       isPopular: item.isPopular || false,
       displayOrder: item.displayOrder || 999,
       createdAt: now,
       updatedAt: now
+    };
+
+    // Add optional fields only if they're defined to avoid Firestore undefined values
+    const docData: any = { ...baseDocData };
+    if (item.calories !== undefined) docData.calories = item.calories;
+    if (item.image !== undefined) docData.image = item.image;
+    if (item.emoji !== undefined) docData.emoji = item.emoji;
+    if (item.locationId !== undefined) docData.locationId = item.locationId;
+    if (item.isAddonOnly !== undefined) docData.isAddonOnly = item.isAddonOnly;
+    if (item.addonType !== undefined) docData.addonType = item.addonType;
+    if (item.applicableItems !== undefined) docData.applicableItems = item.applicableItems;
+    if (item.isRequired !== undefined) docData.isRequired = item.isRequired;
+    if (item.maxQuantity !== undefined) docData.maxQuantity = item.maxQuantity;
+    if (item.priceType !== undefined) docData.priceType = item.priceType;
+    
+    console.log('🔧 addMenuItem: Prepared document data:', {
+      hasName: !!docData.name,
+      hasCategory: !!docData.category,
+      hasPrice: !!docData.price,
+      hasTenantId: !!docData.tenantId,
+      hasLocationId: !!docData.locationId,
+      status: docData.status,
+      optionalFieldsIncluded: Object.keys(docData).filter(key => 
+        ['calories', 'image', 'emoji', 'locationId', 'isAddonOnly', 'addonType', 'applicableItems', 'isRequired', 'maxQuantity', 'priceType']
+        .includes(key)
+      )
     });
+    
+    console.log('🔧 addMenuItem: Calling Firebase addDoc...');
+    const docRef = await addDoc(itemsRef, docData);
+    
+    console.log('🔧 addMenuItem: Firebase addDoc successful, ID:', docRef.id);
+    
+    // 🔥 CRITICAL FIX: Sync menu item to POS with ingredients
+    try {
+      const menuItem = { id: docRef.id, ...docData } as MenuItem;
+      console.log('🔄 Syncing menu item to POS with ingredients...');
+      await syncMenuItemToPOS(menuItem);
+      console.log('✅ Menu item synced to POS successfully!');
+    } catch (syncError) {
+      console.error('❌ Failed to sync menu item to POS:', syncError);
+      // Don't throw - menu item was created successfully
+    }
     
     return docRef.id;
   } catch (error) {
-    console.error('Error adding menu item:', error);
-    throw new Error('Failed to add menu item');
+    console.error('❌ addMenuItem: Firebase error:', error);
+    console.error('❌ addMenuItem: Error details:', {
+      message: error instanceof Error ? error.message : String(error),
+      code: (error as any)?.code,
+      customData: (error as any)?.customData
+    });
+    throw new Error(`Failed to add menu item: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 };
 
 export const updateMenuItem = async (
   tenantId: string,
   itemId: string,
-  updates: Partial<Omit<MenuItem, 'id' | 'tenantId' | 'createdAt'>>
+  updates: Partial<Omit<MenuItem, 'id' | 'tenantId' | 'createdAt'>> & { profitAmount?: number; profitMargin?: number }
 ): Promise<void> => {
   try {
     const itemRef = doc(db, `tenants/${tenantId}/menuItems`, itemId);
     const now = Timestamp.now();
     
-    // Recalculate cost if ingredients were updated
+    // Recalculate cost and profit metrics if ingredients or price were updated
     if (updates.ingredients) {
       updates.cost = calculateMenuItemCost(updates.ingredients);
     }
     
-    await updateDoc(itemRef, {
-      ...updates,
+    // Recalculate profit metrics if cost or price changed
+    if (updates.cost !== undefined || updates.price !== undefined) {
+      // Get current item to get the price if not being updated
+      const currentItemDoc = await getDoc(itemRef);
+      const currentItem = currentItemDoc.data();
+      
+      const finalPrice = updates.price !== undefined ? updates.price : (currentItem?.price || 0);
+      const finalCost = updates.cost !== undefined ? updates.cost : (currentItem?.cost || 0);
+      
+      updates.profitAmount = finalPrice - finalCost;
+      updates.profitMargin = finalPrice > 0 ? (updates.profitAmount / finalPrice) * 100 : 0;
+    }
+    
+    // Create update data, filtering out undefined values
+    const updateData: any = {
       updatedAt: now
+    };
+    
+    // Add defined fields only
+    (Object.keys(updates) as Array<keyof typeof updates>).forEach(key => {
+      if (updates[key] !== undefined) {
+        updateData[key] = updates[key];
+      }
     });
+    
+    await updateDoc(itemRef, updateData);
+    
+    // 🔥 CRITICAL FIX: Sync updated menu item to POS with ingredients
+    try {
+      const updatedItemDoc = await getDoc(itemRef);
+      if (updatedItemDoc.exists()) {
+        const menuItem = { id: itemId, ...updatedItemDoc.data() } as MenuItem;
+        console.log('🔄 Syncing updated menu item to POS with ingredients...');
+        await syncMenuItemToPOS(menuItem);
+        console.log('✅ Updated menu item synced to POS successfully!');
+      }
+    } catch (syncError) {
+      console.error('❌ Failed to sync updated menu item to POS:', syncError);
+      // Don't throw - menu item was updated successfully
+    }
   } catch (error) {
     console.error('Error updating menu item:', error);
     throw new Error('Failed to update menu item');
@@ -289,8 +431,6 @@ export const addMenuCategory = async (category: CreateMenuCategory): Promise<str
     
     const docRef = await addDoc(categoriesRef, {
       ...category,
-      displayOrder: category.displayOrder || 999,
-      isActive: true,
       createdAt: now,
       updatedAt: now
     });
@@ -299,6 +439,36 @@ export const addMenuCategory = async (category: CreateMenuCategory): Promise<str
   } catch (error) {
     console.error('Error adding menu category:', error);
     throw new Error('Failed to add menu category');
+  }
+};
+
+// 🎯 Initialize Default Add-on Categories
+export const initializeDefaultAddonCategories = async (tenantId: string): Promise<void> => {
+  try {
+    const existingCategories = await getMenuCategories(tenantId);
+    
+    const defaultAddOnCategories = [
+      { name: '📏 Size Options', description: 'Size modifications for menu items (Small, Medium, Large)' },
+      { name: '➕ Extra Ingredients', description: 'Additional ingredients and toppings' },
+      { name: '🔧 Modifications', description: 'Menu item modifications and customizations' },
+      { name: '⭐ Special Requests', description: 'Special requests and premium options' }
+    ];
+
+    let displayOrder = Math.max(...existingCategories.map(cat => cat.displayOrder), 0) + 1;
+
+    for (const defaultCat of defaultAddOnCategories) {
+      const exists = existingCategories.find(cat => cat.name === defaultCat.name);
+      if (!exists) {
+        await addMenuCategory({
+          name: defaultCat.name,
+          description: defaultCat.description,
+          displayOrder: displayOrder++,
+          tenantId
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error initializing default add-on categories:', error);
   }
 };
 

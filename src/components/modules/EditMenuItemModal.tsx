@@ -372,7 +372,7 @@ const EditMenuItemModal: React.FC<EditMenuItemModalProps> = ({
                     })}
                     {selectedIngredients.length === 0 && (
                       <p className="text-sm text-surface-500 text-center py-4">
-                        No ingredients added yet. Click "Add Ingredient" to start.
+                        No ingredients added yet. Click &ldquo;Add Ingredient&rdquo; to start.
                       </p>
                     )}
                   </div>

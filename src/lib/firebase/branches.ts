@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { Branch } from '../context/BranchContext'
+import { Location } from '../types/location'
 
 /**
  * Create a default branch for a new tenant
@@ -79,6 +80,62 @@ export async function hasBranches(tenantId: string): Promise<boolean> {
   } catch (error) {
     console.error('Error checking branches:', error)
     return false
+  }
+}
+
+/**
+ * Delete a branch by location ID (for location management integration)
+ */
+export async function deleteBranchByLocationId(tenantId: string, locationId: string): Promise<void> {
+  try {
+    const branchId = locationId.replace('location_', '') || locationId;
+    const branchRef = doc(db, `tenants/${tenantId}/branches`, branchId);
+    await setDoc(branchRef, { deleted: true }, { merge: true });
+    console.log('🏢 Branch marked as deleted:', branchId);
+  } catch (error) {
+    console.error('Error deleting branch:', error);
+    // Don't throw error to avoid blocking location deletion
+  }
+}
+
+/**
+ * Create a branch from a location (for location management integration)
+ */
+export async function createBranchFromLocation(location: Location): Promise<Branch> {
+  const branchData: Omit<Branch, 'id'> = {
+    name: location.name,
+    address: `${location.address.street}, ${location.address.city}, ${location.address.state} ${location.address.zipCode}`,
+    phone: location.contact.phone || 'Not provided',
+    manager: location.contact.manager || 'Not assigned',
+    status: location.status === 'active' ? 'active' : 'inactive',
+    isMain: location.type === 'main',
+    icon: location.type === 'main' ? '🏢' : location.type === 'warehouse' ? '🏭' : location.type === 'kiosk' ? '🛒' : '🏪',
+    stats: {
+      totalRevenue: 0,
+      totalOrders: 0,
+      inventoryValue: 0,
+      lowStockItems: 0
+    }
+  }
+
+  try {
+    // Create branch document in Firestore with a specific ID that matches the location
+    const branchId = location.id.replace('location_', '') || location.id
+    const branchRef = doc(db, `tenants/${location.tenantId}/branches`, branchId)
+    
+    await setDoc(branchRef, {
+      ...branchData,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now()
+    })
+
+    return {
+      id: branchId,
+      ...branchData
+    }
+  } catch (error) {
+    console.error('Error creating branch from location:', error)
+    throw new Error('Failed to create branch from location')
   }
 }
 

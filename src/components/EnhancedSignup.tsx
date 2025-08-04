@@ -305,7 +305,7 @@ export default function EnhancedSignup({ onLogin, onBackToLanding, initialMode =
     <div className="space-y-6">
       <div className="text-center mb-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Personal Information</h2>
-        <p className="text-gray-600">Let's start with your basic information</p>
+        <p className="text-gray-600">Let&apos;s start with your basic information</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -785,7 +785,7 @@ export default function EnhancedSignup({ onLogin, onBackToLanding, initialMode =
                 onClick={() => setMode('signup')}
                 className="text-primary-600 hover:text-primary-700 text-sm"
               >
-                Don't have an account? Sign up
+                Don&apos;t have an account? Sign up
               </button>
             </div>
           </div>

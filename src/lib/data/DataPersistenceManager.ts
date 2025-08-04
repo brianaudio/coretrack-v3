@@ -75,9 +75,9 @@ export class DataPersistenceManager {
 
   // Initialize default data if none exists
   initializeDefaultData(): void {
-    // Default menu items
+    // Default menu items - start with empty array
     if (!this.getItem('menu_items')) {
-      this.setItem('menu_items', this.getDefaultMenuItems());
+      this.setItem('menu_items', []);
     }
 
     // Default inventory items
@@ -89,88 +89,6 @@ export class DataPersistenceManager {
     if (!this.getItem('pos_settings')) {
       this.setItem('pos_settings', this.getDefaultPOSSettings());
     }
-  }
-
-  private getDefaultMenuItems() {
-    return [
-      {
-        id: '1',
-        name: 'Beef Burger',
-        category: 'Burgers',
-        price: 299,
-        cost: 150,
-        description: 'Juicy beef patty with fresh vegetables',
-        isAvailable: true,
-        image: null,
-        ingredients: [
-          { name: 'Beef Patty', quantity: 1, unit: 'piece', cost: 80 },
-          { name: 'Burger Bun', quantity: 1, unit: 'piece', cost: 15 },
-          { name: 'Cheese', quantity: 1, unit: 'slice', cost: 20 },
-          { name: 'Lettuce', quantity: 2, unit: 'leaves', cost: 5 },
-          { name: 'Tomato', quantity: 2, unit: 'slices', cost: 10 }
-        ]
-      },
-      {
-        id: '2',
-        name: 'Chicken Sandwich',
-        category: 'Sandwiches',
-        price: 249,
-        cost: 120,
-        description: 'Grilled chicken breast with herbs',
-        isAvailable: true,
-        image: null,
-        ingredients: [
-          { name: 'Chicken Breast', quantity: 150, unit: 'grams', cost: 75 },
-          { name: 'Bread', quantity: 2, unit: 'slices', cost: 20 },
-          { name: 'Mayo', quantity: 1, unit: 'tbsp', cost: 5 },
-          { name: 'Lettuce', quantity: 2, unit: 'leaves', cost: 5 }
-        ]
-      },
-      {
-        id: '3',
-        name: 'Fish Fillet',
-        category: 'Seafood',
-        price: 349,
-        cost: 180,
-        description: 'Fresh fish fillet with lemon',
-        isAvailable: true,
-        image: null,
-        ingredients: [
-          { name: 'Fish Fillet', quantity: 200, unit: 'grams', cost: 150 },
-          { name: 'Rice', quantity: 150, unit: 'grams', cost: 15 },
-          { name: 'Vegetables', quantity: 100, unit: 'grams', cost: 15 }
-        ]
-      },
-      {
-        id: '4',
-        name: 'Vegetable Salad',
-        category: 'Salads',
-        price: 199,
-        cost: 80,
-        description: 'Fresh mixed vegetables with dressing',
-        isAvailable: true,
-        image: null,
-        ingredients: [
-          { name: 'Mixed Greens', quantity: 150, unit: 'grams', cost: 40 },
-          { name: 'Tomatoes', quantity: 50, unit: 'grams', cost: 15 },
-          { name: 'Cucumber', quantity: 50, unit: 'grams', cost: 10 },
-          { name: 'Dressing', quantity: 30, unit: 'ml', cost: 15 }
-        ]
-      },
-      {
-        id: '5',
-        name: 'Soft Drink',
-        category: 'Beverages',
-        price: 89,
-        cost: 25,
-        description: 'Refreshing cold beverage',
-        isAvailable: true,
-        image: null,
-        ingredients: [
-          { name: 'Soft Drink', quantity: 350, unit: 'ml', cost: 25 }
-        ]
-      }
-    ];
   }
 
   private getDefaultInventoryItems() {

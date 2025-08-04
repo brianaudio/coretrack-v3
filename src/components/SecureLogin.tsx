@@ -243,7 +243,7 @@ const SecureLogin: React.FC<SecureLoginProps> = ({ onLoginSuccess }) => {
                     name="email"
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder={attemptedRole ? mockAuthentication[attemptedRole].email : 'Enter your email'}
+                    placeholder={attemptedRole && mockAuthentication[attemptedRole] ? mockAuthentication[attemptedRole].email : 'Enter your email'}
                   />
                 </div>
 
@@ -284,8 +284,8 @@ const SecureLogin: React.FC<SecureLoginProps> = ({ onLoginSuccess }) => {
                   <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
                     <p className="text-xs text-yellow-800 font-medium">🔧 Dev Mode Credentials:</p>
                     <p className="text-xs text-yellow-700 font-mono">
-                      Email: {mockAuthentication[attemptedRole].email}<br/>
-                      Password: {mockAuthentication[attemptedRole].password}
+                      Email: {attemptedRole && mockAuthentication[attemptedRole] ? mockAuthentication[attemptedRole].email : 'N/A'}<br/>
+                      Password: {attemptedRole && mockAuthentication[attemptedRole] ? mockAuthentication[attemptedRole].password : 'N/A'}
                     </p>
                   </div>
                 )}

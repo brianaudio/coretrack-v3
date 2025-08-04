@@ -159,7 +159,10 @@ export default function BranchSelector() {
 
           {/* Footer */}
           <div className="px-4 py-3 bg-surface-50 border-t border-surface-200">
-            <button className="text-xs text-primary-600 hover:text-primary-700 font-medium">
+            <button 
+              onClick={() => alert('Add New Branch functionality coming soon!')}
+              className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+            >
               + Add New Branch
             </button>
           </div>

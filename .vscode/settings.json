@@ -6,29 +6,102 @@
     "**/dist": true,
     "**/build": true,
     "**/.DS_Store": true,
-    "**/coverage": true
+    "**/coverage": true,
+    "**/.cache": true,
+    "**/.turbo": true,
+    "**/tmp": true,
+    "**/temp": true
   },
-  "typescript.preferences.includePackageJsonAutoImports": "off",
-  "typescript.suggest.autoImports": false,
-  "javascript.suggest.autoImports": false,
-  "typescript.disableAutomaticTypeAcquisition": true,
-  "extensions.autoUpdate": false,
-  "git.enabled": false,
-  "editor.minimap.enabled": false,
-  "editor.codeLens": false,
-  "editor.hover.enabled": false,
-  "editor.quickSuggestions": {
-    "comments": "off",
-    "strings": "off",
-    "other": "off"
-  },
-  "editor.parameterHints.enabled": false,
-  "workbench.startupEditor": "none",
-  "eslint.enable": false,
-  "breadcrumbs.enabled": false,
   "files.watcherExclude": {
     "**/.git/**": true,
     "**/node_modules/**": true,
-    "**/.next/**": true
-  }
+    "**/.next/**": true,
+    "**/dist/**": true,
+    "**/build/**": true,
+    "**/.cache/**": true,
+    "**/.turbo/**": true,
+    "**/coverage/**": true,
+    "**/tmp/**": true,
+    "**/temp/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.next": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/.cache": true,
+    "**/coverage": true
+  },
+  
+  // TypeScript Performance
+  "typescript.preferences.includePackageJsonAutoImports": "off",
+  "typescript.suggest.autoImports": false,
+  "typescript.disableAutomaticTypeAcquisition": true,
+  "typescript.updateImportsOnFileMove.enabled": "never",
+  "typescript.validate.enable": true,
+  "typescript.format.enable": false,
+  "typescript.check.npmIsInstalled": false,
+  "typescript.workspaceSymbols.scope": "currentProject",
+  
+  // JavaScript Performance  
+  "javascript.suggest.autoImports": false,
+  "javascript.format.enable": false,
+  "javascript.updateImportsOnFileMove.enabled": "never",
+  
+  // Editor Performance
+  "editor.minimap.enabled": false,
+  "editor.codeLens": false,
+  "editor.hover.enabled": false,
+  "editor.hover.delay": 2000,
+  "editor.quickSuggestions": {
+    "comments": "off",
+    "strings": "off", 
+    "other": "off"
+  },
+  "editor.parameterHints.enabled": false,
+  "editor.lightbulb.enabled": "off",
+  "editor.formatOnSave": false,
+  "editor.formatOnPaste": false,
+  "editor.formatOnType": false,
+  "editor.semanticHighlighting.enabled": false,
+  "editor.occurrencesHighlight": "off",
+  "editor.selectionHighlight": false,
+  "editor.wordHighlighting": false,
+  
+  // Workbench Performance
+  "workbench.startupEditor": "none",
+  "workbench.editor.enablePreview": false,
+  "workbench.editor.enablePreviewFromQuickOpen": false,
+  "workbench.editor.limit.enabled": true,
+  "workbench.editor.limit.value": 3,
+  "workbench.editor.limit.perEditorGroup": true,
+  "workbench.settings.enableNaturalLanguageSearch": false,
+  "workbench.iconTheme": null,
+  
+  // Extensions Performance
+  "extensions.autoUpdate": false,
+  "extensions.autoCheckUpdates": false,
+  "eslint.enable": false,
+  "emmet.showExpandedAbbreviation": "never",
+  "emmet.showSuggestionsAsSnippets": false,
+  
+  // Git Performance 
+  "git.enabled": false,
+  "git.autorefresh": false,
+  "git.decorations.enabled": false,
+  
+  // UI Performance
+  "breadcrumbs.enabled": false,
+  "outline.showVariables": false,
+  "outline.showFunctions": false,
+  "problems.decorations.enabled": false,
+  "scm.diffDecorations": "none",
+  
+  // Terminal Performance
+  "terminal.integrated.persistentSessionReviveProcess": "never",
+  "terminal.integrated.enablePersistentSessions": false,
+  
+  // Privacy & Telemetry
+  "telemetry.telemetryLevel": "off",
+  "workbench.enableExperiments": false
 }

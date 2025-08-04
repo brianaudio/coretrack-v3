@@ -27,11 +27,11 @@ const WelcomeStep = ({ userProfile, onNext }: any) => (
         Welcome to CoreTrack, {userProfile?.firstName}!
       </h2>
       <p className="text-gray-600">
-        We're excited to help you transform your business operations. Let's get you set up for success.
+        We&apos;re excited to help you transform your business operations. Let&apos;s get you set up for success.
       </p>
     </div>
     <div className="bg-blue-50 rounded-lg p-4">
-      <h3 className="font-semibold text-blue-900 mb-2">What's Next?</h3>
+      <h3 className="font-semibold text-blue-900 mb-2">What&apos;s Next?</h3>
       <ul className="text-sm text-blue-700 space-y-1">
         <li>• Quick tour of your dashboard</li>
         <li>• Set up your first products/menu items</li>
@@ -43,7 +43,7 @@ const WelcomeStep = ({ userProfile, onNext }: any) => (
       onClick={onNext}
       className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
     >
-      Let's Get Started <ArrowRight className="w-4 h-4" />
+      Let&apos;s Get Started <ArrowRight className="w-4 h-4" />
     </button>
   </div>
 )
@@ -173,7 +173,7 @@ const QuickSetupStep = ({ userProfile, onNext, onPrev }: any) => {
         </div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Quick Setup</h2>
         <p className="text-gray-600">
-          Choose what you'd like to set up first. You can always do this later.
+          Choose what you&apos;d like to set up first. You can always do this later.
         </p>
       </div>
 
@@ -241,13 +241,13 @@ const CompletionStep = ({ onComplete }: any) => (
       <Check className="w-10 h-10 text-green-600" />
     </div>
     <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-2">You're All Set!</h2>
+      <h2 className="text-2xl font-bold text-gray-900 mb-2">You&apos;re All Set!</h2>
       <p className="text-gray-600">
         Welcome to CoreTrack! Your business management system is ready to use.
       </p>
     </div>
     <div className="bg-green-50 rounded-lg p-4">
-      <h3 className="font-semibold text-green-900 mb-2">What's Available Now:</h3>
+      <h3 className="font-semibold text-green-900 mb-2">What&apos;s Available Now:</h3>
       <ul className="text-sm text-green-700 space-y-1">
         <li>• Complete dashboard with real-time data</li>
         <li>• Inventory management system</li>

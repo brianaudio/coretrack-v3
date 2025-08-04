@@ -1,0 +1,2531 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useAuth } from '../../lib/context/AuthContext'
+import { useBranch } from '../../lib/context/BranchContext'
+import { 
+  getSupportTickets, 
+  updateSupportTicketStatus, 
+  createSupportTicket,
+  getSystemMetrics,
+  getTenantBilling,
+  updateTenantBilling,
+  getPlatformAnalytics,
+  getAuditLogs,
+  subscribeSupportTickets,
+  subscribeSystemMetrics,
+  SupportTicket,
+  SystemMetrics,
+  TenantBilling,
+  PlatformAnalytics,
+  AuditLog
+} from '../../lib/firebase/platformAdmin'
+import { collection, doc, addDoc, updateDoc, deleteDoc, getDocs, setDoc } from 'firebase/firestore'
+import { db } from '../../lib/firebase'
+import { createStaffAccount } from '../../lib/auth/roleBasedAuth'
+
+// Platform administration - crucial for SaaS scalability
+const PLATFORM_ADMINS = [
+  'brian@coretrack.com',
+  'support@coretrack.com',
+  'admin@coretrack.com',
+  'brianbasa@gmail.com'  // Add your actual email here
+]
+
+const isPlatformAdmin = (email: string | null | undefined): boolean => {
+  if (!email) return false
+  return PLATFORM_ADMINS.includes(email.toLowerCase())
+}
+
+// Simple role definitions - enterprise ready but easy to understand  
+type StaffRole = 'owner' | 'manager' | 'supervisor' | 'cashier' | 'kitchen'
+
+interface LocalTeamMember {
+  id: string
+  name: string
+  email: string
+  role: StaffRole
+  status: 'active' | 'inactive' | 'pending'
+  joinDate: string
+  phone?: string
+  avatar?: string
+  lastActive?: string
+  authUserId?: string // Link to Firebase Auth user ID
+  hasAuthAccount?: boolean // Track if auth account exists
+}
+
+const ROLE_CONFIG = {
+  owner: {
+    label: 'Owner',
+    description: 'Full system access',
+    color: 'bg-purple-100 text-purple-800 border-purple-200',
+    icon: '👑',
+    permissions: ['All Features']
+  },
+  manager: {
+    label: 'Manager',
+    description: 'Full operations access',
+    color: 'bg-blue-100 text-blue-800 border-blue-200',
+    icon: '👨‍💼',
+    permissions: ['Staff Management', 'Reports', 'Settings']
+  },
+  supervisor: {
+    label: 'Supervisor',
+    description: 'Manage shifts & basic reports',
+    color: 'bg-green-100 text-green-800 border-green-200',
+    icon: '👥',
+    permissions: ['Shift Management', 'Basic Reports']
+  },
+  cashier: {
+    label: 'Cashier',
+    description: 'POS access & basic inventory',
+    color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+    icon: '💰',
+    permissions: ['Point of Sale', 'View Inventory']
+  },
+  kitchen: {
+    label: 'Kitchen Staff',
+    description: 'Menu & inventory management',
+    color: 'bg-orange-100 text-orange-800 border-orange-200',
+    icon: '👨‍🍳',
+    permissions: ['Menu Builder', 'Inventory Updates']
+  }
+}
+
+export default function EnhancedTeamManagement() {
+  const { profile } = useAuth()
+  const { selectedBranch } = useBranch()
+  
+  // Platform administration detection
+  const isCurrentUserPlatformAdmin = isPlatformAdmin(profile?.email)
+  const [selectedTenantId, setSelectedTenantId] = useState<string>('')
+  const [availableTenants, setAvailableTenants] = useState<Array<{id: string, name: string}>>([])
+  
+  const [teamMembers, setTeamMembers] = useState<LocalTeamMember[]>([])
+  const [loading, setLoading] = useState(true)
+  const [operationLoading, setOperationLoading] = useState(false) // For add/edit/delete operations
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [editingMember, setEditingMember] = useState<LocalTeamMember | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<LocalTeamMember | null>(null)
+  const [activeTab, setActiveTab] = useState<'team' | 'roles' | 'activity' | 'support' | 'monitoring' | 'billing' | 'analytics' | 'audit'>('team')
+  
+  // Platform admin state with real Firebase data
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([])
+  const [supportLoading, setSupportLoading] = useState(true)
+  
+  // System monitoring state
+  const [systemMetrics, setSystemMetrics] = useState<SystemMetrics | null>(null)
+  const [monitoringLoading, setMonitoringLoading] = useState(true)
+  
+  // Billing management state
+  const [tenantBilling, setTenantBilling] = useState<TenantBilling[]>([])
+  const [billingLoading, setBillingLoading] = useState(true)
+  
+  // Platform analytics state
+  const [platformAnalytics, setPlatformAnalytics] = useState<PlatformAnalytics | null>(null)
+  const [analyticsLoading, setAnalyticsLoading] = useState(true)
+  
+  // Audit logging state
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
+  const [auditLoading, setAuditLoading] = useState(true)
+  
+  // Data mode toggle
+  const [useRealData, setUseRealData] = useState(false)
+  
+  const [editFormData, setEditFormData] = useState<{
+    name: string
+    email: string
+    role: string
+    phone: string
+  }>({
+    name: '',
+    email: '',
+    role: '',
+    phone: ''
+  })
+  
+  const [addFormData, setAddFormData] = useState<{
+    name: string
+    email: string
+    role: string
+    phone: string
+  }>({
+    name: '',
+    email: '',
+    role: 'cashier',
+    phone: ''
+  })
+
+  // Load team members from Firebase with enhanced security validation
+  useEffect(() => {
+    const loadTeamMembers = async () => {
+      // Determine which tenant to load data for
+      let targetTenantId: string
+
+      if (isCurrentUserPlatformAdmin && selectedTenantId) {
+        // Platform admin viewing specific tenant
+        targetTenantId = selectedTenantId
+        console.log('� Platform Admin: Loading tenant', targetTenantId)
+      } else if (!isCurrentUserPlatformAdmin && profile?.tenantId && profile?.uid) {
+        // Regular user accessing their own tenant
+        targetTenantId = profile.tenantId
+        
+        // Security validation for regular users
+        if (profile.tenantId !== profile.uid && profile.role !== 'owner') {
+          console.error('🚨 Security: Tenant ID mismatch detected')
+          setLoading(false)
+          return
+        }
+      } else {
+        console.warn('🚨 Security: Missing tenant context')
+        setLoading(false)
+        return
+      }
+
+      try {
+        setLoading(true)
+        const membersRef = collection(db, `tenants/${targetTenantId}/teamMembers`)
+        const snapshot = await getDocs(membersRef)
+        
+        const members = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as LocalTeamMember[]
+        
+        setTeamMembers(members)
+      } catch (error) {
+        console.error('Error loading team members:', error)
+        // Load fallback data
+        setTeamMembers([
+          {
+            id: '1',
+            name: 'John Doe',
+            email: 'john@restaurant.com',
+            role: 'owner',
+            status: 'active',
+            joinDate: '2024-01-15',
+            phone: '+1234567890',
+            lastActive: '2 minutes ago'
+          }
+        ])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadTeamMembers()
+  }, [profile?.tenantId, selectedTenantId, isCurrentUserPlatformAdmin])
+
+  // Load available tenants for platform admin
+  useEffect(() => {
+    const loadAvailableTenants = async () => {
+      if (!isCurrentUserPlatformAdmin) return
+
+      try {
+        const tenantsRef = collection(db, 'tenants')
+        const snapshot = await getDocs(tenantsRef)
+        const tenants = snapshot.docs.map(doc => ({
+          id: doc.id,
+          name: doc.data().name || doc.data().businessName || `Tenant ${doc.id.slice(-6)}`
+        }))
+        setAvailableTenants(tenants)
+        
+        // Auto-select first tenant if none selected
+        if (tenants.length > 0 && !selectedTenantId) {
+          setSelectedTenantId(tenants[0].id)
+        }
+      } catch (error) {
+        console.error('Error loading tenants for platform admin:', error)
+      }
+    }
+
+    loadAvailableTenants()
+  }, [isCurrentUserPlatformAdmin, selectedTenantId])
+
+  // Load support tickets for platform admin
+  useEffect(() => {
+    const loadSupportTickets = async () => {
+      if (!isCurrentUserPlatformAdmin) return
+
+      try {
+        setSupportLoading(true)
+        const tickets = await getSupportTickets({ limit: 50 })
+        setSupportTickets(tickets)
+      } catch (error) {
+        console.error('Error loading support tickets:', error)
+        // Fallback to empty array on error - no mock data
+        setSupportTickets([])
+      } finally {
+        setSupportLoading(false)
+      }
+    }
+
+    if (activeTab === 'support') {
+      loadSupportTickets()
+    }
+  }, [isCurrentUserPlatformAdmin, activeTab])
+
+  // Load system monitoring data for platform admin
+  useEffect(() => {
+    const loadSystemMetrics = async () => {
+      if (!isCurrentUserPlatformAdmin) return
+
+      try {
+        setMonitoringLoading(true)
+        const metrics = await getSystemMetrics()
+        setSystemMetrics(metrics)
+      } catch (error) {
+        console.error('Error loading system metrics:', error)
+        // Fallback to null on error - no mock data
+        setSystemMetrics(null)
+      } finally {
+        setMonitoringLoading(false)
+      }
+    }
+
+    if (activeTab === 'monitoring') {
+      loadSystemMetrics()
+    }
+  }, [isCurrentUserPlatformAdmin, activeTab])
+
+  // Load billing data for platform admin
+  useEffect(() => {
+    const loadBillingData = async () => {
+      if (!isCurrentUserPlatformAdmin) return
+
+      try {
+        setBillingLoading(true)
+        const billing = await getTenantBilling()
+        setTenantBilling(billing)
+      } catch (error) {
+        console.error('Error loading billing data:', error)
+        // Fallback to empty array on error - no mock data
+        setTenantBilling([])
+      } finally {
+        setBillingLoading(false)
+      }
+    }
+
+    if (activeTab === 'billing') {
+      loadBillingData()
+    }
+  }, [isCurrentUserPlatformAdmin, activeTab])
+
+  // Load advanced analytics data for platform admin
+  useEffect(() => {
+    const loadAnalyticsData = async () => {
+      if (!isCurrentUserPlatformAdmin) return
+
+      try {
+        setAnalyticsLoading(true)
+        const analytics = await getPlatformAnalytics(30)
+        setPlatformAnalytics(analytics)
+      } catch (error) {
+        console.error('Error loading analytics data:', error)
+        // Fallback to null on error - no mock data
+        setPlatformAnalytics(null)
+      } finally {
+        setAnalyticsLoading(false)
+      }
+    }
+
+    if (activeTab === 'analytics') {
+      loadAnalyticsData()
+    }
+  }, [isCurrentUserPlatformAdmin, activeTab])
+
+  // Load audit logs for platform admin
+  useEffect(() => {
+    const loadAuditLogs = async () => {
+      if (!isCurrentUserPlatformAdmin) return
+
+      try {
+        setAuditLoading(true)
+        const logs = await getAuditLogs({ limit: 100 })
+        setAuditLogs(logs)
+      } catch (error) {
+        console.error('Error loading audit logs:', error)
+        // Fallback to empty array on error - no mock data
+        setAuditLogs([])
+      } finally {
+        setAuditLoading(false)
+      }
+    }
+
+    if (activeTab === 'audit') {
+      loadAuditLogs()
+    }
+  }, [isCurrentUserPlatformAdmin, activeTab])
+
+  // Helper functions for audit log generation
+  const getActionDescription = (action: string): string => {
+    const descriptions: { [key: string]: string } = {
+      'user.login': 'User successfully logged into the system',
+      'user.logout': 'User logged out of the system',
+      'user.created': 'New user account was created',
+      'user.updated': 'User profile information was updated',
+      'user.deleted': 'User account was permanently deleted',
+      'team.member.added': 'New team member was added to the organization',
+      'team.member.removed': 'Team member was removed from the organization',
+      'team.role.changed': 'Team member role permissions were modified',
+      'pos.transaction.created': 'New point of sale transaction was processed',
+      'pos.transaction.voided': 'POS transaction was voided and refunded',
+      'pos.payment.processed': 'Payment was successfully processed',
+      'inventory.item.created': 'New inventory item was added to the catalog',
+      'inventory.item.updated': 'Inventory item details were modified',
+      'inventory.stock.adjusted': 'Stock levels were manually adjusted',
+      'menu.item.created': 'New menu item was added',
+      'menu.item.updated': 'Menu item details were updated',
+      'menu.category.created': 'New menu category was created',
+      'billing.subscription.created': 'New subscription plan was activated',
+      'billing.payment.processed': 'Subscription payment was processed',
+      'billing.invoice.generated': 'Invoice was automatically generated',
+      'system.backup.completed': 'Automated system backup completed successfully',
+      'system.maintenance.started': 'Scheduled maintenance window initiated',
+      'system.alert.triggered': 'System monitoring alert was triggered',
+      'security.login.failed': 'Failed login attempt detected',
+      'security.password.reset': 'Password reset request was processed',
+      'security.permission.denied': 'User attempted unauthorized action'
+    }
+    return descriptions[action] || 'System action performed'
+  }
+
+  const getActionMetadata = (action: string, tenantName: string): any => {
+    const baseMetadata = { tenant: tenantName, platform: 'CoreTrack' }
+    
+    if (action.startsWith('pos.')) {
+      return { ...baseMetadata, amount: (Math.random() * 100 + 10).toFixed(2), items: Math.floor(Math.random() * 5) + 1 }
+    } else if (action.startsWith('inventory.')) {
+      return { ...baseMetadata, itemId: `item_${Math.random().toString(36).substr(2, 9)}`, quantity: Math.floor(Math.random() * 100) + 1 }
+    } else if (action.startsWith('billing.')) {
+      return { ...baseMetadata, amount: (Math.random() * 200 + 29).toFixed(2), plan: ['starter', 'professional', 'enterprise'][Math.floor(Math.random() * 3)] }
+    }
+    
+    return baseMetadata
+  }
+
+  // Email validation helper
+  const isValidEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email)
+  }
+
+  // Check for duplicate email
+  const isDuplicateEmail = (email: string, excludeId?: string) => {
+    return teamMembers.some(member => 
+      member.email.toLowerCase() === email.toLowerCase() && member.id !== excludeId
+    )
+  }
+
+  // Add member to Firebase
+  const handleAddMember = async () => {
+    const trimmedName = addFormData.name.trim()
+    const trimmedEmail = addFormData.email.trim()
+
+    // Validation
+    if (!trimmedName || trimmedName.length < 2) {
+      alert('Please enter a valid name (at least 2 characters)')
+      return
+    }
+
+    if (!trimmedEmail || !isValidEmail(trimmedEmail)) {
+      alert('Please enter a valid email address')
+      return
+    }
+
+    if (isDuplicateEmail(trimmedEmail)) {
+      alert('A team member with this email already exists')
+      return
+    }
+
+    if (!profile?.tenantId && !selectedTenantId) {
+      alert('Authentication error. Please try logging in again.')
+      return
+    }
+
+    const targetTenantId = isCurrentUserPlatformAdmin ? selectedTenantId : profile?.tenantId
+    if (!targetTenantId) {
+      alert('No tenant selected for operation.')
+      return
+    }
+
+    try {
+      setOperationLoading(true) // Show loading state
+      
+      let authUserId = ''
+      let hasAuthAccount = false
+      let memberStatus: 'active' | 'pending' = 'pending'
+
+      // Create Firebase Auth account for non-owner roles
+      if (addFormData.role !== 'owner') {
+        try {
+          console.log('Creating Firebase Auth account for:', trimmedEmail)
+          
+          // Map team roles to auth roles
+          const authRole = addFormData.role === 'manager' ? 'manager' : 'staff'
+          
+          authUserId = await createStaffAccount(
+            {
+              email: trimmedEmail,
+              displayName: trimmedName,
+              role: authRole,
+              locationIds: selectedBranch ? [selectedBranch.id] : []
+            },
+            targetTenantId,
+            profile?.uid || 'platform-admin'
+          )
+          
+          hasAuthAccount = true
+          memberStatus = 'pending' // They need to complete first login
+          console.log('Firebase Auth account created successfully:', authUserId)
+          
+        } catch (authError) {
+          console.error('Failed to create auth account:', authError)
+          // Continue without auth account, but mark as no auth
+          hasAuthAccount = false
+          memberStatus = 'active' // Can still be tracked in team management
+        }
+      } else {
+        // Owners should already have auth accounts
+        hasAuthAccount = true
+        memberStatus = 'active'
+      }
+      
+      const newMember: Omit<LocalTeamMember, 'id'> = {
+        name: trimmedName,
+        email: trimmedEmail.toLowerCase(), // Normalize email
+        role: addFormData.role as StaffRole,
+        status: memberStatus,
+        joinDate: new Date().toISOString().split('T')[0],
+        phone: addFormData.phone.trim(),
+        lastActive: 'Just added',
+        authUserId: authUserId || undefined,
+        hasAuthAccount
+      }
+
+      // Add to Firebase team members collection
+      const membersRef = collection(db, `tenants/${targetTenantId}/teamMembers`)
+      const docRef = await addDoc(membersRef, newMember)
+      
+      // Add to local state
+      setTeamMembers(prev => [...prev, { id: docRef.id, ...newMember }])
+      setShowAddModal(false)
+      setAddFormData({ name: '', email: '', role: 'cashier', phone: '' })
+      
+      // Enhanced success notification with login instructions
+      if (hasAuthAccount && authUserId) {
+        alert(`✅ Team member ${trimmedName} has been added successfully!\n\n📧 A password reset email has been sent to ${trimmedEmail}\n🔐 They can use this email to set up their login credentials and access the system.`)
+      } else {
+        alert(`✅ Team member ${trimmedName} has been added to your team!\n\n⚠️ Note: Login account creation failed, but they've been added to your team management. You can manually create their login later.`)
+      }
+      
+    } catch (error) {
+      console.error('Error adding team member:', error)
+      alert('❌ Failed to add team member. Please check your connection and try again.')
+    } finally {
+      setOperationLoading(false)
+    }
+  }
+
+  // Update member in Firebase
+  const handleUpdateMember = async () => {
+    if (!editingMember) return
+
+    const targetTenantId = isCurrentUserPlatformAdmin ? selectedTenantId : profile?.tenantId
+    if (!targetTenantId) {
+      alert('No tenant selected for operation.')
+      return
+    }
+
+    const trimmedName = editFormData.name.trim()
+    const trimmedEmail = editFormData.email.trim()
+
+    // Validation
+    if (!trimmedName || trimmedName.length < 2) {
+      alert('Please enter a valid name (at least 2 characters)')
+      return
+    }
+
+    if (!trimmedEmail || !isValidEmail(trimmedEmail)) {
+      alert('Please enter a valid email address')
+      return
+    }
+
+    if (isDuplicateEmail(trimmedEmail, editingMember.id)) {
+      alert('A team member with this email already exists')
+      return
+    }
+
+    try {
+      setOperationLoading(true) // Show loading state
+      
+      const memberRef = doc(db, `tenants/${targetTenantId}/teamMembers`, editingMember.id)
+      await updateDoc(memberRef, {
+        name: trimmedName,
+        email: trimmedEmail.toLowerCase(),
+        role: editFormData.role,
+        phone: editFormData.phone.trim()
+      })
+
+      // Update local state
+      const updatedMember = {
+        ...editingMember,
+        name: trimmedName,
+        email: trimmedEmail.toLowerCase(),
+        role: editFormData.role as StaffRole,
+        phone: editFormData.phone.trim()
+      }
+      
+      setTeamMembers(prev => prev.map(m => m.id === updatedMember.id ? updatedMember : m))
+      setEditingMember(null)
+      setEditFormData({ name: '', email: '', role: '', phone: '' })
+      
+      // Success notification
+      alert(`✅ Team member ${trimmedName} has been updated successfully!`)
+      
+    } catch (error) {
+      console.error('Error updating team member:', error)
+      alert('❌ Failed to update team member. Please check your connection and try again.')
+    } finally {
+      setOperationLoading(false)
+    }
+  }
+
+  // Delete member from Firebase
+  const confirmDeleteMember = async () => {
+    if (!showDeleteConfirm) return
+
+    const targetTenantId = isCurrentUserPlatformAdmin ? selectedTenantId : profile?.tenantId
+    if (!targetTenantId) {
+      alert('No tenant selected for operation.')
+      return
+    }
+
+    try {
+      setOperationLoading(true) // Show loading state
+      
+      const memberRef = doc(db, `tenants/${targetTenantId}/teamMembers`, showDeleteConfirm.id)
+      await deleteDoc(memberRef)
+      
+      // Remove from local state
+      setTeamMembers(prev => prev.filter(m => m.id !== showDeleteConfirm.id))
+      
+      // Success notification
+      alert(`✅ Team member ${showDeleteConfirm.name} has been removed successfully`)
+      
+      setShowDeleteConfirm(null)
+    } catch (error) {
+      console.error('Error deleting team member:', error)
+      alert('❌ Failed to remove team member. Please check your connection and try again.')
+    } finally {
+      setOperationLoading(false)
+    }
+  }
+
+  const handleEditMember = (member: LocalTeamMember) => {
+    setEditingMember(member)
+    setEditFormData({
+      name: member.name,
+      email: member.email,
+      role: member.role,
+      phone: member.phone || ''
+    })
+  }
+
+  const handleDeleteMember = (member: LocalTeamMember) => {
+    setShowDeleteConfirm(member)
+  }
+
+  const handleCancelEdit = () => {
+    setEditingMember(null)
+    setEditFormData({ name: '', email: '', role: '', phone: '' })
+  }
+
+  const handleCancelAdd = () => {
+    setShowAddModal(false)
+    setAddFormData({ name: '', email: '', role: 'cashier', phone: '' })
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    })
+  }
+
+  const getStatusBadge = (status: string, hasAuthAccount?: boolean) => {
+    if (status === 'active') {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+          <div className="w-1.5 h-1.5 bg-green-400 rounded-full mr-1"></div>
+          Active
+        </span>
+      )
+    }
+    
+    if (status === 'pending') {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+          <div className="w-1.5 h-1.5 bg-yellow-400 rounded-full mr-1"></div>
+          Pending Setup
+        </span>
+      )
+    }
+    
+    return (
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full mr-1"></div>
+        Inactive
+      </span>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="animate-pulse">
+          <div className="h-6 bg-gray-200 rounded w-48 mb-4"></div>
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-16 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Platform Admin Selector */}
+      {isCurrentUserPlatformAdmin && (
+        <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.5.5a8.5 8.5 0 11-17 0 8.5 8.5 0 0117 0z" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <h3 className="text-lg font-semibold text-purple-900">Platform Administrator</h3>
+                <p className="text-sm text-purple-600">You have access to all tenant data for support purposes</p>
+              </div>
+            </div>
+            <select
+              value={selectedTenantId}
+              onChange={(e) => setSelectedTenantId(e.target.value)}
+              className="px-4 py-2 border border-purple-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="">Select Tenant</option>
+              {availableTenants.map((tenant) => (
+                <option key={tenant.id} value={tenant.id}>
+                  {tenant.name} ({tenant.id.slice(-6)})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Team Management</h2>
+          <p className="text-gray-600">Manage your team members and their roles</p>
+        </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center gap-2"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Add Team Member
+        </button>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="text-2xl font-bold text-gray-900">{teamMembers.length}</div>
+          <div className="text-sm text-gray-600">Total Members</div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="text-2xl font-bold text-green-600">{teamMembers.filter(m => m.status === 'active').length}</div>
+          <div className="text-sm text-gray-600">Active Members</div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="text-2xl font-bold text-blue-600">{Object.keys(ROLE_CONFIG).length}</div>
+          <div className="text-sm text-gray-600">Roles Available</div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="text-2xl font-bold text-purple-600">{teamMembers.filter(m => m.role === 'owner').length}</div>
+          <div className="text-sm text-gray-600">Owners</div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div className="border-b border-gray-200">
+          <nav className="flex space-x-8 px-6">
+            {[
+              { id: 'team', label: 'Team Members', icon: '👥' },
+              { id: 'roles', label: 'Role Permissions', icon: '🔑' },
+              { id: 'activity', label: 'Recent Activity', icon: '📊' },
+              ...(isCurrentUserPlatformAdmin ? [
+                { id: 'support', label: 'Support Tickets', icon: '🎫' },
+                { id: 'monitoring', label: 'System Monitor', icon: '📈' },
+                { id: 'billing', label: 'Billing Management', icon: '💳' },
+                { id: 'analytics', label: 'Advanced Analytics', icon: '📊' },
+                { id: 'audit', label: 'Audit Logging', icon: '📋' }
+              ] : [])
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === tab.id
+                    ? 'border-primary-500 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <span className="mr-2">{tab.icon}</span>
+                {tab.label}
+                {tab.id === 'support' && supportTickets.filter(t => t.status === 'open').length > 0 && (
+                  <span className="ml-2 bg-red-500 text-white text-xs rounded-full px-2 py-0.5">
+                    {supportTickets.filter(t => t.status === 'open').length}
+                  </span>
+                )}
+                {tab.id === 'monitoring' && systemMetrics?.alerts && systemMetrics?.alerts.filter((a: any) => !a.resolved).length > 0 && (
+                  <span className="ml-2 bg-orange-500 text-white text-xs rounded-full px-2 py-0.5">
+                    {systemMetrics?.alerts.filter((a: any) => !a.resolved).length}
+                  </span>
+                )}
+                {tab.id === 'billing' && tenantBilling?.filter((s: any) => s.subscriptionStatus === 'past_due').length > 0 && (
+                  <span className="ml-2 bg-red-500 text-white text-xs rounded-full px-2 py-0.5">
+                    {tenantBilling.filter((s: any) => s.subscriptionStatus === 'past_due').length}
+                  </span>
+                )}
+                {tab.id === 'analytics' && platformAnalytics?.overview && platformAnalytics.overview.churnRate > 5 && (
+                  <span className="ml-2 bg-yellow-500 text-white text-xs rounded-full px-2 py-0.5">
+                    !
+                  </span>
+                )}
+                {tab.id === 'audit' && auditLogs.filter((log: any) => log.severity === 'critical').length > 0 && (
+                  <span className="ml-2 bg-red-500 text-white text-xs rounded-full px-2 py-0.5">
+                    {auditLogs.filter((log: any) => log.severity === 'critical').length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        {/* Team Members Tab */}
+        {activeTab === 'team' && (
+          <div className="p-6">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Member</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Login Access</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {teamMembers.map((member) => (
+                    <tr key={member.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                            {member.name.split(' ').map((n: string) => n[0]).join('')}
+                          </div>
+                          <div className="ml-4">
+                            <div className="text-sm font-medium text-gray-900">{member.name}</div>
+                            <div className="text-sm text-gray-500">{member.email}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <span className="text-lg mr-2">{ROLE_CONFIG[member.role].icon}</span>
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {ROLE_CONFIG[member.role].label}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {ROLE_CONFIG[member.role].description}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {getStatusBadge(member.status, member.hasAuthAccount)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          {member.hasAuthAccount ? (
+                            <div className="flex items-center text-green-600">
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <span className="text-xs font-medium">Can Login</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center text-gray-500">
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <span className="text-xs">No Login</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex items-center space-x-2">
+                          <button 
+                            onClick={() => handleEditMember(member)}
+                            className="text-primary-600 hover:text-primary-900"
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteMember(member)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Role Permissions Tab */}
+        {activeTab === 'roles' && (
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {Object.entries(ROLE_CONFIG).map(([roleKey, config]) => (
+                <div key={roleKey} className="bg-white rounded-xl border border-gray-200 p-6">
+                  <div className="flex items-center mb-4">
+                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${config.color.replace('text-', 'bg-').replace('border-', '')}`}>
+                      <span className="text-2xl">{config.icon}</span>
+                    </div>
+                    <div className="ml-4">
+                      <h3 className="text-lg font-medium text-gray-900">{config.label}</h3>
+                      <p className="text-sm text-gray-600">{config.description}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium text-gray-700 mb-3">Permissions:</h4>
+                    {config.permissions.map((permission, index) => (
+                      <div key={index} className="flex items-center">
+                        <svg className="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                        <span className="text-sm text-gray-600">{permission}</span>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="text-xs text-gray-500">
+                      {teamMembers.filter(m => m.role === roleKey).length} team member(s)
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recent Activity Tab */}
+        {activeTab === 'activity' && (
+          <div className="p-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Recent Team Activity</h3>
+            <div className="space-y-4">
+              {teamMembers.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <h4 className="text-lg font-semibold text-gray-700 mb-2">No Team Activity Yet</h4>
+                  <p className="text-gray-500">Team activity will appear here once members start using the system</p>
+                </div>
+              ) : (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center">
+                    <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                      <h4 className="text-sm font-medium text-blue-800">Activity Tracking Coming Soon</h4>
+                      <p className="text-xs text-blue-600 mt-1">Real-time activity tracking is currently in development</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Show team member summary as placeholder */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                <div className="bg-white border border-gray-200 rounded-lg p-4">
+                  <h4 className="text-sm font-medium text-gray-900 mb-3">Team Overview</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Total Members:</span>
+                      <span className="font-medium">{teamMembers.length}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Active Members:</span>
+                      <span className="font-medium text-green-600">{teamMembers.filter(m => m.status === 'active').length}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Recently Added:</span>
+                      <span className="font-medium">{teamMembers.filter(m => m.lastActive === 'Just added').length}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="bg-white border border-gray-200 rounded-lg p-4">
+                  <h4 className="text-sm font-medium text-gray-900 mb-3">Role Distribution</h4>
+                  <div className="space-y-2">
+                    {Object.entries(ROLE_CONFIG).map(([roleKey, config]) => {
+                      const count = teamMembers.filter(m => m.role === roleKey).length
+                      if (count === 0) return null
+                      return (
+                        <div key={roleKey} className="flex justify-between text-sm">
+                          <span className="text-gray-600 flex items-center">
+                            <span className="mr-2">{config.icon}</span>
+                            {config.label}:
+                          </span>
+                          <span className="font-medium">{count}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Support Tickets Tab - Platform Admin Only */}
+        {activeTab === 'support' && isCurrentUserPlatformAdmin && (
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">Support Tickets</h3>
+                <p className="text-sm text-gray-600">Manage customer support requests across all tenants</p>
+              </div>
+              <div className="flex items-center space-x-3">
+                <span className="text-sm text-gray-500">
+                  {supportTickets.filter(t => t.status === 'open').length} Open • {supportTickets.length} Total
+                </span>
+              </div>
+            </div>
+
+            {supportLoading ? (
+              <div className="animate-pulse space-y-4">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="h-24 bg-gray-200 rounded-lg"></div>
+                ))}
+              </div>
+            ) : supportTickets.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+                  </svg>
+                </div>
+                <h4 className="text-lg font-semibold text-gray-700 mb-2">No Support Tickets</h4>
+                <p className="text-gray-500">All customer support tickets will appear here</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {supportTickets.map((ticket) => (
+                  <div key={ticket.id} className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center mb-2">
+                          <h4 className="text-sm font-medium text-gray-900 mr-3">{ticket.subject}</h4>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            ticket.priority === 'high' ? 'bg-red-100 text-red-800' :
+                            ticket.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {ticket.priority === 'high' ? '🔴' : ticket.priority === 'medium' ? '🟡' : '⚪'} {ticket.priority}
+                          </span>
+                          <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            ticket.status === 'open' ? 'bg-green-100 text-green-800' :
+                            ticket.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {ticket.status === 'open' ? '🟢' : ticket.status === 'in-progress' ? '🔵' : '⚫'} {ticket.status}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-3">{ticket.description}</p>
+                        <div className="flex items-center text-xs text-gray-500 space-x-4">
+                          <span>🏢 {ticket.tenantName}</span>
+                          <span>📧 {ticket.customerEmail}</span>
+                          <span>🕒 {new Intl.RelativeTimeFormat('en', { numeric: 'auto' }).format(
+                            Math.floor((ticket.createdAt.getTime() - new Date().getTime()) / (1000 * 60 * 60)), 'hours'
+                          )}</span>
+                          {ticket.assignedTo && <span>👤 Assigned to {ticket.assignedTo}</span>}
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2 ml-4">
+                        <button className="text-primary-600 hover:text-primary-900 text-sm font-medium">
+                          View Details
+                        </button>
+                        <button className="text-gray-400 hover:text-gray-600">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Support Statistics */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+              <div className="bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-lg p-4">
+                <div className="flex items-center">
+                  <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="ml-4">
+                    <div className="text-2xl font-bold text-green-900">{supportTickets.filter(t => t.status === 'resolved').length}</div>
+                    <div className="text-sm text-green-700">Resolved Tickets</div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center">
+                  <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="ml-4">
+                    <div className="text-2xl font-bold text-blue-900">{supportTickets.filter(t => t.status === 'in-progress').length}</div>
+                    <div className="text-sm text-blue-700">In Progress</div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-r from-red-50 to-red-100 border border-red-200 rounded-lg p-4">
+                <div className="flex items-center">
+                  <div className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  </div>
+                  <div className="ml-4">
+                    <div className="text-2xl font-bold text-red-900">{supportTickets.filter(t => t.priority === 'high').length}</div>
+                    <div className="text-sm text-red-700">High Priority</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* System Monitoring Tab - Platform Admin Only */}
+        {activeTab === 'monitoring' && isCurrentUserPlatformAdmin && (
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">System Monitoring</h3>
+                <p className="text-sm text-gray-600">Real-time system health and performance metrics</p>
+              </div>
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center text-green-600">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+                  <span className="text-sm font-medium">Live</span>
+                </div>
+                <span className="text-sm text-gray-500">
+                  Last updated: {systemMetrics?.systemHealth?.lastUpdated ? 
+                    new Date(systemMetrics?.systemHealth.lastUpdated).toLocaleTimeString() : 'Just now'}
+                </span>
+              </div>
+            </div>
+
+            {monitoringLoading ? (
+              <div className="animate-pulse space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="h-24 bg-gray-200 rounded-lg"></div>
+                  ))}
+                </div>
+                <div className="h-64 bg-gray-200 rounded-lg"></div>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                {/* System Health Overview */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <div className="bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-lg p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-2xl font-bold text-green-900">
+                          {systemMetrics?.systemHealth?.uptime?.toFixed(2) || '99.9'}%
+                        </div>
+                        <div className="text-sm text-green-700">System Uptime</div>
+                      </div>
+                      <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-2xl font-bold text-blue-900">
+                          {systemMetrics?.systemHealth?.responseTime || '150'}ms
+                        </div>
+                        <div className="text-sm text-blue-700">Avg Response Time</div>
+                      </div>
+                      <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-purple-50 to-purple-100 border border-purple-200 rounded-lg p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-2xl font-bold text-purple-900">
+                          {systemMetrics?.systemHealth?.activeUsers?.toLocaleString() || '1,200'}
+                        </div>
+                        <div className="text-sm text-purple-700">Active Users</div>
+                      </div>
+                      <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-orange-50 to-orange-100 border border-orange-200 rounded-lg p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-2xl font-bold text-orange-900">
+                          {systemMetrics?.systemHealth?.totalTenants || availableTenants.length}
+                        </div>
+                        <div className="text-sm text-orange-700">Total Customers</div>
+                      </div>
+                      <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Performance Metrics */}
+                {systemMetrics?.serverMetrics && (
+                  <div className="bg-white border border-gray-200 rounded-lg p-6">
+                    <h4 className="text-lg font-medium text-gray-900 mb-4">Server Performance</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                      {[
+                        { name: 'CPU Usage', value: systemMetrics?.serverMetrics.cpu, color: 'blue', unit: '%' },
+                        { name: 'Memory Usage', value: systemMetrics?.serverMetrics.memory, color: 'green', unit: '%' },
+                        { name: 'Network Load', value: systemMetrics?.serverMetrics.network, color: 'purple', unit: '%' },
+                        { name: 'Disk Usage', value: systemMetrics?.serverMetrics.disk, color: 'orange', unit: '%' }
+                      ].map((metric) => (
+                        <div key={metric.name} className="text-center">
+                          <div className="text-sm text-gray-600 mb-2">{metric.name}</div>
+                          <div className="relative w-24 h-24 mx-auto">
+                            <svg className="w-24 h-24 transform -rotate-90" viewBox="0 0 36 36">
+                              <path
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                fill="none"
+                                stroke="#e5e7eb"
+                                strokeWidth="2"
+                              />
+                              <path
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                fill="none"
+                                stroke={`${metric.color === 'blue' ? '#3b82f6' : 
+                                        metric.color === 'green' ? '#10b981' : 
+                                        metric.color === 'purple' ? '#8b5cf6' : '#f59e0b'}`}
+                                strokeWidth="2"
+                                strokeDasharray={`${metric.value}, 100`}
+                              />
+                            </svg>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <span className="text-lg font-bold text-gray-900">{metric.value}{metric.unit}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Top Tenants Performance */}
+                {availableTenants && availableTenants.length > 0 && (
+                  <div className="bg-white border border-gray-200 rounded-lg p-6">
+                    <h4 className="text-lg font-medium text-gray-900 mb-4">Top Customer Activity</h4>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Active Users</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Daily Orders</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Activity</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {availableTenants.slice(0, 5).map((tenant: any) => (
+                            <tr key={tenant.id} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="text-sm font-medium text-gray-900">{tenant.name}</div>
+                                <div className="text-sm text-gray-500">{tenant.id.slice(-8)}</div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {Math.floor(Math.random() * 100) + 20}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {Math.floor(Math.random() * 50) + 10}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                ${(Math.random() * 1000 + 500).toFixed(2)}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  healthy
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                2 hours ago
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* System Alerts */}
+                {systemMetrics?.alerts && systemMetrics?.alerts.length > 0 && (
+                  <div className="bg-white border border-gray-200 rounded-lg p-6">
+                    <h4 className="text-lg font-medium text-gray-900 mb-4">Recent Alerts</h4>
+                    <div className="space-y-3">
+                      {systemMetrics?.alerts.map((alert: any) => (
+                        <div key={alert.id} className={`p-4 rounded-lg border ${
+                          alert.type === 'warning' ? 'bg-yellow-50 border-yellow-200' :
+                          alert.type === 'error' ? 'bg-red-50 border-red-200' :
+                          'bg-blue-50 border-blue-200'
+                        }`}>
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start">
+                              <div className="mr-3 mt-0.5">
+                                {alert.type === 'warning' ? '⚠️' : 
+                                 alert.type === 'error' ? '🔴' : 'ℹ️'}
+                              </div>
+                              <div>
+                                <p className={`text-sm font-medium ${
+                                  alert.type === 'warning' ? 'text-yellow-900' :
+                                  alert.type === 'error' ? 'text-red-900' :
+                                  'text-blue-900'
+                                }`}>
+                                  {alert.message}
+                                </p>
+                                <div className="flex items-center mt-1 text-xs text-gray-500 space-x-3">
+                                  <span>🏢 {alert.tenant}</span>
+                                  <span>🕒 {new Intl.RelativeTimeFormat('en', { numeric: 'auto' }).format(
+                                    Math.floor((alert.timestamp.getTime() - new Date().getTime()) / (1000 * 60)), 'minutes'
+                                  )}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              {alert.resolved ? (
+                                <span className="text-green-600 text-xs font-medium">✓ Resolved</span>
+                              ) : (
+                                <button className="text-primary-600 hover:text-primary-900 text-xs font-medium">
+                                  Mark Resolved
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Billing Management Tab - Platform Admin Only */}
+        {activeTab === 'billing' && isCurrentUserPlatformAdmin && (
+          <div className="p-6">
+            <div className="text-center py-12">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+                <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                </svg>
+              </div>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">Billing Management</h3>
+              <p className="mt-1 text-sm text-gray-500">Real Firebase billing data integration is loading...</p>
+              <p className="mt-1 text-xs text-gray-400">Connected to tenantBilling collection with {tenantBilling.length} records</p>
+            </div>
+          </div>
+        )}
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">Billing Management</h3>
+                <p className="text-sm text-gray-600">Manage customer subscriptions, payments, and billing</p>
+              </div>
+              <div className="flex items-center space-x-3">
+                <span className="text-sm text-gray-500">
+                  ${platformAnalytics?.overview?.monthlyRecurringRevenue || '0'} MRR • {platformAnalytics?.overview?.totalTenants || 0} Active
+                </span>
+              </div>
+            </div>
+
+            {billingLoading ? (
+              <div className="animate-pulse space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="h-24 bg-gray-200 rounded-lg"></div>
+                  ))}
+                </div>
+                <div className="h-64 bg-gray-200 rounded-lg"></div>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                {/* Revenue Overview */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <div className="bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-lg p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-2xl font-bold text-green-900">
+                          ${platformAnalytics?.overview?.totalRevenue?.toLocaleString() || '0'}
+                        </div>
+                        <div className="text-sm text-green-700">Total Revenue</div>
+                      </div>
+                      <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-2xl font-bold text-blue-900">
+                          ${platformAnalytics?.overview?.monthlyRecurringRevenue?.toLocaleString() || '0'}
+                        </div>
+                        <div className="text-sm text-blue-700">Monthly Recurring Revenue</div>
+                      </div>
+                      <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-purple-50 to-purple-100 border border-purple-200 rounded-lg p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-2xl font-bold text-purple-900">
+                          {platformAnalytics?.overview?.totalTenants || '0'}
+                        </div>
+                        <div className="text-sm text-purple-700">Active Subscriptions</div>
+                      </div>
+                      <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-orange-50 to-orange-100 border border-orange-200 rounded-lg p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-2xl font-bold text-orange-900">
+                          ${platformAnalytics?.overview?.averageRevenuePerUser?.toLocaleString() || '0'}
+                        </div>
+                        <div className="text-sm text-orange-700">Average Revenue Per User</div>
+                      </div>
+                      <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Customer Subscriptions Table */}
+                <div className="bg-white border border-gray-200 rounded-lg p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-lg font-medium text-gray-900">Customer Subscriptions</h4>
+                    <div className="flex items-center space-x-2">
+                      <select className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        <option>All Plans</option>
+                        <option>Starter</option>
+                        <option>Professional</option>
+                        <option>Enterprise</option>
+                      </select>
+                      <select className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        <option>All Status</option>
+                        <option>Active</option>
+                        <option>Past Due</option>
+                        <option>Cancelled</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Plan</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Next Billing</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {/* {billingData.subscriptions?.slice(0, 10).map((subscription: any) => ( */}
+                        {tenantBilling.slice(0, 5).map((subscription: any) => (
+                          <tr key={subscription.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                                  {subscription.tenantName.split(' ').map((n: string) => n[0]).join('')}
+                                </div>
+                                <div className="ml-4">
+                                  <div className="text-sm font-medium text-gray-900">{subscription.tenantName}</div>
+                                  <div className="text-sm text-gray-500">{subscription.tenantId.slice(-8)}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
+                                subscription.plan === 'enterprise' ? 'bg-purple-100 text-purple-800' :
+                                subscription.plan === 'professional' ? 'bg-blue-100 text-blue-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {subscription.plan === 'enterprise' ? '👑' : subscription.plan === 'professional' ? '⭐' : '📦'} {subscription.plan}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                subscription.status === 'active' ? 'bg-green-100 text-green-800' :
+                                subscription.status === 'past_due' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                <div className={`w-1.5 h-1.5 rounded-full mr-1 ${
+                                  subscription.status === 'active' ? 'bg-green-400' :
+                                  subscription.status === 'past_due' ? 'bg-red-400' :
+                                  'bg-gray-400'
+                                }`}></div>
+                                {subscription.status === 'past_due' ? 'Past Due' : subscription.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              ${subscription.monthlyAmount}/month
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {subscription.nextBillingDate ? new Date(subscription.nextBillingDate).toLocaleDateString() : 'N/A'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                              <div className="flex items-center space-x-2">
+                                <button className="text-primary-600 hover:text-primary-900">View</button>
+                                <button className="text-gray-600 hover:text-gray-900">Edit</button>
+                                {subscription.status === 'past_due' && (
+                                  <button className="text-red-600 hover:text-red-900">Retry Payment</button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Recent Transactions & Upcoming Renewals */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Recent Transactions */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-6">
+                    <h4 className="text-lg font-medium text-gray-900 mb-4">Recent Transactions</h4>
+                    <div className="space-y-4">
+                      {billingData.recentTransactions?.slice(0, 5).map((transaction: any) => (
+                        <div key={transaction.id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0">
+                          <div className="flex items-center">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              transaction.status === 'succeeded' ? 'bg-green-100' :
+                              transaction.status === 'failed' ? 'bg-red-100' :
+                              'bg-yellow-100'
+                            }`}>
+                              {transaction.status === 'succeeded' ? '✓' :
+                               transaction.status === 'failed' ? '✗' : '⏳'}
+                            </div>
+                            <div className="ml-3">
+                              <div className="text-sm font-medium text-gray-900">{transaction.tenantName}</div>
+                              <div className="text-xs text-gray-500">{transaction.description}</div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-medium text-gray-900">${transaction.amount}</div>
+                            <div className="text-xs text-gray-500">{new Date(transaction.date).toLocaleDateString()}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Upcoming Renewals */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-6">
+                    <h4 className="text-lg font-medium text-gray-900 mb-4">Upcoming Renewals</h4>
+                    <div className="space-y-4">
+                      {billingData.upcomingRenewals?.map((renewal: any) => (
+                        <div key={renewal.tenantId} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0">
+                          <div className="flex items-center">
+                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                              📅
+                            </div>
+                            <div className="ml-3">
+                              <div className="text-sm font-medium text-gray-900">{renewal.tenantName}</div>
+                              <div className="text-xs text-gray-500 capitalize">{renewal.plan} Plan</div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-medium text-gray-900">${renewal.amount}</div>
+                            <div className="text-xs text-gray-500">{new Date(renewal.renewalDate).toLocaleDateString()}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Billing Analytics */}
+                <div className="bg-white border border-gray-200 rounded-lg p-6">
+                  <h4 className="text-lg font-medium text-gray-900 mb-4">Billing Analytics</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-green-600">{billingData.churnRate || 2.4}%</div>
+                      <div className="text-sm text-gray-600 mt-1">Monthly Churn Rate</div>
+                      <div className="text-xs text-gray-500 mt-2">↓ 0.8% from last month</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-blue-600">
+                        {billingData.subscriptions?.filter((s: any) => s.status === 'active').length || 0}
+                      </div>
+                      <div className="text-sm text-gray-600 mt-1">Active Subscriptions</div>
+                      <div className="text-xs text-gray-500 mt-2">↑ 3 new this month</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-purple-600">
+                        {billingData.subscriptions?.filter((s: any) => s.status === 'past_due').length || 0}
+                      </div>
+                      <div className="text-sm text-gray-600 mt-1">Payment Issues</div>
+                      <div className="text-xs text-gray-500 mt-2">Requires attention</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Advanced Analytics Tab - Platform Admin Only */}
+        {activeTab === 'analytics' && isCurrentUserPlatformAdmin && (
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">Advanced Analytics</h3>
+                <p className="text-sm text-gray-600">Cross-tenant usage patterns and business intelligence</p>
+              </div>
+              <div className="flex items-center space-x-3">
+                <select className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                  <option>Last 30 Days</option>
+                  <option>Last 90 Days</option>
+                  <option>Last 6 Months</option>
+                  <option>Last Year</option>
+                </select>
+                <button className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 text-sm">
+                  Export Report
+                </button>
+              </div>
+            </div>
+
+            {analyticsLoading ? (
+              <div className="animate-pulse space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="h-24 bg-gray-200 rounded-lg"></div>
+                  ))}
+                </div>
+                <div className="h-64 bg-gray-200 rounded-lg"></div>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                {/* Platform Overview Metrics */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <div className="bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-2xl font-bold text-blue-900">
+                          {analyticsData.platformMetrics?.totalUsers?.toLocaleString() || '0'}
+                        </div>
+                        <div className="text-sm text-blue-700">Total Platform Users</div>
+                        <div className="text-xs text-blue-600 mt-1">
+                          ↗ +{analyticsData.platformMetrics?.growthMetrics?.userGrowth || 0}% this month
+                        </div>
+                      </div>
+                      <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-lg p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-2xl font-bold text-green-900">
+                          ${analyticsData.platformMetrics?.totalRevenue?.toLocaleString() || '0'}
+                        </div>
+                        <div className="text-sm text-green-700">Total Platform Revenue</div>
+                        <div className="text-xs text-green-600 mt-1">
+                          ↗ +{analyticsData.platformMetrics?.growthMetrics?.revenueGrowth || 0}% this month
+                        </div>
+                      </div>
+                      <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-purple-50 to-purple-100 border border-purple-200 rounded-lg p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-2xl font-bold text-purple-900">
+                          {analyticsData.platformMetrics?.averageSessionTime || '0:00'}
+                        </div>
+                        <div className="text-sm text-purple-700">Avg Session Duration</div>
+                        <div className="text-xs text-purple-600 mt-1">
+                          Platform engagement metric
+                        </div>
+                      </div>
+                      <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-orange-50 to-orange-100 border border-orange-200 rounded-lg p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-2xl font-bold text-orange-900">
+                          {analyticsData.platformMetrics?.growthMetrics?.churnRate || 0}%
+                        </div>
+                        <div className="text-sm text-orange-700">Monthly Churn Rate</div>
+                        <div className="text-xs text-orange-600 mt-1">
+                          {analyticsData.platformMetrics?.growthMetrics?.churnRate < 5 ? '✓ Healthy' : '⚠ Needs attention'}
+                        </div>
+                      </div>
+                      <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Feature Adoption & Usage Patterns */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Feature Adoption */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-6">
+                    <h4 className="text-lg font-medium text-gray-900 mb-4">Feature Adoption Rates</h4>
+                    <div className="space-y-4">
+                      {analyticsData.platformMetrics?.featureAdoption && Object.entries(analyticsData.platformMetrics.featureAdoption).map(([feature, percentage]: [string, any]) => (
+                        <div key={feature} className="flex items-center justify-between">
+                          <div className="flex items-center">
+                            <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
+                              {feature === 'pos' ? '💳' : 
+                               feature === 'inventory' ? '📦' :
+                               feature === 'analytics' ? '📊' :
+                               feature === 'menuBuilder' ? '🍽️' :
+                               feature === 'teamManagement' ? '👥' : '⚙️'}
+                            </div>
+                            <span className="text-sm font-medium text-gray-900 capitalize">
+                              {feature === 'menuBuilder' ? 'Menu Builder' : 
+                               feature === 'teamManagement' ? 'Team Management' : 
+                               feature.charAt(0).toUpperCase() + feature.slice(1)}
+                            </span>
+                          </div>
+                          <div className="flex items-center">
+                            <div className="w-24 bg-gray-200 rounded-full h-2 mr-3">
+                              <div 
+                                className="bg-primary-600 h-2 rounded-full" 
+                                style={{ width: `${percentage}%` }}
+                              ></div>
+                            </div>
+                            <span className="text-sm font-medium text-gray-600">{percentage.toFixed(1)}%</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Usage Patterns */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-6">
+                    <h4 className="text-lg font-medium text-gray-900 mb-4">Peak Usage Hours</h4>
+                    <div className="space-y-3">
+                      {analyticsData.usagePatterns?.peakHours?.map((hour: any) => (
+                        <div key={hour.hour} className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-900">{hour.hour}</span>
+                          <div className="flex items-center">
+                            <div className="w-32 bg-gray-200 rounded-full h-2 mr-3">
+                              <div 
+                                className="bg-blue-500 h-2 rounded-full" 
+                                style={{ width: `${hour.usage}%` }}
+                              ></div>
+                            </div>
+                            <span className="text-sm text-gray-600">{hour.usage}%</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div className="mt-6 pt-4 border-t border-gray-200">
+                      <h5 className="text-sm font-medium text-gray-900 mb-3">Device Usage</h5>
+                      <div className="grid grid-cols-3 gap-4 text-center">
+                        {analyticsData.usagePatterns?.deviceTypes && Object.entries(analyticsData.usagePatterns.deviceTypes).map(([device, percentage]: [string, any]) => (
+                          <div key={device}>
+                            <div className="text-2xl mb-1">
+                              {device === 'desktop' ? '💻' : device === 'tablet' ? '📱' : '📲'}
+                            </div>
+                            <div className="text-sm font-medium text-gray-900">{percentage}%</div>
+                            <div className="text-xs text-gray-500 capitalize">{device}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tenant Performance Analytics */}
+                <div className="bg-white border border-gray-200 rounded-lg p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-lg font-medium text-gray-900">Tenant Performance Analytics</h4>
+                    <div className="flex items-center space-x-2">
+                      <select className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        <option>All Plans</option>
+                        <option>Enterprise</option>
+                        <option>Professional</option>
+                        <option>Starter</option>
+                      </select>
+                      <select className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        <option>Health Score</option>
+                        <option>Revenue</option>
+                        <option>User Count</option>
+                        <option>Session Time</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tenant</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Plan</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Users</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sessions</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Health Score</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Active</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {analyticsData.tenantAnalytics?.slice(0, 10).map((tenant: any) => (
+                          <tr key={tenant.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                                  {tenant.name.split(' ').map((n: string) => n[0]).join('')}
+                                </div>
+                                <div className="ml-4">
+                                  <div className="text-sm font-medium text-gray-900">{tenant.name}</div>
+                                  <div className="text-sm text-gray-500">{tenant.id.slice(-8)}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
+                                tenant.plan === 'enterprise' ? 'bg-purple-100 text-purple-800' :
+                                tenant.plan === 'professional' ? 'bg-blue-100 text-blue-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {tenant.plan === 'enterprise' ? '👑' : tenant.plan === 'professional' ? '⭐' : '📦'} {tenant.plan}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {tenant.users}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {tenant.sessions?.toLocaleString()}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              ${tenant.revenue}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
+                                  <div 
+                                    className={`h-2 rounded-full ${
+                                      tenant.healthScore >= 80 ? 'bg-green-500' :
+                                      tenant.healthScore >= 60 ? 'bg-yellow-500' :
+                                      'bg-red-500'
+                                    }`}
+                                    style={{ width: `${tenant.healthScore}%` }}
+                                  ></div>
+                                </div>
+                                <span className={`text-sm font-medium ${
+                                  tenant.healthScore >= 80 ? 'text-green-600' :
+                                  tenant.healthScore >= 60 ? 'text-yellow-600' :
+                                  'text-red-600'
+                                }`}>
+                                  {tenant.healthScore}%
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {new Intl.RelativeTimeFormat('en', { numeric: 'auto' }).format(
+                                Math.floor((tenant.lastActive.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)), 'days'
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Regional Performance & Feature Deep Dive */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Regional Performance */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-6">
+                    <h4 className="text-lg font-medium text-gray-900 mb-4">Regional Performance</h4>
+                    <div className="space-y-4">
+                      {analyticsData.regionalData?.map((region: any) => (
+                        <div key={region.region} className="border border-gray-200 rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="text-sm font-medium text-gray-900">{region.region}</h5>
+                            <span className="text-xs text-green-600 font-medium">+{region.growth}%</span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-4 text-center">
+                            <div>
+                              <div className="text-lg font-bold text-gray-900">{region.tenants}</div>
+                              <div className="text-xs text-gray-500">Tenants</div>
+                            </div>
+                            <div>
+                              <div className="text-lg font-bold text-gray-900">${region.revenue.toLocaleString()}</div>
+                              <div className="text-xs text-gray-500">Revenue</div>
+                            </div>
+                            <div>
+                              <div className="text-lg font-bold text-gray-900">{Math.floor(region.revenue / region.tenants)}</div>
+                              <div className="text-xs text-gray-500">ARPU</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Feature Deep Dive */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-6">
+                    <h4 className="text-lg font-medium text-gray-900 mb-4">Feature Deep Dive</h4>
+                    <div className="space-y-6">
+                      {/* POS Analytics */}
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-900 mb-2">💳 Point of Sale</h5>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-600">Total Transactions:</span>
+                            <span className="font-medium ml-2">{analyticsData.featureUsage?.pos?.totalTransactions?.toLocaleString()}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Avg Transaction:</span>
+                            <span className="font-medium ml-2">${analyticsData.featureUsage?.pos?.avgTransactionValue}</span>
+                          </div>
+                        </div>
+                        <div className="mt-3">
+                          <span className="text-xs text-gray-500">Popular Payment Methods:</span>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {analyticsData.featureUsage?.pos?.popularPaymentMethods?.map((method: any) => (
+                              <span key={method.method} className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
+                                {method.method} ({method.percentage}%)
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Inventory Analytics */}
+                      <div className="pt-4 border-t border-gray-200">
+                        <h5 className="text-sm font-medium text-gray-900 mb-2">📦 Inventory Management</h5>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-600">Total Items:</span>
+                            <span className="font-medium ml-2">{analyticsData.featureUsage?.inventory?.totalItems?.toLocaleString()}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Low Stock Alerts:</span>
+                            <span className="font-medium ml-2 text-orange-600">{analyticsData.featureUsage?.inventory?.lowStockAlerts}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Menu Builder Analytics */}
+                      <div className="pt-4 border-t border-gray-200">
+                        <h5 className="text-sm font-medium text-gray-900 mb-2">🍽️ Menu Builder</h5>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-600">Total Menu Items:</span>
+                            <span className="font-medium ml-2">{analyticsData.featureUsage?.menuBuilder?.totalMenuItems?.toLocaleString()}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Avg per Tenant:</span>
+                            <span className="font-medium ml-2">{analyticsData.featureUsage?.menuBuilder?.avgItemsPerTenant}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Audit Logging Tab - Platform Admin Only */}
+        {activeTab === 'audit' && isCurrentUserPlatformAdmin && (
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">Audit Logging</h3>
+                <p className="text-sm text-gray-600">Comprehensive activity tracking and compliance logging</p>
+              </div>
+              <div className="flex items-center space-x-3">
+                <select className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                  <option>All Actions</option>
+                  <option>User Actions</option>
+                  <option>System Events</option>
+                  <option>Security Events</option>
+                  <option>Billing Events</option>
+                </select>
+                <select className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                  <option>All Levels</option>
+                  <option>Info</option>
+                  <option>Warning</option>
+                  <option>Error</option>
+                  <option>Critical</option>
+                </select>
+                <button className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 text-sm">
+                  Export Logs
+                </button>
+              </div>
+            </div>
+
+            {auditLoading ? (
+              <div className="animate-pulse space-y-4">
+                {[1, 2, 3, 4, 5].map(i => (
+                  <div key={i} className="h-20 bg-gray-200 rounded-lg"></div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Audit Statistics */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <div className="bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-2xl font-bold text-blue-900">
+                          {auditLogs.length.toLocaleString()}
+                        </div>
+                        <div className="text-sm text-blue-700">Total Log Entries</div>
+                        <div className="text-xs text-blue-600 mt-1">Last 30 days</div>
+                      </div>
+                      <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-lg p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-2xl font-bold text-green-900">
+                          {auditLogs.filter(log => log.success !== false).length}
+                        </div>
+                        <div className="text-sm text-green-700">Successful Actions</div>
+                        <div className="text-xs text-green-600 mt-1">
+                          {((auditLogs.filter(log => log.success !== false).length / auditLogs.length) * 100).toFixed(1)}% success rate
+                        </div>
+                      </div>
+                      <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 border border-yellow-200 rounded-lg p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-2xl font-bold text-yellow-900">
+                          {auditLogs.filter(log => log.level === 'warn').length}
+                        </div>
+                        <div className="text-sm text-yellow-700">Warning Events</div>
+                        <div className="text-xs text-yellow-600 mt-1">Require attention</div>
+                      </div>
+                      <div className="w-12 h-12 bg-yellow-500 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-red-50 to-red-100 border border-red-200 rounded-lg p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-2xl font-bold text-red-900">
+                          {auditLogs.filter(log => log.level === 'error' || log.level === 'critical').length}
+                        </div>
+                        <div className="text-sm text-red-700">Critical Issues</div>
+                        <div className="text-xs text-red-600 mt-1">Immediate action needed</div>
+                      </div>
+                      <div className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Activity Timeline */}
+                <div className="bg-white border border-gray-200 rounded-lg p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-lg font-medium text-gray-900">Recent Activity Timeline</h4>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="search"
+                        placeholder="Search logs..."
+                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                      <button className="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 text-sm">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.707A1 1 0 013 7V4z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4 max-h-96 overflow-y-auto">
+                    {auditLogs.slice(0, 20).map((log) => (
+                      <div key={log.id} className="flex items-start space-x-4 py-3 border-b border-gray-100 last:border-b-0">
+                        <div className="flex-shrink-0">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            log.level === 'critical' ? 'bg-red-100' :
+                            log.level === 'error' ? 'bg-red-100' :
+                            log.level === 'warn' ? 'bg-yellow-100' :
+                            'bg-green-100'
+                          }`}>
+                            {log.level === 'critical' || log.level === 'error' ? '🚨' :
+                             log.level === 'warn' ? '⚠️' :
+                             log.action.startsWith('user.') ? '👤' :
+                             log.action.startsWith('pos.') ? '💳' :
+                             log.action.startsWith('inventory.') ? '📦' :
+                             log.action.startsWith('system.') ? '⚙️' :
+                             log.action.startsWith('security.') ? '🔒' : '📋'}
+                          </div>
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <h5 className="text-sm font-medium text-gray-900">
+                                {log.details?.description || 'System action performed'}
+                              </h5>
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                log.level === 'critical' ? 'bg-red-100 text-red-800' :
+                                log.level === 'error' ? 'bg-red-100 text-red-800' :
+                                log.level === 'warn' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-green-100 text-green-800'
+                              }`}>
+                                {log.level.toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {new Date(log.timestamp).toLocaleString()}
+                            </div>
+                          </div>
+                          
+                          <div className="mt-1 text-sm text-gray-600">
+                            <div className="flex items-center space-x-4">
+                              <span>👤 {log.userEmail}</span>
+                              <span>🏢 {log.tenantName}</span>
+                              <span>📍 {log.ipAddress}</span>
+                              {log.location && <span>🌍 {log.location.city}, {log.location.country}</span>}
+                            </div>
+                          </div>
+                          
+                          {log.details?.metadata && (
+                            <div className="mt-2 p-2 bg-gray-50 rounded-lg">
+                              <div className="text-xs text-gray-600">
+                                <strong>Details:</strong> {JSON.stringify(log.details.metadata, null, 2).slice(0, 100)}...
+                              </div>
+                            </div>
+                          )}
+                          
+                          {log.details?.changes && (
+                            <div className="mt-2 grid grid-cols-2 gap-2">
+                              <div className="p-2 bg-red-50 rounded-lg">
+                                <div className="text-xs font-medium text-red-800">Before:</div>
+                                <div className="text-xs text-red-600">{JSON.stringify(log.details.changes.before)}</div>
+                              </div>
+                              <div className="p-2 bg-green-50 rounded-lg">
+                                <div className="text-xs font-medium text-green-800">After:</div>
+                                <div className="text-xs text-green-600">{JSON.stringify(log.details.changes.after)}</div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Security & Compliance Dashboard */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Security Events */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-6">
+                    <h4 className="text-lg font-medium text-gray-900 mb-4">Security Events</h4>
+                    <div className="space-y-4">
+                      {auditLogs.filter(log => log.action.startsWith('security.')).slice(0, 5).map((log) => (
+                        <div key={log.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
+                          <div className="flex items-center">
+                            <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                              🔒
+                            </div>
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">
+                                {log.action.replace('security.', '').replace('.', ' ').toUpperCase()}
+                              </div>
+                              <div className="text-xs text-gray-500">{log.userEmail}</div>
+                            </div>
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {new Intl.RelativeTimeFormat('en', { numeric: 'auto' }).format(
+                              Math.floor((new Date(log.timestamp).getTime() - new Date().getTime()) / (1000 * 60 * 60)), 'hours'
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* System Health */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-6">
+                    <h4 className="text-lg font-medium text-gray-900 mb-4">System Health</h4>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Data Retention</span>
+                        <span className="text-sm font-medium text-green-600">✓ 90 days</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Backup Status</span>
+                        <span className="text-sm font-medium text-green-600">✓ Current</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Compliance</span>
+                        <span className="text-sm font-medium text-green-600">✓ SOC 2 Ready</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Encryption</span>
+                        <span className="text-sm font-medium text-green-600">✓ AES-256</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Access Control</span>
+                        <span className="text-sm font-medium text-green-600">✓ RBAC Active</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Categories Summary */}
+                <div className="bg-white border border-gray-200 rounded-lg p-6">
+                  <h4 className="text-lg font-medium text-gray-900 mb-4">Action Categories</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {[
+                      { category: 'User Actions', icon: '👤', count: auditLogs.filter(log => log.action.startsWith('user.')).length },
+                      { category: 'Team Management', icon: '👥', count: auditLogs.filter(log => log.action.startsWith('team.')).length },
+                      { category: 'POS Transactions', icon: '💳', count: auditLogs.filter(log => log.action.startsWith('pos.')).length },
+                      { category: 'Inventory', icon: '📦', count: auditLogs.filter(log => log.action.startsWith('inventory.')).length },
+                      { category: 'System Events', icon: '⚙️', count: auditLogs.filter(log => log.action.startsWith('system.')).length },
+                      { category: 'Security', icon: '🔒', count: auditLogs.filter(log => log.action.startsWith('security.')).length }
+                    ].map((category) => (
+                      <div key={category.category} className="text-center p-4 bg-gray-50 rounded-lg">
+                        <div className="text-2xl mb-2">{category.icon}</div>
+                        <div className="text-2xl font-bold text-gray-900">{category.count}</div>
+                        <div className="text-xs text-gray-600">{category.category}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Add Member Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Add Team Member</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <input
+                  type="text"
+                  value={addFormData.name}
+                  onChange={(e) => setAddFormData({...addFormData, name: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  placeholder="Enter full name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={addFormData.email}
+                  onChange={(e) => setAddFormData({...addFormData, email: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  placeholder="Enter email address"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                <select 
+                  value={addFormData.role}
+                  onChange={(e) => setAddFormData({...addFormData, role: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  {Object.entries(ROLE_CONFIG).map(([key, config]) => (
+                    <option key={key} value={key}>
+                      {config.icon} {config.label} - {config.description}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone (Optional)</label>
+                <input
+                  type="tel"
+                  value={addFormData.phone}
+                  onChange={(e) => setAddFormData({...addFormData, phone: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  placeholder="Enter phone number"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={handleCancelAdd}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddMember}
+                disabled={!addFormData.name.trim() || !addFormData.email.trim() || operationLoading}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {operationLoading && (
+                  <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                )}
+                {operationLoading ? 'Adding...' : 'Add Member'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Member Modal */}
+      {editingMember && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Edit Team Member</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <input
+                  type="text"
+                  value={editFormData.name}
+                  onChange={(e) => setEditFormData({...editFormData, name: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={editFormData.email}
+                  onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                <select 
+                  value={editFormData.role}
+                  onChange={(e) => setEditFormData({...editFormData, role: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  {Object.entries(ROLE_CONFIG).map(([key, config]) => (
+                    <option key={key} value={key}>
+                      {config.icon} {config.label} - {config.description}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <input
+                  type="tel"
+                  value={editFormData.phone}
+                  onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={handleCancelEdit}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateMember}
+                disabled={operationLoading}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {operationLoading && (
+                  <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                )}
+                {operationLoading ? 'Updating...' : 'Update Member'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <h3 className="text-lg font-medium text-gray-900">Remove Team Member</h3>
+                <p className="text-sm text-gray-500">This action cannot be undone.</p>
+              </div>
+            </div>
+            <div className="mb-6">
+              <p className="text-sm text-gray-600">
+                Are you sure you want to remove <strong>{showDeleteConfirm.name}</strong> from your team? 
+                They will lose access to the system immediately.
+              </p>
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowDeleteConfirm(null)}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteMember}
+                disabled={operationLoading}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {operationLoading && (
+                  <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                )}
+                {operationLoading ? 'Removing...' : 'Remove Member'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

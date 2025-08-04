@@ -78,6 +78,9 @@ export default function EnhancedTeamManagement() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingMember, setEditingMember] = useState<LocalTeamMember | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<LocalTeamMember | null>(null)
+
+  // Coordinated loading state - team loading OR auth still loading
+  const isFullyLoading = loading || authLoading
   const [activeTab, setActiveTab] = useState<'team' | 'roles' | 'activity'>('team')
   
   // Data mode toggle
@@ -735,18 +738,16 @@ export default function EnhancedTeamManagement() {
     )
   }
 
-  // Show loading state while auth is initializing
-  if (authLoading) {
+  // Show unified loading state while authentication or team data initializes
+  if (isFullyLoading) {
     return (
-      <div className="space-y-6">
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <div className="flex items-center justify-center py-12">
-            <div className="flex flex-col items-center">
-              <svg className="w-8 h-8 animate-spin text-primary-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              <p className="text-gray-600">Initializing authentication...</p>
-            </div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="animate-pulse">
+          <div className="h-6 bg-gray-200 rounded w-48 mb-4"></div>
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-16 bg-gray-200 rounded"></div>
+            ))}
           </div>
         </div>
       </div>

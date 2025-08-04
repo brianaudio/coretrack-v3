@@ -20,6 +20,19 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // Can be controlled via NEXT_PUBLIC_ENABLE_DEV_AUTH=true in .env.local
 const isDevelopment = process.env.NEXT_PUBLIC_ENABLE_DEV_AUTH === 'true'
 
+// PRODUCTION SECURITY VALIDATION
+if (process.env.NODE_ENV === 'production' && isDevelopment) {
+  console.error('🚨 CRITICAL SECURITY ERROR: Development authentication bypass is enabled in production!')
+  console.error('🚨 This allows unauthorized access to the system!')
+  console.error('🚨 Set NEXT_PUBLIC_ENABLE_DEV_AUTH=false immediately!')
+  
+  // In production, log security incident
+  if (typeof window !== 'undefined') {
+    // Could send to monitoring service in real production
+    console.error('Security incident logged: Development bypass active in production')
+  }
+}
+
 const mockUser: User = {
   uid: 'dev-user-123',
   email: 'developer@coretrack.dev',
@@ -79,8 +92,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Development mode - bypass Firebase authentication
     if (isDevelopment) {
       console.log('🔧 Development Mode: Using mock authentication data');
-      console.warn('🚨 SECURITY WARNING: Development mode is enabled! Branch access controls are bypassed.');
-      console.warn('🚨 This should NEVER be enabled in production!');
+      
+      // Additional security warnings for production misconfiguration
+      if (process.env.NODE_ENV === 'production') {
+        console.error('🚨 SECURITY ALERT: Development authentication is active in production!');
+        console.error('🚨 This bypasses all security measures!');
+      } else {
+        console.warn('🚨 SECURITY WARNING: Development mode is enabled! Branch access controls are bypassed.');
+        console.warn('🚨 This should NEVER be enabled in production!');
+      }
+      
       setUser(mockUser);
       setProfile(mockProfile);
       setTenant(mockTenant);

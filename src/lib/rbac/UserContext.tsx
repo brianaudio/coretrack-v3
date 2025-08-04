@@ -12,6 +12,8 @@ interface UserContextType {
     role: UserRole;
   } | null;
   setCurrentUser: (user: { uid: string; email: string; role: UserRole } | null) => void;
+  loading: boolean;
+  setLoading: (loading: boolean) => void;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -28,13 +30,16 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     email: string;
     role: UserRole;
   } | null>(null);
+  const [loading, setLoading] = useState(true); // Start with loading true
 
   return (
     <UserContext.Provider value={{
       currentRole,
       setCurrentRole,
       currentUser,
-      setCurrentUser
+      setCurrentUser,
+      loading,
+      setLoading
     }}>
       {children}
     </UserContext.Provider>

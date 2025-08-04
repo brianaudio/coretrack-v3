@@ -48,6 +48,7 @@ export default function POS() {
   const [showCustomers, setShowCustomers] = useState(false)
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'cash' | 'card' | 'gcash' | 'maya'>('cash')
   const [cashReceived, setCashReceived] = useState('')
+  const [isRefreshing, setIsRefreshing] = useState(false) // Add refresh state
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
   
   // Enhanced Additional Actions State
@@ -255,41 +256,42 @@ export default function POS() {
     const loadMenuItems = async () => {
       try {
         setLoading(true)
+        
+        // 🔧 CACHE INVALIDATION: Clear any potential stale data
+        console.log('🧹 Clearing potential cache before loading...')
+        
+        // Clear localStorage cache that might contain stale POS data
+        const cacheKeys = [
+          'coretrack_pos_items',
+          'coretrack_menu_items', 
+          'menuItems',
+          'posItems'
+        ];
+        
+        cacheKeys.forEach(key => {
+          if (localStorage.getItem(key)) {
+            localStorage.removeItem(key);
+            console.log(`  ✅ Cleared localStorage cache: ${key}`);
+          }
+        });
+        
         const locationId = getBranchLocationId(selectedBranch.id)
-        console.log('📞 Loading POS menu items for:', {
+        console.log('� Loading POS menu items FRESH from Firebase:', {
           tenantId: profile.tenantId,
           locationId,
-          branchName: selectedBranch.name
+          branchName: selectedBranch.name,
+          timestamp: new Date().toISOString()
         })
         
-        // Try loading all items first to see if the issue is location filtering
-        const allItems = await getPOSItems(profile.tenantId) // No locationId filter
-        console.log('📋 ALL menu items from Firebase (no location filter):', allItems.length)
-        console.log('🔍 ALL items details:', allItems.map(item => ({
-          id: item.id,
-          name: item.name,
-          category: item.category,
-          isAvailable: item.isAvailable,
-          locationId: item.locationId,
-          tenantId: item.tenantId
-        })))
-        
-        // Now try with location filter
+        // Load fresh data from Firebase (no cache)
         const items = await getPOSItems(profile.tenantId, locationId)
         
-        console.log('📋 POS Menu items loaded:', items.length)
-        console.log('🔍 POS Debug - Loading with:', {
-          tenantId: profile.tenantId,
-          locationId,
-          branchId: selectedBranch.id,
-          branchName: selectedBranch.name
-        })
-        console.log('📋 Raw menu items from Firebase:', items.map(item => ({
+        console.log('📋 FRESH POS Menu items loaded:', items.length)
+        console.log('🔍 Fresh items with current IDs:', items.map(item => ({
           id: item.id,
           name: item.name,
           category: item.category,
-          isAvailable: item.isAvailable,
-          locationId: item.locationId
+          isAvailable: item.isAvailable
         })))
         
         // Convert POSItem and filter only available items
@@ -301,14 +303,7 @@ export default function POS() {
           }))
         
         setMenuItems(posItems)
-        console.log('✅ Loaded menu items for POS:', posItems.length)
-        console.log('🔍 POS Menu items details:', posItems.map(item => ({
-          id: item.id,
-          name: item.name,
-          category: item.category,
-          price: item.price,
-          isAvailable: item.isAvailable
-        })))
+        console.log('✅ Loaded FRESH menu items for POS with correct IDs:', posItems.length)
       } catch (error) {
         console.error('❌ Error loading menu items:', error)
         setMenuItems([])
@@ -788,6 +783,17 @@ ${order.status === 'voided' ? `\nVOID REASON: ${order.voidReason || 'N/A'}` : ''
                   >
                     <span className="text-lg">⚡</span>
                     <span>Quick Actions</span>
+                  </button>
+
+                  <button
+                    onClick={refreshMenuItems}
+                    disabled={isRefreshing}
+                    className="px-4 py-2 bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:bg-gray-100 disabled:text-gray-400 rounded-lg font-medium transition-all duration-200 hover:scale-105 hover:shadow-sm flex items-center gap-2"
+                  >
+                    <span className={`text-lg ${isRefreshing ? 'animate-spin' : ''}`}>
+                      {isRefreshing ? '⏳' : '🔄'}
+                    </span>
+                    <span>{isRefreshing ? 'Refreshing...' : 'Refresh Menu'}</span>
                   </button>
                 </div>
 

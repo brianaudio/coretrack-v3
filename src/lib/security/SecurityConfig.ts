@@ -30,6 +30,65 @@ export const SecurityConfig = {
     'X-XSS-Protection': '1; mode=block',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
+  },
+
+  // Validate production security state
+  validateProductionSecurity(): { isSecure: boolean; warnings: string[]; errors: string[] } {
+    const warnings: string[] = []
+    const errors: string[] = []
+
+    // Runtime environment checks
+    if (isProduction) {
+      // Check for development bypasses
+      if (typeof window !== 'undefined') {
+        // Check if development authentication is enabled
+        if (process.env.NEXT_PUBLIC_ENABLE_DEV_AUTH === 'true') {
+          errors.push('CRITICAL: Development authentication bypass is active in production')
+        }
+
+        // Check for demo mode
+        if (process.env.NEXT_PUBLIC_ENABLE_DEMO_MODE === 'true') {
+          errors.push('CRITICAL: Demo mode is active in production')
+        }
+
+        // Check for debug logs
+        if (process.env.NEXT_PUBLIC_ENABLE_DEBUG_LOGS === 'true') {
+          warnings.push('Debug logs are enabled in production')
+        }
+
+        // Check HTTPS enforcement
+        if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+          warnings.push('HTTPS is not enforced - insecure connection detected')
+        }
+      }
+
+      // Environment variable validation
+      const envValidation = SecurityHelpers.validateEnvironment()
+      if (!envValidation.isValid) {
+        errors.push(...envValidation.errors)
+      }
+    }
+
+    return {
+      isSecure: errors.length === 0,
+      warnings,
+      errors
+    }
+  },
+
+  // Get security recommendations
+  getSecurityRecommendations(): string[] {
+    const recommendations: string[] = []
+
+    if (isProduction) {
+      recommendations.push('Ensure all environment variables are properly configured')
+      recommendations.push('Regularly audit user permissions and access logs')
+      recommendations.push('Monitor for suspicious authentication patterns')
+      recommendations.push('Keep Firebase security rules up to date')
+      recommendations.push('Consider implementing 2FA for administrative accounts')
+    }
+
+    return recommendations
   }
 }
 
@@ -71,6 +130,24 @@ export const SecurityHelpers = {
       if (!SecurityConfig.FORCE_HTTPS) {
         errors.push('HTTPS should be enforced in production')
       }
+
+      // Critical security bypass checks
+      if (process.env.NEXT_PUBLIC_ENABLE_DEV_AUTH === 'true') {
+        errors.push('CRITICAL: Development authentication bypass is enabled in production')
+      }
+
+      if (process.env.NEXT_PUBLIC_ENABLE_DEMO_MODE === 'true') {
+        errors.push('CRITICAL: Demo mode is enabled in production')
+      }
+
+      // Environment variable security checks
+      const dangerousDevValues = ['your_', '_here', 'localhost', 'development', 'test']
+      requiredFirebaseVars.forEach(varName => {
+        const value = process.env[varName]
+        if (value && dangerousDevValues.some(danger => value.includes(danger))) {
+          errors.push(`Production environment variable ${varName} contains development value: ${value}`)
+        }
+      })
     }
     
     return {

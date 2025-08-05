@@ -48,10 +48,7 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
   const [loading, setLoading] = useState(true);
 
   const loadSubscription = async () => {
-    console.log('📊 SubscriptionContext: Loading subscription for tenant:', tenant?.id);
-    
     if (!tenant?.id) {
-      console.log('📊 SubscriptionContext: No tenant ID, setting loading to false');
       setSubscription(null);
       setLoading(false);
       return;
@@ -59,26 +56,21 @@ export const SubscriptionProvider: React.FC<SubscriptionProviderProps> = ({ chil
 
     try {
       setLoading(true);
-      console.log('📊 SubscriptionContext: Fetching subscription for tenant:', tenant.id);
       const subscriptionData = await getTenantSubscription(tenant.id);
-      console.log('📊 SubscriptionContext: Subscription data:', subscriptionData);
       setSubscription(subscriptionData);
     } catch (error) {
-      console.error('📊 SubscriptionContext: Error loading subscription:', error);
+      console.error('Failed to load subscription:', error);
       setSubscription(null);
     } finally {
-      console.log('📊 SubscriptionContext: Setting loading to false');
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    console.log('📊 SubscriptionContext: useEffect triggered, tenant:', tenant);
     loadSubscription();
     
     // Safety timeout to prevent infinite loading
     const timeout = setTimeout(() => {
-      console.log('📊 SubscriptionContext: Safety timeout reached, forcing loading to false');
       setLoading(false);
     }, 10000); // 10 second timeout
     

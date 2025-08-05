@@ -26,7 +26,6 @@ export const FeatureGate: React.FC<FeatureGateProps> = ({
                       process.env.NEXT_PUBLIC_BYPASS_SUBSCRIPTION === 'true';
   
   if (shouldBypass) {
-    console.log('🔧 Development Mode: Bypassing subscription check for feature:', feature);
     return <>{children}</>;
   }
 

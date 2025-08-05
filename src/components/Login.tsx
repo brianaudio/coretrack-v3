@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { signIn, signUp, createDemoAccount } from '../lib/firebase/auth'
+import { signIn, signUp, createDemoAccount, createProfessionalDemoAccount } from '../lib/firebase/auth'
 import CoreTrackLogo from './CoreTrackLogo'
 
 interface LoginProps {
@@ -103,6 +103,28 @@ export default function Login({ onLogin }: LoginProps) {
         setError(err.message);
       } else {
         setError('Authentication failed. Please try again.');
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleProfessionalDemo = async () => {
+    console.log('🔧 Professional Demo login clicked!')
+    setLoading(true)
+    setError('')
+    
+    try {
+      console.log('🔧 Creating Professional demo account...')
+      await createProfessionalDemoAccount()
+      console.log('🔧 Professional demo account created, calling onLogin()')
+      onLogin()
+    } catch (err: any) {
+      console.error('Professional demo login error:', err)
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+        setError('Creating Professional demo account...')
+      } else {
+        setError('Professional demo login failed. Please try creating a manual account.')
       }
     } finally {
       setLoading(false)
@@ -229,12 +251,24 @@ export default function Login({ onLogin }: LoginProps) {
         </form>
 
         <div className="space-y-3">
+          <div className="text-center text-sm text-gray-600 mb-3">
+            Try CoreTrack with sample data:
+          </div>
+          
+          <button 
+            onClick={handleProfessionalDemo}
+            disabled={loading}
+            className="w-full py-3 px-4 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-lg font-semibold hover:from-primary-700 hover:to-primary-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+          >
+            {loading ? 'Please wait...' : '🚀 Try Professional Demo (₱179/month features)'}
+          </button>
+          
           <button 
             onClick={handleDemoLogin}
             disabled={loading}
             className="btn-secondary w-full disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Please wait...' : 'Try Demo Account'}
+            {loading ? 'Please wait...' : '📊 Try Basic Demo (₱69/month features)'}
           </button>
 
           <div className="text-center">

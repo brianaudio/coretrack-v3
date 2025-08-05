@@ -108,8 +108,8 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     id: 'starter',
     name: 'Starter',
     tier: 'starter',
-    monthlyPrice: 29,
-    yearlyPrice: 290, // 2 months free
+    monthlyPrice: 69,
+    yearlyPrice: 690, // 2 months free
     features: {
       inventory: true,
       pos: true,
@@ -140,10 +140,10 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     limits: {
       maxUsers: 1,
       maxLocations: 1,
-      maxProducts: 500,
-      maxOrders: 1000,
-      maxSuppliers: 10,
-      storageLimit: 2,
+      maxProducts: 100, // Very limited as per decoy pricing strategy
+      maxOrders: 500,
+      maxSuppliers: 5,
+      storageLimit: 1,
       apiCallsPerMonth: 0,
     },
   },
@@ -151,8 +151,8 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     id: 'professional',
     name: 'Professional',
     tier: 'professional',
-    monthlyPrice: 79,
-    yearlyPrice: 790, // 2 months free
+    monthlyPrice: 179,
+    yearlyPrice: 1790, // 2 months free
     popular: true,
     features: {
       inventory: true,
@@ -167,7 +167,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       roleBasedAccess: true,
       teamManagement: true,
       paymentIntegrations: true,
-      accountingIntegrations: false,
+      accountingIntegrations: true,
       ecommerceIntegrations: false,
       apiAccess: false,
       menuBuilder: true,
@@ -182,21 +182,21 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       dedicatedManager: false,
     },
     limits: {
-      maxUsers: 10,
-      maxLocations: 3,
-      maxProducts: 5000,
-      maxOrders: 10000,
-      maxSuppliers: 100,
-      storageLimit: 20,
-      apiCallsPerMonth: 10000,
+      maxUsers: -1, // unlimited as promised
+      maxLocations: 5, // up to 5 as promised
+      maxProducts: -1, // unlimited as promised
+      maxOrders: -1, // unlimited as promised
+      maxSuppliers: -1, // unlimited as promised
+      storageLimit: 50,
+      apiCallsPerMonth: 50000,
     },
   },
   {
     id: 'enterprise',
     name: 'Enterprise',
     tier: 'enterprise',
-    monthlyPrice: 199,
-    yearlyPrice: 1990, // 2 months free
+    monthlyPrice: 399,
+    yearlyPrice: 3990, // 2 months free
     features: {
       inventory: true,
       pos: true,

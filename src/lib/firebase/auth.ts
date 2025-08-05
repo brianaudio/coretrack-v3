@@ -15,7 +15,7 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
-import { createInitialSubscription } from './subscription';
+import { createInitialSubscription, updateSubscriptionTier } from './subscription';
 import { UserRole } from '../rbac/permissions';
 
 export interface UserProfile {
@@ -107,7 +107,8 @@ export const signUp = async (
   password: string,
   displayName: string,
   businessName: string,
-  businessType: TenantInfo['type'] = 'restaurant'
+  businessType: TenantInfo['type'] = 'restaurant',
+  selectedTier: 'starter' | 'professional' | 'enterprise' = 'starter'
 ): Promise<{ user: User; profile: UserProfile }> => {
   try {
     // Create Firebase user
@@ -139,8 +140,8 @@ export const signUp = async (
       role: 'owner'
     });
     
-    // Create initial subscription (14-day trial)
-    await createInitialSubscription(tenantId);
+    // Create initial subscription with selected tier (14-day trial)
+    await createInitialSubscription(tenantId, selectedTier);
     
     const profile: UserProfile = {
       uid: user.uid,
@@ -276,13 +277,46 @@ export const createDemoAccount = async (): Promise<{ user: User; profile: UserPr
           demoPassword,
           'Demo User',
           'CoreTrack Demo Restaurant',
-          'restaurant'
+          'restaurant',
+          'starter'
         );
       }
       throw error;
     }
   } catch (error) {
     console.error('Error creating demo account:', error);
+    throw error;
+  }
+};
+
+// Create Professional demo account
+export const createProfessionalDemoAccount = async (): Promise<{ user: User; profile: UserProfile }> => {
+  const demoEmail = 'professional@coretrack.dev';
+  const demoPassword = 'ProfessionalDemo123!';
+  
+  try {
+    // Try to sign in first to see if professional demo account exists
+    try {
+      const result = await signIn(demoEmail, demoPassword);
+      console.log('✅ Signed into existing Professional demo account');
+      return result;
+    } catch (error: any) {
+      // If user doesn't exist, create the professional demo account
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        console.log('🚀 Creating Professional demo account...');
+        return await signUp(
+          demoEmail,
+          demoPassword,
+          'Professional Demo User',
+          'CoreTrack Professional Demo Restaurant',
+          'restaurant',
+          'professional'
+        );
+      }
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error creating Professional demo account:', error);
     throw error;
   }
 };

@@ -86,14 +86,14 @@ export const getFeatureRestrictions = (
         'purchase-orders', 'team-management', 'location-management',
         'discrepancy-monitoring', 'business-reports'
       ],
-      upgradeMessage: 'Upgrade to Professional to unlock purchase orders, team management, and advanced reports.'
+      upgradeMessage: 'Upgrade to Professional to unlock unlimited features, team management, and advanced analytics.'
     }
   }
   
   if (subscriptionTier === 'professional') {
     return {
-      restrictedModules: ['location-management'],
-      upgradeMessage: 'Upgrade to Enterprise for multi-location management and API access.'
+      restrictedModules: [], // Professional gets access to everything we promised
+      upgradeMessage: 'Upgrade to Enterprise for unlimited locations, API access, and dedicated support.'
     }
   }
   

@@ -5,17 +5,19 @@ import { useAuth } from '../lib/context/AuthContext'
 import { useUser } from '../lib/rbac/UserContext'
 import LandingPage from '../components/LandingPage'
 import EnhancedSignup from '../components/EnhancedSignup'
+import CheckoutFlow from '../components/CheckoutFlow'
 import OnboardingFlow from '../components/modules/onboarding/OnboardingFlow'
 import Login from '../components/Login'
 import Dashboard from '../components/Dashboard'
 import { sessionManager } from '../lib/auth/sessionManager'
 
-type AppMode = 'landing' | 'signup' | 'login' | 'onboarding' | 'dashboard'
+type AppMode = 'landing' | 'checkout' | 'signup' | 'payment' | 'login' | 'onboarding' | 'dashboard'
 
 export default function Home() {
   const { user, loading: authLoading } = useAuth()
   const { setCurrentRole, setCurrentUser, loading: userLoading, setLoading: setUserLoading } = useUser()
   const [mode, setMode] = useState<AppMode>('landing')
+  const [selectedTier, setSelectedTier] = useState<string>('starter') // Track selected tier in state
   const [userProfile, setUserProfile] = useState<any>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [hasInitialized, setHasInitialized] = useState(false)
@@ -52,7 +54,7 @@ export default function Home() {
       setUserLoading(false)
       
       // Only change mode if we're not already in a user-specific mode
-      if (mode === 'landing' || mode === 'login' || mode === 'signup') {
+      if (mode === 'landing' || mode === 'login' || mode === 'signup' || mode === 'checkout') {
         // Check onboarding status synchronously to avoid race conditions
         const onboardingCompleted = localStorage.getItem('coretrack_onboarding_completed')
         if (!onboardingCompleted) {
@@ -125,12 +127,28 @@ export default function Home() {
       case 'landing':
         return (
           <LandingPage
-            onGetStarted={() => {
-              setMode('signup')
+            onGetStarted={(selectedTierFromButton?: string) => {
+              if (selectedTierFromButton) {
+                // Customer clicked a specific plan - store tier and go to checkout
+                setSelectedTier(selectedTierFromButton)
+                setMode('checkout')
+              } else {
+                // Generic "Get Started" - go to signup
+                setMode('signup')
+              }
             }}
             onSignIn={() => {
               setMode('login')
             }}
+          />
+        )
+      
+      case 'checkout':
+        return (
+          <CheckoutFlow
+            selectedTier={selectedTier}
+            onCompleteSignup={handleLoginSuccess}
+            onBackToLanding={() => setMode('landing')}
           />
         )
       

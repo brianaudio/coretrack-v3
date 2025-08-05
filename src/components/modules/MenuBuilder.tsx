@@ -80,6 +80,7 @@ export default function MenuBuilder() {
     category: '',
     price: 0,
     cost: 0,
+    emoji: '',
     ingredients: [] as MenuIngredient[]
   })
 
@@ -135,6 +136,7 @@ export default function MenuBuilder() {
         description: newItem.description,
         category: newItem.category,
         price: newItem.price,
+        emoji: newItem.emoji,
         ingredients: newItem.ingredients,
         preparationTime: 0, // Default value
         calories: 0, // Default value  
@@ -169,6 +171,7 @@ export default function MenuBuilder() {
         category: '',
         price: 0,
         cost: 0,
+        emoji: '',
         ingredients: []
       })
       setShowCreateModal(false)
@@ -367,6 +370,7 @@ export default function MenuBuilder() {
       category: item.category,
       price: item.price,
       cost: item.cost,
+      emoji: item.emoji || '',
       ingredients: [...item.ingredients] // Deep copy the ingredients array
     })
     
@@ -1243,7 +1247,10 @@ export default function MenuBuilder() {
                     {/* Card Header */}
                     <div className="p-4 pb-2">
                       <div className="flex items-start justify-between mb-2">
-                        <h3 className="font-semibold text-gray-900 text-sm truncate flex-1">{item.name}</h3>
+                        <h3 className="font-semibold text-gray-900 text-sm truncate flex-1 flex items-center gap-2">
+                          {item.emoji && <span className="text-lg">{item.emoji}</span>}
+                          {item.name}
+                        </h3>
                         <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(item.status)}`}>
                           {item.status}
                         </span>
@@ -1438,7 +1445,7 @@ export default function MenuBuilder() {
             <h3 className="text-lg font-medium text-gray-900 mb-4">Add Product</h3>
             
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Name
@@ -1450,6 +1457,20 @@ export default function MenuBuilder() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Item name"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Emoji
+                  </label>
+                  <input
+                    type="text"
+                    value={newItem.emoji}
+                    onChange={(e) => setNewItem(prev => ({ ...prev, emoji: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-2xl"
+                    placeholder="🍔"
+                    maxLength={2}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Add an emoji to make your menu visually appealing</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1697,16 +1718,32 @@ export default function MenuBuilder() {
               <div className="space-y-4">
                 <h4 className="font-medium text-gray-900 border-b pb-2">Basic Information</h4>
                 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Name
-                  </label>
-                  <input
-                    type="text"
-                    value={editingItem.name}
-                    onChange={(e) => setEditingItem(prev => prev ? { ...prev, name: e.target.value } : null)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Name
+                    </label>
+                    <input
+                      type="text"
+                      value={editingItem.name}
+                      onChange={(e) => setEditingItem(prev => prev ? { ...prev, name: e.target.value } : null)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Emoji
+                    </label>
+                    <input
+                      type="text"
+                      value={editingItem.emoji || ''}
+                      onChange={(e) => setEditingItem(prev => prev ? { ...prev, emoji: e.target.value } : null)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-2xl"
+                      placeholder="🍔"
+                      maxLength={2}
+                    />
+                  </div>
                 </div>
 
                 <div>

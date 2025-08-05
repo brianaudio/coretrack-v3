@@ -429,7 +429,7 @@ const sendWelcomeEmail = async (user: User, setup: BusinessSetup): Promise<void>
 }
 
 // Create enhanced account with comprehensive business setup
-export const createEnhancedAccount = async (setup: BusinessSetup): Promise<{
+export const createEnhancedAccount = async (setup: BusinessSetup, selectedTier: string = 'starter'): Promise<{
   user: User
   profile: EnhancedUserProfile
   tenant: EnhancedTenantInfo
@@ -475,8 +475,9 @@ export const createEnhancedAccount = async (setup: BusinessSetup): Promise<{
       serviceCharge: setup.businessType === 'restaurant' ? 10 : 0
     })
     
-    // 7. Create initial subscription (14-day trial)
-    await createInitialSubscription(tenantId, 'starter', 14)
+    // 7. Create initial subscription with selected tier (14-day trial)
+    // Use the tier passed as parameter instead of localStorage
+    await createInitialSubscription(tenantId, selectedTier as 'starter' | 'professional' | 'enterprise', 14)
     
     // 8. Send welcome email with verification
     await sendWelcomeEmail(user, setup)

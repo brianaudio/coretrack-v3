@@ -5,7 +5,7 @@ import CoreTrackLogo from './CoreTrackLogo'
 import { trackButtonClick, trackPageView, trackScrollDepth } from '../lib/analytics'
 
 interface LandingPageProps {
-  onGetStarted: () => void
+  onGetStarted: (selectedTier?: string) => void
   onSignIn: () => void
 }
 
@@ -19,10 +19,17 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
     return cleanup
   }, [])
 
-  // Enhanced onGetStarted with analytics
-  const handleGetStarted = (location: string, buttonText: string = 'Start Free Trial') => {
+  // Enhanced onGetStarted with analytics and tier selection
+  const handleGetStarted = (location: string, buttonText: string = 'Start Free Trial', selectedTier?: string) => {
     trackButtonClick(location, buttonText)
-    onGetStarted()
+    
+    // If a specific tier is selected, store it for the signup process
+    if (selectedTier) {
+      localStorage.setItem('selectedTier', selectedTier)
+      console.log(`🎯 Selected tier: ${selectedTier} from ${location}`)
+    }
+    
+    onGetStarted(selectedTier)
   }
 
   // Enhanced onSignIn with analytics
@@ -253,7 +260,7 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
                 </div>
               </div>
               
-              <div className="flex flex-col sm:flex-row gap-4 mb-8">
+              <div className="flex flex-col sm:flex-row gap-4 mb-6">
                 <button
                   onClick={() => handleGetStarted('Hero Section', 'Start Free Trial - No Credit Card Required')}
                   className="bg-primary-600 hover:bg-primary-700 text-white px-8 py-4 rounded-lg font-semibold text-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center group"
@@ -273,6 +280,24 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
                   </svg>
                   Watch Demo
                 </button>
+              </div>
+
+              {/* Quick Demo Access */}
+              <div className="flex flex-col sm:flex-row gap-3 mb-6">
+                <a
+                  href="/login"
+                  className="bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white px-6 py-3 rounded-lg font-semibold text-base transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center group"
+                >
+                  🚀 Try Professional Demo
+                  <span className="text-xs ml-2 bg-white/20 px-2 py-1 rounded">₱179/month features</span>
+                </a>
+                <a
+                  href="/login"
+                  className="bg-white hover:bg-gray-50 text-gray-700 px-6 py-3 rounded-lg font-semibold text-base border border-gray-200 transition-all duration-200 flex items-center justify-center group hover:shadow-md"
+                >
+                  📊 Try Basic Demo
+                  <span className="text-xs ml-2 bg-gray-100 px-2 py-1 rounded text-gray-600">₱69/month features</span>
+                </a>
               </div>
               
               <div className="flex items-center text-sm text-gray-500">
@@ -615,7 +640,7 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
                 </ul>
                 
                 <button
-                  onClick={() => handleGetStarted(`Pricing ${plan.name}`, plan.cta)}
+                  onClick={() => handleGetStarted(`Pricing ${plan.name}`, plan.cta, plan.name.toLowerCase())}
                   className={`w-full py-4 px-6 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 ${
                     plan.popular
                       ? 'bg-white text-primary-600 hover:bg-gray-100 shadow-lg'

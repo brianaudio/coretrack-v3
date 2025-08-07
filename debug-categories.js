@@ -1,0 +1,92 @@
+// Quick debug script to check POS categories and menu items
+import { initializeApp } from 'firebase/app'
+import { getFirestore, collection, getDocs } from 'firebase/firestore'
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC_ZGS6AKQzD-OtXJKhW-BKRhgOe46oD1k",
+  authDomain: "inventory-system-latest.firebaseapp.com",
+  projectId: "inventory-system-latest",
+  storageBucket: "inventory-system-latest.firebasestorage.app",
+  messagingSenderId: "345825741026",
+  appId: "1:345825741026:web:4b05f8b0c3d3aa5c123456"
+}
+
+const app = initializeApp(firebaseConfig)
+const db = getFirestore(app)
+
+async function debugCategories() {
+  try {
+    console.log('🔍 Debug: Checking menu items and categories...')
+    
+    // Get all businesses first
+    const businessesRef = collection(db, 'businesses')
+    const businessesSnapshot = await getDocs(businessesRef)
+    
+    for (const businessDoc of businessesSnapshot.docs) {
+      const businessId = businessDoc.id
+      console.log(`\n📊 Business: ${businessId}`)
+      
+      // Check branches
+      const branchesRef = collection(db, `businesses/${businessId}/branches`)
+      const branchesSnapshot = await getDocs(branchesRef)
+      
+      for (const branchDoc of branchesSnapshot.docs) {
+        const branchId = branchDoc.id
+        console.log(`  📍 Branch: ${branchId}`)
+        
+        // Check menu items
+        const menuItemsRef = collection(db, `businesses/${businessId}/branches/${branchId}/menuItems`)
+        const menuItemsSnapshot = await getDocs(menuItemsRef)
+        
+        console.log(`    📋 Menu Items: ${menuItemsSnapshot.size}`)
+        
+        if (menuItemsSnapshot.size > 0) {
+          const categories = new Set()
+          const items = []
+          
+          menuItemsSnapshot.forEach(doc => {
+            const item = { id: doc.id, ...doc.data() }
+            items.push(item)
+            categories.add(item.category || 'General')
+          })
+          
+          console.log(`    🏷️ Categories found:`, Array.from(categories))
+          console.log(`    📝 Sample items:`)
+          items.slice(0, 3).forEach(item => {
+            console.log(`      - ${item.name} (${item.category || 'General'}) - ₱${item.price}`)
+          })
+        }
+        
+        // Check POS items
+        const posItemsRef = collection(db, `businesses/${businessId}/branches/${branchId}/posItems`)
+        const posItemsSnapshot = await getDocs(posItemsRef)
+        
+        console.log(`    🛒 POS Items: ${posItemsSnapshot.size}`)
+        
+        if (posItemsSnapshot.size > 0) {
+          const categories = new Set()
+          const items = []
+          
+          posItemsSnapshot.forEach(doc => {
+            const item = { id: doc.id, ...doc.data() }
+            items.push(item)
+            categories.add(item.category || 'General')
+          })
+          
+          console.log(`    🏷️ POS Categories found:`, Array.from(categories))
+          console.log(`    📝 Sample POS items:`)
+          items.slice(0, 3).forEach(item => {
+            console.log(`      - ${item.name} (${item.category || 'General'}) - ₱${item.price}`)
+          })
+        }
+      }
+    }
+    
+    console.log('\n✅ Debug complete')
+    
+  } catch (error) {
+    console.error('❌ Error:', error)
+  }
+}
+
+debugCategories()

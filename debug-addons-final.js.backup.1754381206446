@@ -3,9 +3,9 @@ const { getFirestore, collection, getDocs, query, where } = require('firebase/fi
 
 const firebaseConfig = {
   apiKey: "AIzaSyBGz3NRfPRu2OK8XtZdnF6_WR2vMTkXKOw",
-  authDomain: "inventory-system-latest.firebaseapp.com",
-  projectId: "inventory-system-latest",
-  storageBucket: "inventory-system-latest.firebasestorage.app",
+  authDomain: "coretrack-71c1e.firebaseapp.com",
+  projectId: "coretrack-71c1e",
+  storageBucket: "coretrack-71c1e.firebasestorage.app",
   messagingSenderId: "1025806543509",
   appId: "1:1025806543509:web:b4b6e8d7b2b46c8c3e5d6f"
 };

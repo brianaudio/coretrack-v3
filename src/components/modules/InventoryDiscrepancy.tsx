@@ -359,13 +359,8 @@ export default function InventoryDiscrepancy() {
         riskScore += 20;
       }
 
-      // Refund analysis (simulated - would integrate with POS data)
-      // In real implementation, this would check actual transaction logs
-      const suspiciousRefundPattern = item.itemName.toLowerCase().includes('premium') && discrepancy < -2;
-      if (suspiciousRefundPattern) {
-        theftFlags.push('SUSPICIOUS_REFUND_PATTERN');
-        riskScore += 35;
-      }
+      // TODO: Implement real POS integration for refund pattern analysis
+      // This would check actual transaction logs for suspicious refund patterns
 
       // Overall risk assessment
       let riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
@@ -1161,30 +1156,16 @@ export default function InventoryDiscrepancy() {
               🎯 High Priority Items
             </h4>
             {(() => {
-              // Smart logic: Items that haven't been audited recently + high value
-              const suggestions = [
-                { item: 'Premium Coffee Beans', reason: 'High value, no audit in 5 days', risk: 'HIGH' },
-                { item: 'Electronic Equipment', reason: 'Theft-prone category', risk: 'MEDIUM' },
-                { item: 'Alcohol Inventory', reason: 'Regulatory requirement', risk: 'HIGH' }
-              ];
+              // TODO: Generate dynamic priority recommendations based on:
+              // - Items with no recent audits  
+              // - High-value items with discrepancies
+              // - Category-based risk profiles
+              // - Historical theft patterns
               
               return (
-                <div className="space-y-2">
-                  {suggestions.map((suggestion, index) => (
-                    <div key={index} className="p-3 bg-white rounded-lg border border-gray-200">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-gray-900">{suggestion.item}</p>
-                          <p className="text-sm text-gray-600">{suggestion.reason}</p>
-                        </div>
-                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                          suggestion.risk === 'HIGH' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
-                        }`}>
-                          {suggestion.risk}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                <div className="p-4 text-center text-gray-500">
+                  <p>Priority recommendations will appear here</p>
+                  <p className="text-sm">Run a Quick Check to generate recommendations based on actual inventory analysis</p>
                 </div>
               );
             })()}
@@ -1196,31 +1177,31 @@ export default function InventoryDiscrepancy() {
               ⏰ Optimal Timing
             </h4>
             <div className="space-y-3">
-              <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+              <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2 mb-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span className="font-medium text-green-800">Best Time to Audit</span>
+                  <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                  <span className="font-medium text-gray-800">Optimal Timing</span>
                 </div>
-                <p className="text-sm text-green-700">Today 2:00 PM - 4:00 PM</p>
-                <p className="text-xs text-green-600">Low customer traffic, full staff available</p>
+                <p className="text-sm text-gray-700">Schedule recommendations coming soon</p>
+                <p className="text-xs text-gray-600">Will analyze traffic patterns and staff availability</p>
               </div>
               
-              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2 mb-2">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <span className="font-medium text-blue-800">Estimated Duration</span>
+                  <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                  <span className="font-medium text-gray-800">Duration Estimate</span>
                 </div>
-                <p className="text-sm text-blue-700">45-60 minutes</p>
-                <p className="text-xs text-blue-600">Based on inventory size and team efficiency</p>
+                <p className="text-sm text-gray-700">Smart duration calculation coming soon</p>
+                <p className="text-xs text-gray-600">Will be based on inventory size and team efficiency</p>
               </div>
 
-              <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+              <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2 mb-2">
-                  <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                  <span className="font-medium text-yellow-800">Staff Recommendation</span>
+                  <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                  <span className="font-medium text-gray-800">Staff Planning</span>
                 </div>
-                <p className="text-sm text-yellow-700">2-3 staff members</p>
-                <p className="text-xs text-yellow-600">Optimal balance of speed and accuracy</p>
+                <p className="text-sm text-gray-700">Team recommendations coming soon</p>
+                <p className="text-xs text-gray-600">Will optimize for speed and accuracy balance</p>
               </div>
             </div>
           </div>
@@ -1229,13 +1210,19 @@ export default function InventoryDiscrepancy() {
         {/* Smart Actions */}
         <div className="flex items-center justify-between mt-6 pt-4 border-t border-indigo-200">
           <div className="flex items-center gap-4">
-            <button className="flex items-center gap-2 text-indigo-600 hover:text-indigo-700 font-medium text-sm">
+            <button 
+              onClick={() => addToast('📅 Auto-scheduling feature coming soon!', 'info')}
+              className="flex items-center gap-2 text-indigo-600 hover:text-indigo-700 font-medium text-sm"
+            >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
               </svg>
               Auto-Schedule Suggested Audit
             </button>
-            <button className="flex items-center gap-2 text-gray-600 hover:text-gray-700 font-medium text-sm">
+            <button 
+              onClick={() => addToast('📋 Custom audit plans coming soon!', 'info')}
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-700 font-medium text-sm"
+            >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
               </svg>
@@ -1541,7 +1528,7 @@ export default function InventoryDiscrepancy() {
       {/* 🚨 QUICK CHECK MODAL */}
       {showQuickCheck && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-gray-900">⚡ 5-Minute Theft Prevention Check</h3>
               <button 

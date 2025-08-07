@@ -94,18 +94,24 @@ export default function Home() {
     setMode('dashboard')
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Use enhanced logout that ends shifts automatically
+    const { handleLogoutWithShiftEnd } = await import('../lib/utils/logoutUtils')
+    
     sessionManager.clearAllSessions()
     setIsAuthenticated(false)
     setMode('landing')
     setCurrentRole(null)
     setCurrentUser(null)
-    localStorage.removeItem('coretrack_onboarding_completed')
     
-    // Also sign out from Firebase to clear any persistent state
-    import('../lib/firebase/auth').then(({ signOut }) => {
-      signOut().catch(console.error)
-    })
+    try {
+      // This will handle both shift ending and Firebase signout
+      await handleLogoutWithShiftEnd()
+      console.log('✅ Enhanced logout completed successfully')
+    } catch (error) {
+      console.error('❌ Enhanced logout failed:', error)
+      // Fallback: still clear local state even if Firebase logout fails
+    }
   }
 
   // Show unified loading state while authentication initializes

@@ -5,7 +5,10 @@
 
 import React, { useState } from 'react';
 import { useBranch } from '@/lib/context/BranchContext';
-import { AlertCircle, Building2, CheckCircle, Loader2, MapPin, Users } from 'lucide-react';
+import { useAuth } from '@/lib/context/AuthContext';
+import { AlertCircle, Building2, CheckCircle, Loader2, MapPin, Users, Trash2 } from 'lucide-react';
+import { deleteLocation } from '@/lib/firebase/locationManagement';
+import { deleteBranchByLocationId } from '@/lib/firebase/branches';
 
 interface BranchSwitcherProps {
   showDetails?: boolean;
@@ -20,9 +23,11 @@ export function BranchSwitcher({ showDetails = false, className = '' }: BranchSw
     switchingInProgress,
     error,
     canAccessBranch,
-    getCacheStats
+    getCacheStats,
+    refreshBranches
   } = useBranch();
 
+  const { profile } = useAuth();
   const [showDropdown, setShowDropdown] = useState(false);
   const [showStats, setShowStats] = useState(false);
 
@@ -33,6 +38,43 @@ export function BranchSwitcher({ showDetails = false, className = '' }: BranchSw
 
     await switchBranch(branchId);
     setShowDropdown(false);
+  };
+
+  const handleDeleteBranch = async (branch: any, event: React.MouseEvent) => {
+    event.stopPropagation();
+    
+    // Prevent deletion of main branch
+    if (branch.isMain) {
+      alert('Cannot delete the main branch.');
+      return;
+    }
+    
+    if (!confirm(`Delete ${branch.name}? This action cannot be undone and will remove all data associated with this branch.`)) {
+      return;
+    }
+
+    try {
+      // Delete the location (this will also handle the branch deletion)
+      await deleteLocation(branch.id);
+      
+      // Delete the corresponding branch from branches collection
+      if (profile?.tenantId) {
+        await deleteBranchByLocationId(profile.tenantId, branch.id);
+      }
+      
+      // Refresh branches to update the UI
+      refreshBranches();
+      
+      // Close dropdown if currently selected branch was deleted
+      if (selectedBranch?.id === branch.id) {
+        setShowDropdown(false);
+      }
+      
+      console.log(`✅ Branch "${branch.name}" deleted successfully`);
+    } catch (error) {
+      console.error('Error deleting branch:', error);
+      alert('Error deleting branch. Please try again.');
+    }
   };
 
   const cacheStats = getCacheStats();
@@ -115,54 +157,74 @@ export function BranchSwitcher({ showDetails = false, className = '' }: BranchSw
                 const canAccess = canAccessBranch(branch.id);
                 
                 return (
-                  <button
+                  <div
                     key={branch.id}
-                    onClick={() => handleBranchSwitch(branch.id)}
-                    disabled={!canAccess || switchingInProgress}
-                    className={`
-                      w-full px-4 py-2 text-left flex items-center hover:bg-gray-50
-                      ${isSelected ? 'bg-blue-50 text-blue-700' : 'text-gray-900'}
-                      ${!canAccess ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-                      ${switchingInProgress ? 'opacity-50' : ''}
-                    `}
+                    className={`group relative flex items-center hover:bg-gray-50 ${
+                      isSelected ? 'bg-blue-50' : ''
+                    }`}
                   >
-                    <div className="flex items-center flex-1 min-w-0">
-                      <Building2 className="h-4 w-4 mr-3 text-gray-400" />
-                      
-                      <div className="flex-1 min-w-0">
-                        <div className={`font-medium truncate ${
-                          isSelected ? 'text-blue-700' : 'text-gray-900'
-                        }`}>
-                          {branch.name}
-                        </div>
+                    <button
+                      onClick={() => handleBranchSwitch(branch.id)}
+                      disabled={!canAccess || switchingInProgress}
+                      className={`
+                        flex-1 px-4 py-2 text-left flex items-center
+                        ${isSelected ? 'text-blue-700' : 'text-gray-900'}
+                        ${!canAccess ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                        ${switchingInProgress ? 'opacity-50' : ''}
+                      `}
+                    >
+                      <div className="flex items-center flex-1 min-w-0">
+                        <Building2 className="h-4 w-4 mr-3 text-gray-400" />
                         
-                        <div className="flex items-center text-xs text-gray-500 mt-1">
-                          <MapPin className="h-3 w-3 mr-1" />
-                          <span className="truncate">{branch.address}</span>
-                        </div>
-                        
-                        {showDetails && branch.stats && (
-                          <div className="flex items-center space-x-3 text-xs text-gray-500 mt-1">
-                            <span>${branch.stats.totalRevenue.toLocaleString()}</span>
-                            <span>{branch.stats.totalOrders} orders</span>
-                            <span>{branch.stats.lowStockItems} low stock</span>
+                        <div className="flex-1 min-w-0">
+                          <div className={`font-medium truncate ${
+                            isSelected ? 'text-blue-700' : 'text-gray-900'
+                          }`}>
+                            {branch.name}
+                            {branch.isMain && (
+                              <span className="ml-2 text-xs text-purple-600">👑</span>
+                            )}
                           </div>
-                        )}
-                      </div>
-                      
-                      <div className="flex items-center ml-2">
-                        {branch.status === 'active' ? (
-                          <CheckCircle className="h-3 w-3 text-green-500" />
-                        ) : (
-                          <AlertCircle className="h-3 w-3 text-yellow-500" />
-                        )}
+                          
+                          <div className="flex items-center text-xs text-gray-500 mt-1">
+                            <MapPin className="h-3 w-3 mr-1" />
+                            <span className="truncate">{branch.address}</span>
+                          </div>
+                          
+                          {showDetails && branch.stats && (
+                            <div className="flex items-center space-x-3 text-xs text-gray-500 mt-1">
+                              <span>${branch.stats.totalRevenue.toLocaleString()}</span>
+                              <span>{branch.stats.totalOrders} orders</span>
+                              <span>{branch.stats.lowStockItems} low stock</span>
+                            </div>
+                          )}
+                        </div>
                         
-                        {isSelected && (
-                          <CheckCircle className="h-4 w-4 ml-2 text-blue-600" />
-                        )}
+                        <div className="flex items-center ml-2">
+                          {branch.status === 'active' ? (
+                            <CheckCircle className="h-3 w-3 text-green-500" />
+                          ) : (
+                            <AlertCircle className="h-3 w-3 text-yellow-500" />
+                          )}
+                          
+                          {isSelected && (
+                            <CheckCircle className="h-4 w-4 ml-2 text-blue-600" />
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </button>
+                    </button>
+                    
+                    {/* Delete button - only for non-main branches */}
+                    {!branch.isMain && (
+                      <button
+                        onClick={(e) => handleDeleteBranch(branch, e)}
+                        className="opacity-0 group-hover:opacity-100 p-2 m-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                        title={`Delete ${branch.name}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>

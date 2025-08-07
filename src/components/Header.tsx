@@ -82,21 +82,28 @@ export default function Header({ activeModule, onSidebarToggle, onLogout }: Head
     
     if (confirm(`Are you sure you want to ${action}?`)) {
       try {
-        // Only end shift if user is authorized to do so
+        // Use our enhanced logout utility that automatically handles shift cleanup
+        const { handleLogoutWithShiftEnd } = await import('../lib/utils/logoutUtils')
+        
+        // If user can end shift, try to end it with the enterprise reset system first
         if (isShiftActive && canEndShift) {
-          await performReset({
-            resetReason: 'shift_end',
-            shiftId: currentShift?.id,
-            shiftName: currentShift?.name
-          });
+          try {
+            await performReset({
+              resetReason: 'shift_end',
+              shiftId: currentShift?.id,
+              shiftName: currentShift?.name
+            });
+            console.log('✅ Enterprise shift reset completed')
+          } catch (resetError) {
+            console.warn('⚠️ Enterprise reset failed, using standard logout:', resetError)
+          }
         }
         
-        // Always sign out regardless
+        // Always use enhanced logout for consistent behavior
         if (onLogout) {
           onLogout()
         } else {
-          // In production, use Firebase signOut
-          await signOut()
+          await handleLogoutWithShiftEnd()
         }
       } catch (error) {
         console.error('End shift and logout error:', error)

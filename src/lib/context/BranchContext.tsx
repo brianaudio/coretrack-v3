@@ -2,9 +2,10 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react'
 import { useAuth } from './AuthContext'
-import { getBranches, initializeBranchesForTenant } from '../firebase/branches'
+import { getLocations } from '../firebase/locationManagement'
 import { updateUserSelectedBranch } from '../firebase/auth'
 import { debugTrace, debugStep, debugError, debugSuccess } from '../utils/debugHelper'
+import { Location } from '../types/location'
 import { 
   collection, 
   query, 
@@ -204,111 +205,18 @@ export function BranchProvider({ children }: { children: ReactNode }) {
   const sessionManagerRef = useRef(new BranchSessionManager())
   const branchListenerRef = useRef<(() => void) | null>(null)
 
-  // Development mode detection
-  const isDevelopment = process.env.NODE_ENV === 'development'
-
-  // Mock branch data for development
-  const mockBranches: Branch[] = [
-    {
-      id: 'dev-branch-main',
-      name: 'Main Branch',
-      address: '123 Business St, Development City',
-      phone: '+1 (555) 123-4567',
-      manager: 'John Doe',
-      status: 'active',
-      isMain: true,
-      icon: '🏢',
-      stats: {
-        totalRevenue: 125000,
-        totalOrders: 856,
-        inventoryValue: 45000,
-        lowStockItems: 12
-      }
-    },
-    {
-      id: 'dev-branch-west',
-      name: 'West Side Branch',
-      address: '456 Commerce Ave, Development City',
-      phone: '+1 (555) 987-6543',
-      manager: 'Jane Smith',
-      status: 'active',
-      isMain: false,
-      icon: '🏪',
-      stats: {
-        totalRevenue: 89000,
-        totalOrders: 623,
-        inventoryValue: 32000,
-        lowStockItems: 8
-      }
-    }
-  ]
-
   // Load branches on mount
   useEffect(() => {
-    if (isDevelopment) {
-      console.log('🔧 Development Mode: Initial load - checking for real branches...')
-      
-      // In development mode, try to load real branches first, then fall back to mock
-      if (profile?.tenantId) {
-        getBranches(profile.tenantId).then(realBranches => {
-          console.log('🔧 Development Mode: Real branches response:', realBranches.length)
-          
-          if (realBranches.length > 0) {
-            console.log('🔧 Development Mode: Found real branches, using them:', realBranches.map(b => b.name))
-            setBranches(realBranches)
-            
-            // Auto-select the first real branch
-            const firstBranch = realBranches[0]
-            console.log('🔧 Development Mode: Auto-selecting first real branch:', firstBranch.name)
-            setSelectedBranchState(firstBranch)
-          } else {
-            console.log('🔧 Development Mode: No real branches found, using mock branches')
-            setBranches(mockBranches)
-            
-            // Auto-select mock branch
-            const mainBranch = mockBranches.find(b => b.isMain) || mockBranches[0]
-            console.log('🔧 Development Mode: Auto-selecting mock main branch:', mainBranch.name)
-            setSelectedBranchState(mainBranch)
-          }
-          setLoading(false)
-        }).catch(error => {
-          console.log('🔧 Development Mode: Error loading real branches, using mock:', error)
-          setBranches(mockBranches)
-          
-          // Auto-select mock branch
-          const mainBranch = mockBranches.find(b => b.isMain) || mockBranches[0]
-          console.log('🔧 Development Mode: Auto-selecting mock main branch after error:', mainBranch.name)
-          setSelectedBranchState(mainBranch)
-          setLoading(false)
-        })
-      } else {
-        console.log('🔧 Development Mode: No tenantId, using mock branches')
-        setBranches(mockBranches)
-        
-        // Auto-select mock branch
-        const mainBranch = mockBranches.find(b => b.isMain) || mockBranches[0]
-        console.log('🔧 Development Mode: Auto-selecting mock main branch (no tenantId):', mainBranch.name)
-        setSelectedBranchState(mainBranch)
-        setLoading(false)
-      }
-      return
-    }
-
     if (profile?.tenantId) {
       debugTrace('BranchProvider Loading', { tenantId: profile.tenantId }, { component: 'BranchContext' })
       loadBranches()
     } else {
       debugStep('No tenant ID available', { hasProfile: !!profile }, { component: 'BranchContext' })
     }
-  }, [profile?.tenantId, isDevelopment])
+  }, [profile?.tenantId])
 
   // Restore selected branch from user profile
   useEffect(() => {
-    if (isDevelopment) {
-      // In development mode, selection is handled in the initial load effect
-      return
-    }
-
     debugStep('Branch selection effect triggered', { 
       branchCount: branches.length,
       hasProfile: !!profile,
@@ -318,58 +226,63 @@ export function BranchProvider({ children }: { children: ReactNode }) {
     }, { component: 'BranchContext' })
 
     if (branches.length > 0 && profile) {
-      debugStep('Starting auto-selection process', { 
-        branchCount: branches.length,
-        savedBranchId: profile.selectedBranchId,
-        branches: branches.map(b => ({ id: b.id, name: b.name, isMain: b.isMain }))
-      }, { component: 'BranchContext' })
-      
-      // Try to find the user's previously selected branch
-      let branch = profile.selectedBranchId 
-        ? branches.find(b => b.id === profile.selectedBranchId) 
-        : null
-      
-      debugStep('Searched for saved branch', { 
-        savedBranchId: profile.selectedBranchId,
-        foundBranch: branch ? { id: branch.id, name: branch.name } : null 
-      }, { component: 'BranchContext' })
-      
-      // If not found or not set, use the main branch or first available
-      if (!branch) {
-        branch = branches.find(b => b.isMain) || branches[0]
-        debugStep('Using fallback branch selection', { 
-          branchName: branch?.name,
-          branchId: branch?.id,
-          isMain: branch?.isMain 
-        }, { component: 'BranchContext' })
-      }
-      
-      if (branch) {
-        debugSuccess('Setting selected branch', { 
-          branchName: branch.name, 
-          branchId: branch.id,
-          currentlySelected: selectedBranch?.id
+      // Add a small delay to prevent interference with manual selections
+      const autoSelectTimer = setTimeout(() => {
+        debugStep('Starting auto-selection process', { 
+          branchCount: branches.length,
+          savedBranchId: profile.selectedBranchId,
+          branches: branches.map(b => ({ id: b.id, name: b.name, isMain: b.isMain }))
         }, { component: 'BranchContext' })
         
-        // Only update if different
-        if (selectedBranch?.id !== branch.id) {
-          setSelectedBranchState(branch)
+        // Try to find the user's previously selected branch
+        let branch = profile.selectedBranchId 
+          ? branches.find(b => b.id === profile.selectedBranchId) 
+          : null
+        
+        debugStep('Searched for saved branch', { 
+          savedBranchId: profile.selectedBranchId,
+          foundBranch: branch ? { id: branch.id, name: branch.name } : null 
+        }, { component: 'BranchContext' })
+        
+        // If not found or not set, use the main branch or first available
+        if (!branch) {
+          branch = branches.find(b => b.isMain) || branches[0]
+          debugStep('Using fallback branch selection', { 
+            branchName: branch?.name,
+            branchId: branch?.id,
+            isMain: branch?.isMain 
+          }, { component: 'BranchContext' })
+        }
+        
+        if (branch) {
+          debugSuccess('Setting selected branch', { 
+            branchName: branch.name, 
+            branchId: branch.id,
+            currentlySelected: selectedBranch?.id
+          }, { component: 'BranchContext' })
           
-          // Save to Firebase if it's different from what's stored
-          if (profile.selectedBranchId !== branch.id) {
-            debugStep('Saving branch selection to Firebase', { branchId: branch.id }, { component: 'BranchContext' })
-            updateUserSelectedBranch(profile.uid, branch.id).catch(error => {
-              debugError('Failed to save branch selection to Firebase', { error }, { component: 'BranchContext' })
-            })
+          // Only update if different
+          if (selectedBranch?.id !== branch.id) {
+            setSelectedBranchState(branch)
+            
+            // Save to Firebase if it's different from what's stored
+            if (profile.selectedBranchId !== branch.id) {
+              debugStep('Saving branch selection to Firebase', { branchId: branch.id }, { component: 'BranchContext' })
+              updateUserSelectedBranch(profile.uid, branch.id).catch(error => {
+                debugError('Failed to save branch selection to Firebase', { error }, { component: 'BranchContext' })
+              })
+            }
+          } else {
+            debugStep('Branch already selected, no change needed', { branchId: branch.id }, { component: 'BranchContext' })
           }
         } else {
-          debugStep('Branch already selected, no change needed', { branchId: branch.id }, { component: 'BranchContext' })
+          debugError('No suitable branch found for auto-selection', { 
+            branches: branches.map(b => ({ id: b.id, name: b.name, isMain: b.isMain })) 
+          }, { component: 'BranchContext' })
         }
-      } else {
-        debugError('No suitable branch found for auto-selection', { 
-          branches: branches.map(b => ({ id: b.id, name: b.name, isMain: b.isMain })) 
-        }, { component: 'BranchContext' })
-      }
+      }, 1000) // 1 second delay to allow manual selections to complete
+      
+      return () => clearTimeout(autoSelectTimer)
     } else {
       debugStep('Skipping branch selection', { 
         branchCount: branches.length,
@@ -377,36 +290,51 @@ export function BranchProvider({ children }: { children: ReactNode }) {
         reason: branches.length === 0 ? 'No branches' : 'No profile'
       }, { component: 'BranchContext' })
     }
-  }, [branches, profile?.selectedBranchId, profile?.uid, isDevelopment, selectedBranch?.id])
+  }, [branches, profile?.selectedBranchId, profile?.uid, selectedBranch?.id])
 
   const loadBranches = async () => {
     if (!profile?.tenantId) return
 
     try {
       setLoading(true)
-      debugStep('Loading branches from Firebase', { tenantId: profile.tenantId }, { component: 'BranchContext' })
+      debugStep('Loading branches from locations', { tenantId: profile.tenantId }, { component: 'BranchContext' })
       
-      // Get existing branches
-      const branchData = await getBranches(profile.tenantId)
-      debugStep('Branches fetched', { count: branchData.length }, { component: 'BranchContext' })
+      // Get locations from location management
+      const locations = await getLocations(profile.tenantId)
+      debugStep('Locations fetched', { count: locations.length }, { component: 'BranchContext' })
       
-      // If no branches exist, create a default one
+      // Convert locations to branch format
+      const branchData: Branch[] = locations.map(location => ({
+        id: location.id,
+        name: location.name,
+        address: `${location.address.street}, ${location.address.city}, ${location.address.state} ${location.address.zipCode}`,
+        phone: location.contact?.phone || 'No phone provided',
+        manager: location.contact?.manager || 'No manager assigned',
+        status: location.status === 'active' ? 'active' : 'inactive',
+        isMain: location.type === 'main',
+        icon: '🏢',
+        stats: {
+          totalRevenue: 0,
+          totalOrders: 0,
+          inventoryValue: 0,
+          lowStockItems: 0
+        },
+        type: location.type,
+        isActive: location.status === 'active',
+        settings: location.settings || {},
+        createdAt: location.createdAt instanceof Date ? location.createdAt : new Date(),
+        updatedAt: location.updatedAt instanceof Date ? location.updatedAt : new Date()
+      }))
+      
       if (branchData.length === 0) {
-        debugStep('No branches found, creating default branch', {}, { component: 'BranchContext' })
-        
-        const defaultBranch = await initializeBranchesForTenant(
-          profile.tenantId, 
-          tenant?.name || 'My Business'
-        )
-        
-        debugSuccess('Default branch created', { branchName: defaultBranch.name }, { component: 'BranchContext' })
-        setBranches([defaultBranch])
+        debugStep('No locations found, branches list will be empty', {}, { component: 'BranchContext' })
+        setBranches([])
       } else {
-        debugSuccess('Branches loaded successfully', { branches: branchData.map(b => b.name) }, { component: 'BranchContext' })
+        debugSuccess('Branches loaded from locations', { branches: branchData.map((b: Branch) => b.name) }, { component: 'BranchContext' })
         setBranches(branchData)
       }
     } catch (error) {
-      debugError('Failed to load branches', { error }, { component: 'BranchContext' })
+      debugError('Failed to load branches from locations', { error }, { component: 'BranchContext' })
       console.error('Error loading branches:', error)
       setBranches([])
     } finally {
@@ -415,17 +343,6 @@ export function BranchProvider({ children }: { children: ReactNode }) {
   }
 
   const setSelectedBranch = async (branch: Branch) => {
-    if (isDevelopment) {
-      console.log('🔧 Development Mode: Mock branch selection:', branch.name)
-      setSelectedBranchState(branch)
-      
-      // Emit event for other components
-      window.dispatchEvent(new CustomEvent('branchChanged', { 
-        detail: { branchId: branch.id, branch } 
-      }))
-      return
-    }
-
     debugStep('Manually selecting branch', { branchName: branch.name, branchId: branch.id }, { component: 'BranchContext' })
     
     setSelectedBranchState(branch)
@@ -447,36 +364,6 @@ export function BranchProvider({ children }: { children: ReactNode }) {
   }
 
   const refreshBranches = async () => {
-    if (isDevelopment) {
-      console.log('🔧 Development Mode: Forcing refresh - checking for real branches first...')
-      
-      // In development, check if there are real branches created
-      if (profile?.tenantId) {
-        try {
-          const realBranches = await getBranches(profile.tenantId)
-          console.log('🔧 Development Mode: Real branches found:', realBranches.length)
-          
-          if (realBranches.length > 0) {
-            console.log('🔧 Development Mode: Using real branches:', realBranches.map(b => b.name))
-            setBranches(realBranches)
-            
-            // Auto-select the first real branch
-            const firstBranch = realBranches[0]
-            if (!selectedBranch || selectedBranch.id.startsWith('dev-branch-')) {
-              console.log('🔧 Development Mode: Auto-selecting first real branch:', firstBranch.name)
-              setSelectedBranchState(firstBranch)
-            }
-            return
-          }
-        } catch (error) {
-          console.log('🔧 Development Mode: Error fetching real branches:', error)
-        }
-      }
-      
-      console.log('🔧 Development Mode: No real branches found, using mock branches')
-      setBranches(mockBranches)
-      return
-    }
     loadBranches()
   }
 
@@ -512,8 +399,10 @@ export function BranchProvider({ children }: { children: ReactNode }) {
       }
 
       // Step 3: Update selected branch
+      debugStep('Updating selected branch state', { from: selectedBranch?.name, to: targetBranch.name }, { component: 'BranchContext' })
       setSelectedBranchState(targetBranch)
       setLastSwitchTime(new Date())
+      debugSuccess('Selected branch updated', { newBranch: targetBranch.name, newId: targetBranch.id }, { component: 'BranchContext' })
 
       // Step 4: Save to Firebase user profile
       if (profile.uid) {

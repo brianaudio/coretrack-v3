@@ -371,25 +371,55 @@ const createEnhancedTenant = async (
   return tenantId
 }
 
-// Initialize first location
+// Initialize first location in the ROOT locations collection
 const createInitialLocation = async (tenantId: string, setup: BusinessSetup): Promise<void> => {
-  const locationRef = doc(db, 'tenants', tenantId, 'locations', 'main-location')
+  // Create a unique location ID
+  const locationId = `main-location-${tenantId}`
+  const locationRef = doc(db, 'locations', locationId) // ROOT LEVEL COLLECTION
   const now = Timestamp.now()
   
   const locationData = {
-    id: 'main-location',
+    id: locationId,
     name: 'Main Location',
-    address: setup.address,
-    city: setup.city,
-    province: setup.province,
-    postalCode: setup.postalCode,
-    phone: setup.phone,
+    tenantId, // Add tenantId for proper filtering
+    type: 'main', // Mark as main location
+    
+    // Address
+    address: {
+      street: setup.address || 'Please update your address',
+      city: setup.city || 'Please update your city',
+      state: setup.province || 'Please update your province',
+      zipCode: setup.postalCode || 'Please update your postal code',
+      country: 'Philippines'
+    },
+    
+    // Contact
+    contact: {
+      phone: setup.phone || 'Please update your phone',
+      email: setup.email,
+      manager: 'Please assign a manager'
+    },
     
     // Business Details
-    seatingCapacity: setup.seatingCapacity,
-    operatingHours: setup.operatingHours,
+    settings: {
+      seatingCapacity: setup.seatingCapacity || 20,
+      businessHours: {
+        monday: { open: setup.operatingHours?.open || '09:00', close: setup.operatingHours?.close || '21:00', closed: false },
+        tuesday: { open: setup.operatingHours?.open || '09:00', close: setup.operatingHours?.close || '21:00', closed: false },
+        wednesday: { open: setup.operatingHours?.open || '09:00', close: setup.operatingHours?.close || '21:00', closed: false },
+        thursday: { open: setup.operatingHours?.open || '09:00', close: setup.operatingHours?.close || '21:00', closed: false },
+        friday: { open: setup.operatingHours?.open || '09:00', close: setup.operatingHours?.close || '21:00', closed: false },
+        saturday: { open: setup.operatingHours?.open || '09:00', close: setup.operatingHours?.close || '21:00', closed: false },
+        sunday: { open: '10:00', close: '20:00', closed: false }
+      },
+      features: {
+        inventory: true,
+        pos: true,
+        expenses: true
+      }
+    },
     
-    // Features
+    // Features from setup
     features: {
       hasDelivery: setup.hasDelivery,
       hasTakeout: setup.hasTakeout,
@@ -397,13 +427,14 @@ const createInitialLocation = async (tenantId: string, setup: BusinessSetup): Pr
       hasOnlineOrdering: setup.hasOnlineOrdering
     },
     
+    status: 'active',
     isActive: true,
-    isMain: true,
     createdAt: now,
     updatedAt: now
   }
   
   await setDoc(locationRef, locationData)
+  console.log('✅ Initial location created in root locations collection:', locationId)
 }
 
 // Send welcome email with business-specific content

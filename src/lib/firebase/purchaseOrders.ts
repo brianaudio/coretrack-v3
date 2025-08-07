@@ -404,6 +404,19 @@ export const deliverPurchaseOrder = async (
       deliveredBy || 'System' // userName - use deliveredBy or 'System' as fallback
     );
 
+    // Automatically update all menu item costs when inventory costs change
+    try {
+      const { triggerMenuPriceSync } = await import('./autoMenuPriceSync');
+      // Use the location from the purchase order
+      const updatedMenuItems = await triggerMenuPriceSync(tenantId, orderData.locationId);
+      if (updatedMenuItems > 0) {
+        console.log(`🍽️ Auto-updated ${updatedMenuItems} menu items with new ingredient costs`);
+      }
+    } catch (error) {
+      console.error('⚠️ Error auto-updating menu prices:', error);
+      // Don't fail the whole purchase order if menu sync fails
+    }
+
     // Check if this is a partial delivery
     const isPartialDelivery = updatedItems.some(item => {
       const quantityReceived = item.quantityReceived || 0;

@@ -92,6 +92,28 @@ export async function endActiveShifts(tenantId: string, employeeId: string): Pro
   await Promise.all(promises)
 }
 
+// End active shifts for an employee at a specific location (branch-specific)
+export async function endActiveShiftsAtLocation(tenantId: string, employeeId: string, locationId: string): Promise<void> {
+  const shiftsQuery = query(
+    collection(db, 'shifts'),
+    where('tenantId', '==', tenantId),
+    where('employeeId', '==', employeeId),
+    where('locationId', '==', locationId), // Filter by specific branch location
+    where('isActive', '==', true)
+  )
+
+  const snapshot = await getDocs(shiftsQuery)
+  
+  const promises = snapshot.docs.map(doc => 
+    updateDoc(doc.ref, {
+      endTime: Timestamp.now(),
+      isActive: false
+    })
+  )
+
+  await Promise.all(promises)
+}
+
 // Get current active shift for an employee
 export async function getCurrentShift(tenantId: string, employeeId?: string): Promise<ActiveShift | null> {
   const shiftsQuery = query(

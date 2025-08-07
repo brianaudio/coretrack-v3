@@ -6,6 +6,7 @@ import { ShiftProvider } from '../lib/context/ShiftContext'
 import { SubscriptionProvider } from '../lib/context/SubscriptionContext'
 import { UserPermissionsProvider } from '../lib/context/UserPermissionsContext'
 import { BusinessSettingsProvider } from '../lib/context/BusinessSettingsContext'
+import { MenuPOSSyncProvider } from '../lib/context/MenuPOSSyncContext'
 import { UserProvider } from '../lib/rbac/UserContext'
 import { ToastProvider } from '../components/ui/Toast'
 import ErrorBoundary from '../components/ErrorBoundary'
@@ -578,9 +579,11 @@ export default function RootLayout({
                   <BusinessSettingsProvider>
                     <SubscriptionProvider>
                       <UserPermissionsProvider>
-                        <ToastProvider>
-                          {children}
-                        </ToastProvider>
+                        <MenuPOSSyncProvider>
+                          <ToastProvider>
+                            {children}
+                          </ToastProvider>
+                        </MenuPOSSyncProvider>
                       </UserPermissionsProvider>
                     </SubscriptionProvider>
                   </BusinessSettingsProvider>

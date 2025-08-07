@@ -172,15 +172,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const handleSignOut = async () => {
+    // Use our enhanced signout utility that handles shift cleanup
+    const { signOutWithShiftEnd } = await import('../utils/logoutUtils')
+    
     if (isDevelopment) {
-      console.log('🔧 Development Mode: Mock sign out');
+      console.log('🔧 Development Mode: Mock sign out with shift cleanup');
+      
+      // In dev mode, still try to clean up any demo shifts
+      try {
+        await signOutWithShiftEnd();
+      } catch (error) {
+        console.warn('Dev mode shift cleanup failed:', error);
+      }
+      
       setUser(null);
       setProfile(null);
       setTenant(null);
       return;
     }
     
-    await firebaseSignOut();
+    // In production, use the enhanced signout
+    await signOutWithShiftEnd();
   };
 
   const handleRefreshProfile = async () => {

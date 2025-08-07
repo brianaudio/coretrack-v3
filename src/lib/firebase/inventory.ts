@@ -430,13 +430,25 @@ export const updateInventoryFromDelivery = async (
   updatedItems: string[];
   notFoundItems: string[];
   unitMismatches: Array<{ itemName: string; expectedUnit: string; receivedUnit: string }>;
+  updatedIngredientIds?: string[];
+  menuPriceUpdates?: {
+    autoUpdated: number;
+    flaggedForReview: number;
+    manualReviewRequired: number;
+  };
 }> => {
   try {
     const result = {
       success: true,
       updatedItems: [] as string[],
       notFoundItems: [] as string[],
-      unitMismatches: [] as Array<{ itemName: string; expectedUnit: string; receivedUnit: string }>
+      unitMismatches: [] as Array<{ itemName: string; expectedUnit: string; receivedUnit: string }>,
+      updatedIngredientIds: [] as string[],
+      menuPriceUpdates: undefined as {
+        autoUpdated: number;
+        flaggedForReview: number;
+        manualReviewRequired: number;
+      } | undefined
     };
 
     // Get all current inventory items
@@ -469,6 +481,29 @@ export const updateInventoryFromDelivery = async (
         continue;
       }
       
+      // Handle cost per unit updates with weighted average method
+      let newCostPerUnit = matchingItem.costPerUnit;
+      
+      if (deliveryItem.unitPrice && deliveryItem.unitPrice > 0) {
+        if (!matchingItem.costPerUnit || matchingItem.costPerUnit === 0) {
+          // No existing cost - use the new price
+          newCostPerUnit = deliveryItem.unitPrice;
+        } else {
+          // Calculate weighted average cost
+          const existingValue = matchingItem.currentStock * matchingItem.costPerUnit;
+          const newValue = deliveryItem.quantityReceived * deliveryItem.unitPrice;
+          const totalQuantity = matchingItem.currentStock + deliveryItem.quantityReceived;
+          
+          if (totalQuantity > 0) {
+            newCostPerUnit = (existingValue + newValue) / totalQuantity;
+            console.log(`📊 Price Update for ${matchingItem.name}:`);
+            console.log(`   - Existing: ${matchingItem.currentStock} units @ ₱${matchingItem.costPerUnit.toFixed(2)} = ₱${existingValue.toFixed(2)}`);
+            console.log(`   - New: ${deliveryItem.quantityReceived} units @ ₱${deliveryItem.unitPrice.toFixed(2)} = ₱${newValue.toFixed(2)}`);
+            console.log(`   - Weighted Average: ₱${newCostPerUnit.toFixed(2)} per unit`);
+          }
+        }
+      }
+      
       // Instead of using updateInventoryItem, we'll log a specific receiving movement
       const newStock = matchingItem.currentStock + deliveryItem.quantityReceived;
       const updates: Partial<InventoryItem> = {
@@ -476,9 +511,9 @@ export const updateInventoryFromDelivery = async (
         status: calculateStatus(newStock, matchingItem.minStock)
       };
       
-      // Update cost per unit if provided and current cost is not set
-      if (deliveryItem.unitPrice && (!matchingItem.costPerUnit || matchingItem.costPerUnit === 0)) {
-        updates.costPerUnit = deliveryItem.unitPrice;
+      // Update cost per unit with the calculated weighted average
+      if (newCostPerUnit !== matchingItem.costPerUnit) {
+        updates.costPerUnit = newCostPerUnit;
       }
       
       // Update the inventory item directly
@@ -490,7 +525,11 @@ export const updateInventoryFromDelivery = async (
         lastUpdated: now
       });
       
-      // Log the receiving movement
+      // Log the receiving movement with cost information
+      const movementReason = newCostPerUnit !== matchingItem.costPerUnit 
+        ? `Purchase order delivery received - Price updated from ₱${(matchingItem.costPerUnit || 0).toFixed(2)} to ₱${(newCostPerUnit || 0).toFixed(2)} (weighted average)`
+        : 'Purchase order delivery received';
+        
       await logInventoryMovement({
         itemId: matchingItem.id,
         itemName: matchingItem.name,
@@ -499,7 +538,7 @@ export const updateInventoryFromDelivery = async (
         previousStock: matchingItem.currentStock,
         newStock: newStock,
         unit: matchingItem.unit,
-        reason: 'Purchase order delivery received',
+        reason: movementReason,
         userId,
         userName,
         tenantId,
@@ -507,6 +546,29 @@ export const updateInventoryFromDelivery = async (
       });
       
       result.updatedItems.push(matchingItem.name);
+      
+      // Track ingredients that had cost changes for menu price synchronization
+      if (newCostPerUnit !== matchingItem.costPerUnit) {
+        result.updatedIngredientIds.push(matchingItem.id);
+      }
+    }
+    
+    // Process menu price updates if any ingredient costs changed
+    if (result.updatedIngredientIds && result.updatedIngredientIds.length > 0) {
+      try {
+        const { processMenuPriceUpdatesAfterDelivery } = await import('./menuPriceSync');
+        const menuUpdateResult = await processMenuPriceUpdatesAfterDelivery(tenantId, result.updatedIngredientIds);
+        
+        console.log('📋 Menu Price Update Summary:');
+        console.log(`   - Auto-updated: ${menuUpdateResult.autoUpdated} items`);
+        console.log(`   - Flagged for review: ${menuUpdateResult.flaggedForReview} items`);
+        console.log(`   - Manual review required: ${menuUpdateResult.manualReviewRequired} items`);
+        
+        result.menuPriceUpdates = menuUpdateResult;
+      } catch (error) {
+        console.error('Error processing menu price updates:', error);
+        // Don't fail the inventory update if menu sync fails
+      }
     }
     
     return result;

@@ -28,6 +28,8 @@ import { useSubscription } from '../lib/context/SubscriptionContext' // Add subs
 import { hasPermission, getAllowedModules, ModulePermission } from '../lib/rbac/permissions'
 import { hasModuleAccess, getAccessibleModules } from '../lib/rbac/subscriptionPermissions'
 import ConnectionStatus from './ui/ConnectionStatus'
+import FloatingCalculator from './ui/FloatingCalculator'
+// import TestCalculator from './ui/TestCalculator'
 import { BranchProvider } from '../lib/context/BranchContext'
 
 export type ModuleType = 'dashboard' | 'inventory' | 'pos' | 'purchase-orders' | 'menu-builder' | 'expenses' | 'team-management' | 'location-management' | 'settings' | 'discrepancy-monitoring' | 'business-reports'
@@ -201,6 +203,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         </div>
         
         <DevTools />
+        <FloatingCalculator />
+        {/* <TestCalculator /> */}
       </div>
     </BranchProvider>
   )

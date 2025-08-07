@@ -20,6 +20,8 @@ interface AddOn {
   category: 'size' | 'extra' | 'modification' | 'special' | 'ingredient'
   required?: boolean
   options?: string[]
+  // For preserving Menu Builder addon data for inventory deduction
+  _originalData?: any
 }
 
 interface POSItem extends FirebasePOSItem {
@@ -68,9 +70,28 @@ export default function POSEnhanced() {
   
   // 🛒 Cart and Menu State
   const [cart, setCart] = useState<CartItem[]>([])
+  // Permanent fix: Only show menu items for current branch and tenant
   const [menuItems, setMenuItems] = useState<POSItem[]>([])
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [loading, setLoading] = useState(true)
+  const branchLocationId = selectedBranch?.id ? getBranchLocationId(selectedBranch.id) : null
+  
+  // Declare customAddons state first
+  const [customAddons, setCustomAddons] = useState<AddOn[]>([])
+  
+  const filteredMenuItems = useMemo(() => menuItems.filter(item => {
+    const matchesLocation = branchLocationId ? item.locationId === branchLocationId : true
+    const matchesTenant = item.tenantId === profile?.tenantId
+    return matchesLocation && matchesTenant
+  }), [menuItems, branchLocationId, profile?.tenantId])
+  
+  // Permanent fix: Only show add-ons for current branch and tenant
+  const filteredAddons = useMemo(() => customAddons.filter(addon => {
+    // Type guards for locationId and tenantId
+    const matchesLocation = branchLocationId ? (addon as any).locationId === branchLocationId : true
+    const matchesTenant = (addon as any).tenantId === profile?.tenantId
+    return matchesLocation && matchesTenant
+  }), [customAddons, branchLocationId, profile?.tenantId])
   
   // 🍕 Add-ons Modal State
   const [showAddonsModal, setShowAddonsModal] = useState(false)
@@ -92,7 +113,7 @@ export default function POSEnhanced() {
   // 🛠️ Add-ons Management State
   const [showAddonsManager, setShowAddonsManager] = useState(false)
   const [editingAddon, setEditingAddon] = useState<AddOn | null>(null)
-  const [customAddons, setCustomAddons] = useState<AddOn[]>([])
+  // customAddons is already declared above - remove duplicate
   const [newAddon, setNewAddon] = useState<Partial<AddOn>>({
     name: '',
     price: 0,
@@ -577,7 +598,54 @@ export default function POSEnhanced() {
     }
 
     try {
-      const orderRef = doc(db, `businesses/${businessId}/branches/${branchId}/orders`, order.id)
+      // First check if we have the necessary IDs
+      if (!businessId) {
+        console.error('Missing business ID. User might not be properly authenticated.');
+        alert('Error: Missing business information. Please refresh the page and try again.');
+        return;
+      }
+      
+      // Check if we're using the new data structure (tenants/posOrders) or old (businesses/branches/orders)
+      let orderRef;
+      let documentExists = false;
+      
+      // First try the new path
+      try {
+        orderRef = doc(db, `tenants/${businessId}/posOrders`, order.id);
+        const orderDoc = await getDoc(orderRef);
+        documentExists = orderDoc.exists();
+      } catch (error) {
+        console.error('Error checking new path:', error);
+      }
+      
+      // If document doesn't exist at new path, try the old path (if we have a branch ID)
+      if (!documentExists) {
+        console.log('Order not found in new path, trying legacy path...');
+        
+        if (!branchId) {
+          console.error('Missing branch ID. Cannot check legacy path.');
+          alert('Error: Missing branch information. Please select a branch and try again.');
+          return;
+        }
+        
+        try {
+          orderRef = doc(db, `businesses/${businessId}/branches/${branchId}/orders`, order.id);
+          // Check if it exists in the old path too
+          const oldPathDoc = await getDoc(orderRef);
+          documentExists = oldPathDoc.exists();
+          
+          if (!documentExists) {
+            console.error(`Order ${order.id} not found in any expected location`);
+            alert('Error: Order not found. It may have been deleted or moved.');
+            return;
+          }
+        } catch (error) {
+          console.error('Error checking old path:', error);
+          alert('Error accessing order data. Please try again.');
+          return;
+        }
+      }
+      
       await updateDoc(orderRef, {
         status: 'voided',
         voidedAt: new Date(),
@@ -586,14 +654,23 @@ export default function POSEnhanced() {
 
       // Restore inventory for voided items
       for (const item of order.items) {
-        const inventoryRef = doc(db, `businesses/${businessId}/branches/${branchId}/inventory`, item.id)
-        const inventoryDoc = await getDoc(inventoryRef)
-        
-        if (inventoryDoc.exists()) {
-          const currentQuantity = inventoryDoc.data().quantity || 0
-          await updateDoc(inventoryRef, {
-            quantity: currentQuantity + item.quantity
-          })
+        try {
+          // Use the helper function from inventory.ts to find the item
+          const inventoryItem = await findInventoryItemByName(businessId, item.name)
+          
+          if (inventoryItem) {
+            await updateStockQuantity(
+              businessId, 
+              inventoryItem.id,
+              item.quantity,
+              'add',
+              `Restored from voided order - ${order.orderNumber || order.id.slice(-6)}`,
+              user?.uid,
+              user?.email || 'Unknown'
+            )
+          }
+        } catch (error) {
+          console.error(`Error restoring item ${item.name} to inventory:`, error)
         }
       }
 
@@ -623,7 +700,58 @@ export default function POSEnhanced() {
     setIsVoiding(true)
 
     try {
-      const orderRef = doc(db, `businesses/${businessId}/branches/${branchId}/orders`, orderToVoid.id)
+      // First check if we have the necessary IDs
+      if (!businessId) {
+        console.error('Missing business ID. User might not be properly authenticated.');
+        alert('Error: Missing business information. Please refresh the page and try again.');
+        setIsVoiding(false);
+        return;
+      }
+      
+      // Check if we're using the new data structure (tenants/posOrders) or old (businesses/branches/orders)
+      let orderRef;
+      let documentExists = false;
+      
+      // First try the new path
+      try {
+        orderRef = doc(db, `tenants/${businessId}/posOrders`, orderToVoid.id);
+        const orderDoc = await getDoc(orderRef);
+        documentExists = orderDoc.exists();
+      } catch (error) {
+        console.error('Error checking new path:', error);
+      }
+      
+      // If document doesn't exist at new path, try the old path (if we have a branch ID)
+      if (!documentExists) {
+        console.log('Order not found in new path, trying legacy path...');
+        
+        if (!branchId) {
+          console.error('Missing branch ID. Cannot check legacy path.');
+          alert('Error: Missing branch information. Please select a branch and try again.');
+          setIsVoiding(false);
+          return;
+        }
+        
+        try {
+          orderRef = doc(db, `businesses/${businessId}/branches/${branchId}/orders`, orderToVoid.id);
+          // Check if it exists in the old path too
+          const oldPathDoc = await getDoc(orderRef);
+          documentExists = oldPathDoc.exists();
+          
+          if (!documentExists) {
+            console.error(`Order ${orderToVoid.id} not found in any expected location`);
+            alert('Error: Order not found. It may have been deleted or moved.');
+            setIsVoiding(false);
+            return;
+          }
+        } catch (error) {
+          console.error('Error checking old path:', error);
+          alert('Error accessing order data. Please try again.');
+          setIsVoiding(false);
+          return;
+        }
+      }
+      
       await updateDoc(orderRef, {
         status: 'voided',
         voidedAt: new Date(),
@@ -636,14 +764,23 @@ export default function POSEnhanced() {
       if (restoreInventory) {
         // Restore main items
         for (const item of orderToVoid.items) {
-          const inventoryRef = doc(db, `businesses/${businessId}/branches/${branchId}/inventory`, item.id)
-          const inventoryDoc = await getDoc(inventoryRef)
-          
-          if (inventoryDoc.exists()) {
-            const currentQuantity = inventoryDoc.data().quantity || 0
-            await updateDoc(inventoryRef, {
-              quantity: currentQuantity + item.quantity
-            })
+          try {
+            // Use the helper function from inventory.ts to find the item
+            const inventoryItem = await findInventoryItemByName(businessId, item.name)
+            
+            if (inventoryItem) {
+              await updateStockQuantity(
+                businessId, 
+                inventoryItem.id,
+                item.quantity,
+                'add',
+                `Restored from voided order - ${orderToVoid.orderNumber || orderToVoid.id.slice(-6)} (Reason: ${voidReason.trim()})`,
+                user?.uid,
+                user?.email || 'Unknown'
+              )
+            }
+          } catch (error) {
+            console.error(`Error restoring item ${item.name} to inventory:`, error)
           }
         }
 
@@ -726,8 +863,8 @@ export default function POSEnhanced() {
         // Convert Menu Builder add-ons to POS add-ons format (from menuItems collection)
         const menuAddons: AddOn[] = menuBuilderItems
           .filter(item => item.isAddonOnly)
-          .map(item => ({
-            id: item.id || `addon-${item.name}`,
+          .map((item, index) => ({
+            id: item.id || `menu-addon-${index}-${item.name.replace(/\s+/g, '-').toLowerCase()}`,
             name: item.name,
             price: item.price,
             category: item.addonType || 'extra' as any,
@@ -738,24 +875,54 @@ export default function POSEnhanced() {
         // Convert standalone add-ons from Menu Builder (from addons collection)
         const standAloneAddonsPOS: AddOn[] = standAloneAddons
           .filter(addon => addon.status === 'active')
-          .map(addon => ({
-            id: addon.id,
+          .map((addon, index) => ({
+            id: addon.id || `standalone-addon-${index}-${addon.name.replace(/\s+/g, '-').toLowerCase()}`,
             name: addon.name,
             price: addon.price,
             category: 'extra' as any, // Default category
             required: false,
-            options: undefined
+            options: undefined,
+            // 🎯 CRITICAL: Preserve original addon data for inventory deduction
+            _originalData: addon
           }))
 
-        // Combine all Menu Builder add-ons
+        // Combine all Menu Builder add-ons and ensure unique IDs
         const allMenuBuilderAddons = [...menuAddons, ...standAloneAddonsPOS]
-        setMenuBuilderAddons(allMenuBuilderAddons)
+        
+        // 🔧 FIX: Ensure all addon IDs are unique to prevent React key collisions
+        const uniqueAddons = new Map()
+        allMenuBuilderAddons.forEach((addon, index) => {
+          const baseId = addon.id
+          let uniqueId = baseId
+          let counter = 1
+          
+          // If ID already exists, append a counter
+          while (uniqueAddons.has(uniqueId)) {
+            uniqueId = `${baseId}-${counter}`
+            counter++
+          }
+          
+          uniqueAddons.set(uniqueId, { ...addon, id: uniqueId })
+        })
+        
+        const finalAllMenuBuilderAddons = Array.from(uniqueAddons.values())
+        setMenuBuilderAddons(finalAllMenuBuilderAddons)
 
         console.log('🔗 Loaded Menu Builder add-ons:', {
           fromMenuItems: menuAddons.length,
           fromAddonsCollection: standAloneAddonsPOS.length,
-          total: allMenuBuilderAddons.length,
-          addons: allMenuBuilderAddons
+          total: finalAllMenuBuilderAddons.length,
+          addons: finalAllMenuBuilderAddons.map(addon => ({
+            id: addon.id,
+            name: addon.name,
+            price: addon.price,
+            hasOriginalData: !!addon._originalData,
+            originalDataPreview: addon._originalData ? {
+              hasIngredients: !!(addon._originalData.ingredients && addon._originalData.ingredients.length > 0),
+              hasSingleInventory: !!addon._originalData.inventoryItemId,
+              ingredientCount: addon._originalData.ingredients?.length || 0
+            } : null
+          }))
         })
 
         // 🍕 Prioritize Menu Builder items over POS items (they have better descriptions)
@@ -792,7 +959,7 @@ export default function POSEnhanced() {
               createdAt: item.createdAt || new Date() as any,
               updatedAt: item.updatedAt || new Date() as any,
               available: true,
-              addons: [...getItemAddons(item as any), ...allMenuBuilderAddons, ...customAddons]
+              addons: [...getItemAddons(item as any), ...finalAllMenuBuilderAddons, ...customAddons]
             }
           })
 
@@ -961,7 +1128,7 @@ export default function POSEnhanced() {
         await createPOSOrder(firestoreOrder)
 
         // 📦 Deduct add-ons from inventory (only if there are add-ons)
-        const hasAddons = cart.some(item => item.addons && item.addons.length > 0)
+        const hasAddons = cart.some(item => item.selectedAddons && item.selectedAddons.length > 0)
         if (hasAddons) {
           console.log('🔗 Cart has add-ons, deducting from inventory...')
           await deductAddonsFromInventory()
@@ -1010,22 +1177,19 @@ export default function POSEnhanced() {
     if (!businessId || !branchId || !profile?.tenantId || !selectedBranch) return
 
     for (const cartItem of cart) {
-      if (cartItem.addons && cartItem.addons.length > 0) {
-        for (const addon of cartItem.addons) {
+      if (cartItem.selectedAddons && cartItem.selectedAddons.length > 0) {
+        for (const addon of cartItem.selectedAddons) {
           try {
-            // 🎯 Check if this is a Menu Builder add-on with ingredients
+            // 🎯 Check if this is a Menu Builder add-on with original data
             const menuBuilderAddon = menuBuilderAddons.find(mba => mba.id === addon.id)
             
-            if (menuBuilderAddon) {
-              // 🏗️ Menu Builder add-on: Deduct based on ingredients
-              // Get the full menu item details to access ingredients
-              const locationId = getBranchLocationId(selectedBranch.id)
-              const menuItems = await getMenuItems(profile.tenantId, locationId)
-              const fullMenuItem = menuItems.find(item => item.id === menuBuilderAddon.id)
+            if (menuBuilderAddon && menuBuilderAddon._originalData) {
+              const originalAddon = menuBuilderAddon._originalData
               
-              if (fullMenuItem && fullMenuItem.ingredients && fullMenuItem.ingredients.length > 0) {
+              // 🏗️ Menu Builder add-on: Check ingredients first, then fallback to single inventory
+              if (originalAddon.ingredients && originalAddon.ingredients.length > 0) {
                 // Deduct each ingredient
-                for (const ingredient of fullMenuItem.ingredients) {
+                for (const ingredient of originalAddon.ingredients) {
                   const quantityToDeduct = ingredient.quantity * cartItem.quantity
                   
                   await updateStockQuantity(
@@ -1039,25 +1203,25 @@ export default function POSEnhanced() {
                   )
                 }
                 console.log(`✅ Deducted Menu Builder add-on "${addon.name}" ingredients for ${cartItem.quantity} servings`)
+              } else if (originalAddon.inventoryItemId) {
+                // Single inventory item deduction
+                const quantityToDeduct = (originalAddon.inventoryQuantity || 1) * cartItem.quantity
+                
+                await updateStockQuantity(
+                  profile.tenantId,
+                  originalAddon.inventoryItemId,
+                  quantityToDeduct,
+                  'subtract',
+                  `Used in POS order - ${cartItem.name} (Add-on: ${addon.name})`,
+                  user?.uid,
+                  user?.email || 'POS System'
+                )
+                console.log(`✅ Deducted Menu Builder add-on "${addon.name}" - ${quantityToDeduct} ${originalAddon.inventoryItemName}`)
               } else {
-                // Fallback: Try to find by name for Menu Builder add-ons without ingredients
-                const inventoryItem = await findInventoryItemByName(profile.tenantId, addon.name)
-                if (inventoryItem) {
-                  await updateStockQuantity(
-                    profile.tenantId,
-                    inventoryItem.id,
-                    cartItem.quantity,
-                    'subtract',
-                    `Used in POS order - ${cartItem.name} (Menu Builder Add-on)`,
-                    user?.uid,
-                    user?.email || 'POS System'
-                  )
-                } else {
-                  console.warn(`⚠️ Inventory item not found for Menu Builder add-on: ${addon.name}`)
-                }
+                console.warn(`⚠️ Menu Builder add-on "${addon.name}" has no inventory linkage`)
               }
             } else {
-              // 🛠️ Custom add-on: Find by name (existing behavior)
+              // 🛠️ Custom add-on or fallback: Find by name (existing behavior)
               const inventoryItem = await findInventoryItemByName(profile.tenantId, addon.name)
               
               if (inventoryItem) {
@@ -1263,7 +1427,7 @@ export default function POSEnhanced() {
                           <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
                             {categoryItems.length} items
                           </span>
-                      </div>
+                        </div>
                       
                       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                         {categoryItems.map((item) => (
@@ -1292,10 +1456,19 @@ export default function POSEnhanced() {
                               {item.name}
                             </h3>
                             
+                            <p className="text-xs text-gray-500 mb-2 line-clamp-2">
+                              {item.description}
+                            </p>
+                            
                             <div className="flex items-center justify-between">
                               <span className="text-lg font-bold text-blue-600">
                                 ₱{item.price?.toFixed(2) || '0.00'}
                               </span>
+                              {item.addons && item.addons.length > 0 && (
+                                <div className="text-xs text-purple-600 bg-purple-100 px-2 py-1 rounded-full">
+                                  +Add-ons
+                                </div>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -1335,10 +1508,19 @@ export default function POSEnhanced() {
                         {item.name}
                       </h3>
                       
+                      <p className="text-xs text-gray-500 mb-2 line-clamp-2">
+                        {item.description}
+                      </p>
+                      
                       <div className="flex items-center justify-between">
                         <span className="text-lg font-bold text-blue-600">
                           ₱{item.price?.toFixed(2) || '0.00'}
                         </span>
+                        {item.addons && item.addons.length > 0 && (
+                          <div className="text-xs text-purple-600 bg-purple-100 px-2 py-1 rounded-full">
+                            +Add-ons
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1501,6 +1683,22 @@ export default function POSEnhanced() {
                     
                     if (categoryAddons.length === 0) return null
 
+                    // 🔧 FIX: Ensure unique addon IDs within each category to prevent React key collisions
+                    const uniqueCategoryAddons = categoryAddons.reduce((acc, addon, index) => {
+                      const existingIds = acc.map(a => a.id)
+                      let uniqueId = addon.id
+                      let counter = 1
+                      
+                      // If ID already exists in this category, append a counter
+                      while (existingIds.includes(uniqueId)) {
+                        uniqueId = `${addon.id}-${counter}`
+                        counter++
+                      }
+                      
+                      acc.push({ ...addon, id: uniqueId })
+                      return acc
+                    }, [] as typeof categoryAddons)
+
                     return (
                       <div key={category} className="border border-gray-200 rounded-lg p-4">
                         <h5 className="font-semibold text-gray-900 mb-3 capitalize flex items-center gap-2">
@@ -1509,13 +1707,13 @@ export default function POSEnhanced() {
                           {category === 'modification' && '🔧'}
                           {category === 'special' && '⭐'}
                           {category} Options
-                          {categoryAddons.some(addon => addon.required) && (
+                          {uniqueCategoryAddons.some(addon => addon.required) && (
                             <span className="text-red-500 text-xs">(Required)</span>
                           )}
                         </h5>
                         
                         <div className="space-y-2">
-                          {categoryAddons.map(addon => (
+                          {uniqueCategoryAddons.map(addon => (
                             <div key={addon.id}>
                               {addon.options ? (
                                 // Radio buttons for options like size

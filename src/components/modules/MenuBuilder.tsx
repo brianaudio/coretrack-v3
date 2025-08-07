@@ -92,12 +92,38 @@ export default function MenuBuilder() {
       try {
         setLoading(true)
         const locationId = getBranchLocationId(selectedBranch.id)
+        
+        console.log(`🚨 DEEP DIVE: Loading data for branch "${selectedBranch.name}" (ID: ${selectedBranch.id})`)
+        console.log(`🎯 Expected locationId: ${locationId}`)
+        console.log(`🏢 TenantId: ${profile.tenantId}`)
+        
+        // Clear existing menu items first to prevent contamination
+        setMenuItems([])
+        console.log(`🧹 Cleared existing menu items`)
+        
         const [itemsData, categoriesData, inventoryData, addonsData] = await Promise.all([
           getMenuItems(profile.tenantId, locationId),
-          getMenuCategories(profile.tenantId),
+          getMenuCategories(profile.tenantId, locationId), // FIX: Add locationId here too
           getInventoryItems(profile.tenantId, locationId),
           getAddons(profile.tenantId, locationId)
         ])
+        
+        console.log(`🔍 DEEP DIVE: Raw data received:`)
+        console.log(`   Menu Items: ${itemsData.length}`)
+        itemsData.forEach((item: any, index: number) => {
+          console.log(`     ${index + 1}. "${item.name}" - locationId: ${item.locationId}`)
+        })
+        
+        // SECURITY CHECK: Verify all items belong to current branch
+        const wrongItems = itemsData.filter((item: any) => item.locationId !== locationId)
+        if (wrongItems.length > 0) {
+          console.error(`🚨 SECURITY BREACH: ${wrongItems.length} items don't belong to current branch!`)
+          wrongItems.forEach((item: any) => {
+            console.error(`   - "${item.name}" has locationId: ${item.locationId}, expected: ${locationId}`)
+          })
+        } else {
+          console.log(`✅ SECURITY CHECK PASSED: All ${itemsData.length} items belong to current branch`)
+        }
         console.log('📊 MenuBuilder: Raw data loaded:', {
           menuItems: itemsData.length,
           categories: categoriesData.length,
@@ -1438,197 +1464,398 @@ export default function MenuBuilder() {
         )}
       </div>
 
-      {/* Create Menu Item Modal */}
+      {/* Modern Enterprise Add Product Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Add Product</h3>
-            
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Name
-                  </label>
-                  <input
-                    type="text"
-                    value={newItem.name}
-                    onChange={(e) => setNewItem(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Item name"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Emoji
-                  </label>
-                  <input
-                    type="text"
-                    value={newItem.emoji}
-                    onChange={(e) => setNewItem(prev => ({ ...prev, emoji: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-2xl"
-                    placeholder="🍔"
-                    maxLength={2}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Add an emoji to make your menu visually appealing</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Category
-                  </label>
-                  <input
-                    type="text"
-                    value={newItem.category}
-                    onChange={(e) => setNewItem(prev => ({ ...prev, category: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter category (e.g., Burgers, Drinks, Desserts)"
-                    list="categories-datalist"
-                  />
-                  <datalist id="categories-datalist">
-                    {Array.from(new Set(menuItems.map(item => item.category)))
-                      .filter(category => category.trim() !== '')
-                      .sort()
-                      .map((category) => (
-                      <option key={category} value={category} />
-                    ))}
-                  </datalist>
-                  {menuItems.length > 0 && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Existing categories: {Array.from(new Set(menuItems.map(item => item.category)))
-                        .filter(category => category.trim() !== '')
-                        .sort()
-                        .slice(0, 5)
-                        .join(', ')}
-                      {Array.from(new Set(menuItems.map(item => item.category))).filter(category => category.trim() !== '').length > 5 && 
-                        ` +${Array.from(new Set(menuItems.map(item => item.category))).filter(category => category.trim() !== '').length - 5} more`}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
-                <textarea
-                  value={newItem.description}
-                  onChange={(e) => setNewItem(prev => ({ ...prev, description: e.target.value }))}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Item description..."
-                />
-              </div>
-
-              {/* Ingredients Section */}
-              <div className="border border-gray-200 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h4 className="text-md font-medium text-gray-900">Recipe Ingredients</h4>
-                    <p className="text-sm text-gray-600">Add ingredients from your inventory to calculate product cost</p>
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-white bg-opacity-20 rounded-lg">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
                   </div>
-                  <button
-                    onClick={addIngredient}
-                    className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    Add Ingredient
-                  </button>
+                  <div>
+                    <h2 className="text-xl font-semibold text-white">Add New Product</h2>
+                    <p className="text-blue-100 text-sm">Create a new menu item for {selectedBranch?.name}</p>
+                  </div>
                 </div>
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
+                >
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
 
-                {newItem.ingredients.length > 0 && (
-                  <div className="space-y-3">
-                    {newItem.ingredients.map((ingredient, index) => (
-                      <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                        <div className="flex-1">
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Inventory Item
-                          </label>
-                          <select
-                            value={ingredient.inventoryItemId}
-                            onChange={(e) => updateIngredient(index, 'inventoryItemId', e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          >
-                            <option value="">Select ingredient</option>
-                            {inventoryItems.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.name} ({item.unit})
-                              </option>
-                            ))}
-                          </select>
+            {/* Content */}
+            <div className="max-h-[calc(95vh-200px)] overflow-y-auto">
+              <div className="p-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Left Column - Basic Information */}
+                  <div className="space-y-6">
+                    <div className="bg-gray-50 rounded-xl p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <div className="p-2 bg-blue-100 rounded-lg mr-3">
+                          <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
                         </div>
-                        <div className="w-24">
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Quantity
+                        Product Details
+                      </h3>
+                      
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="col-span-2">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                              Product Name*
+                            </label>
+                            <input
+                              type="text"
+                              value={newItem.name}
+                              onChange={(e) => setNewItem(prev => ({ ...prev, name: e.target.value }))}
+                              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
+                              placeholder="Enter product name"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                              Icon
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={newItem.emoji}
+                                onChange={(e) => setNewItem(prev => ({ ...prev, emoji: e.target.value }))}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-2xl"
+                                placeholder="🍔"
+                                maxLength={2}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Category*
                           </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={ingredient.quantity}
-                            onChange={(e) => updateIngredient(index, 'quantity', parseFloat(e.target.value) || 0)}
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={newItem.category}
+                              onChange={(e) => setNewItem(prev => ({ ...prev, category: e.target.value }))}
+                              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
+                              placeholder="e.g., Beverages, Main Course, Desserts"
+                              list="categories-datalist"
+                            />
+                            <div className="absolute right-3 top-3">
+                              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                              </svg>
+                            </div>
+                          </div>
+                          <datalist id="categories-datalist">
+                            {Array.from(new Set(menuItems.map(item => item.category)))
+                              .filter(category => category.trim() !== '')
+                              .sort()
+                              .map((category) => (
+                                <option key={category} value={category} />
+                              ))}
+                          </datalist>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Description
+                          </label>
+                          <textarea
+                            value={newItem.description}
+                            onChange={(e) => setNewItem(prev => ({ ...prev, description: e.target.value }))}
+                            rows={3}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 placeholder-gray-400 resize-none"
+                            placeholder="Describe your product..."
                           />
                         </div>
-                        <div className="w-20">
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Unit
-                          </label>
-                          <input
-                            type="text"
-                            value={ingredient.unit}
-                            readOnly
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-100 text-gray-600"
-                          />
+                      </div>
+                    </div>
+
+                    {/* Pricing Section */}
+                    <div className="bg-green-50 rounded-xl p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <div className="p-2 bg-green-100 rounded-lg mr-3">
+                          <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                          </svg>
                         </div>
-                        <div className="w-24">
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Pricing & Profitability
+                      </h3>
+                      
+                      <div className="grid grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Selling Price*
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-3 text-gray-500">₱</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={newItem.price}
+                              onChange={(e) => setNewItem(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
+                              className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                              placeholder="0.00"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
                             Cost
                           </label>
-                          <input
-                            type="text"
-                            value={`₱${ingredient.cost.toFixed(2)}`}
-                            readOnly
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-100 text-gray-600"
-                          />
+                          <div className="relative">
+                            <span className="absolute left-3 top-3 text-gray-500">₱</span>
+                            <input
+                              type="text"
+                              value={newItem.cost.toFixed(2)}
+                              readOnly
+                              className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-xl bg-gray-100 text-gray-600 font-medium"
+                            />
+                          </div>
+                          <p className="text-xs text-gray-600 mt-1">Auto-calculated from ingredients</p>
                         </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Profit Margin
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={newItem.price > 0 && newItem.cost > 0 ? 
+                                `₱${(newItem.price - newItem.cost).toFixed(2)}` : 
+                                '₱0.00'
+                              }
+                              readOnly
+                              className="w-full px-4 py-3 border border-green-300 rounded-xl bg-green-100 text-green-700 font-semibold"
+                            />
+                          </div>
+                          <p className="text-xs text-green-600 mt-1 font-medium">
+                            {newItem.price > 0 && newItem.cost > 0 ? 
+                              `${(((newItem.price - newItem.cost) / newItem.price) * 100).toFixed(1)}% margin` : 
+                              '0% margin'
+                            }
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column - Recipe & Ingredients */}
+                  <div className="space-y-6">
+                    <div className="bg-orange-50 rounded-xl p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                          <div className="p-2 bg-orange-100 rounded-lg mr-3">
+                            <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                            </svg>
+                          </div>
+                          Recipe Ingredients
+                        </h3>
                         <button
-                          onClick={() => removeIngredient(index)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                          onClick={addIngredient}
+                          className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors duration-200 flex items-center space-x-2"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                           </svg>
+                          <span>Add Ingredient</span>
                         </button>
                       </div>
-                    ))}
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-gray-900">
-                        Total Ingredient Cost: <span className="text-green-600">₱{newItem.cost.toFixed(2)}</span>
-                      </p>
+
+                      {newItem.ingredients.length > 0 ? (
+                        <div className="space-y-6">
+                          {/* Header */}
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-lg font-semibold text-gray-900">Recipe Ingredients</h4>
+                            <span className="text-sm text-gray-500">{newItem.ingredients.length} ingredient{newItem.ingredients.length !== 1 ? 's' : ''}</span>
+                          </div>
+                          
+                          {newItem.ingredients.map((ingredient, index) => (
+                            <div key={index} className="bg-white border border-gray-200 rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 min-h-[280px]">
+                              {/* Ingredient Header - Fixed Height */}
+                              <div className="flex items-center justify-between p-6 pb-4 min-h-[80px]">
+                                <div className="flex items-center space-x-3 flex-1">
+                                  <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                    <span className="text-orange-600 font-semibold text-sm">{index + 1}</span>
+                                  </div>
+                                  <h5 className="text-base font-semibold text-gray-900 truncate">
+                                    {ingredient.inventoryItemName || 'Select Ingredient'}
+                                  </h5>
+                                </div>
+                                <button
+                                  onClick={() => removeIngredient(index)}
+                                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-all duration-200 flex-shrink-0"
+                                  title="Remove ingredient"
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+
+                              {/* Ingredient Details - Consistent Grid */}
+                              <div className="px-6 pb-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-[180px]">
+                                  {/* Left Column */}
+                                  <div className="flex flex-col space-y-4">
+                                    <div className="flex-1">
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Inventory Item
+                                      </label>
+                                      <select
+                                        value={ingredient.inventoryItemId}
+                                        onChange={(e) => updateIngredient(index, 'inventoryItemId', e.target.value)}
+                                        className="w-full px-4 py-3 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white shadow-sm h-[44px]"
+                                      >
+                                        <option value="">Select ingredient</option>
+                                        {inventoryItems.map((item) => (
+                                          <option key={item.id} value={item.id}>
+                                            {item.name} ({item.unit})
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    
+                                    <div className="flex-1">
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Quantity Required
+                                      </label>
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={ingredient.quantity}
+                                        onChange={(e) => updateIngredient(index, 'quantity', parseFloat(e.target.value) || 0)}
+                                        className="w-full px-4 py-3 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent shadow-sm h-[44px]"
+                                        placeholder="Enter quantity"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {/* Right Column */}
+                                  <div className="flex flex-col space-y-4">
+                                    <div className="flex-1">
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Unit of Measurement
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={ingredient.unit}
+                                        readOnly
+                                        className="w-full px-4 py-3 text-sm border border-gray-300 rounded-xl bg-gray-50 text-gray-600 shadow-sm h-[44px]"
+                                        placeholder="Unit will appear here"
+                                      />
+                                    </div>
+                                    
+                                    <div className="flex-1">
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Ingredient Cost
+                                      </label>
+                                      <div className="relative">
+                                        <input
+                                          type="text"
+                                          value={`₱${ingredient.cost.toFixed(2)}`}
+                                          readOnly
+                                          className="w-full px-4 py-3 text-sm border border-gray-300 rounded-xl bg-gray-50 text-gray-900 font-semibold shadow-sm h-[44px]"
+                                        />
+                                        <div className="absolute inset-y-0 right-4 flex items-center">
+                                          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          
+                          {/* Total Cost Summary */}
+                          <div className="bg-gradient-to-r from-slate-50 to-gray-50 border-2 border-dashed border-gray-300 rounded-2xl p-8">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-4">
+                                <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                                  <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                                  </svg>
+                                </div>
+                                <div>
+                                  <h3 className="text-lg font-semibold text-gray-900">Total Recipe Cost</h3>
+                                  <p className="text-sm text-gray-600">Based on {newItem.ingredients.length} ingredient{newItem.ingredients.length !== 1 ? 's' : ''}</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-3xl font-bold text-orange-600">₱{newItem.cost.toFixed(2)}</div>
+                                <div className="text-sm text-gray-500 mt-1">per serving</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-16">
+                          <div className="w-24 h-24 bg-orange-50 border-2 border-dashed border-orange-200 rounded-2xl flex items-center justify-center mx-auto mb-8">
+                            <svg className="w-12 h-12 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                            </svg>
+                          </div>
+                          <h3 className="text-xl font-semibold text-gray-900 mb-3">No ingredients added yet</h3>
+                          <p className="text-gray-600 max-w-sm mx-auto mb-8">Add ingredients to calculate product cost and enable inventory tracking for this menu item.</p>
+                          <div className="inline-flex items-center space-x-2 px-4 py-2 bg-orange-50 text-orange-700 rounded-full text-sm font-medium">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span>Click "Add Ingredient" button above to get started</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    
+
                     {/* Stock Impact Preview */}
                     {newItem.ingredients.length > 0 && (
-                      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <h5 className="text-sm font-medium text-blue-800 mb-2">📦 Stock Impact Preview</h5>
-                        <div className="space-y-2">
+                      <div className="bg-blue-50 rounded-xl p-6">
+                        <h4 className="text-md font-semibold text-blue-900 mb-4 flex items-center">
+                          <div className="p-2 bg-blue-100 rounded-lg mr-3">
+                            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                            </svg>
+                          </div>
+                          Stock Impact Preview
+                        </h4>
+                        <div className="space-y-3">
                           {newItem.ingredients.map((ingredient, index) => {
                             const inventoryItem = inventoryItems.find(item => item.id === ingredient.inventoryItemId)
                             const maxServings = inventoryItem ? Math.floor(inventoryItem.currentStock / ingredient.quantity) : 0
                             const stockStatus = maxServings === 0 ? 'out' : maxServings <= 5 ? 'low' : 'good'
                             
                             return (
-                              <div key={index} className="flex justify-between items-center text-xs">
-                                <span className="text-blue-700">{ingredient.inventoryItemName}</span>
-                                <div className="flex items-center space-x-2">
-                                  <span className="text-blue-600">
-                                    {inventoryItem ? inventoryItem.currentStock : 0} {ingredient.unit} available
-                                  </span>
-                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              <div key={index} className="flex justify-between items-center p-3 bg-white rounded-lg border border-blue-200">
+                                <div>
+                                  <span className="font-medium text-blue-900">{ingredient.inventoryItemName}</span>
+                                  <p className="text-sm text-blue-600">
+                                    {inventoryItem ? inventoryItem.currentStock : 0} {ingredient.unit} in stock
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${
                                     stockStatus === 'out' ? 'bg-red-100 text-red-800' :
-                                    stockStatus === 'low' ? 'bg-orange-100 text-orange-800' :
+                                    stockStatus === 'low' ? 'bg-yellow-100 text-yellow-800' :
                                     'bg-green-100 text-green-800'
                                   }`}>
-                                    {maxServings} servings
+                                    {maxServings} servings possible
                                   </span>
                                 </div>
                               </div>
@@ -1638,70 +1865,37 @@ export default function MenuBuilder() {
                       </div>
                     )}
                   </div>
-                )}
-
-                {newItem.ingredients.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <p>No ingredients added yet</p>
-                    <p className="text-sm">Add ingredients to automatically calculate product cost</p>
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Selling Price
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={newItem.price}
-                    onChange={(e) => setNewItem(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="0.00"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Cost (Auto-calculated)
-                  </label>
-                  <input
-                    type="text"
-                    value={`₱${newItem.cost.toFixed(2)}`}
-                    readOnly
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 font-medium"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Profit Margin
-                  </label>
-                  <input
-                    type="text"
-                    value={newItem.price > 0 && newItem.cost > 0 ? `₱${(newItem.price - newItem.cost).toFixed(2)} (${(((newItem.price - newItem.cost) / newItem.price) * 100).toFixed(1)}%)` : 'N/A'}
-                    readOnly
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-green-50 text-green-700 font-medium"
-                  />
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end space-x-3 mt-6">
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateMenuItem}
-                disabled={!newItem.name || !newItem.category || !newItem.price}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300"
-              >
-                Add Item
-              </button>
+            {/* Footer */}
+            <div className="bg-gray-50 px-8 py-6 border-t border-gray-200">
+              <div className="flex justify-between items-center">
+                <div className="text-sm text-gray-600">
+                  <span className="flex items-center">
+                    <svg className="w-4 h-4 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Branch isolation active - This item will only appear in {selectedBranch?.name}
+                  </span>
+                </div>
+                <div className="flex space-x-4">
+                  <button
+                    onClick={() => setShowCreateModal(false)}
+                    className="px-6 py-3 text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors duration-200 font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCreateMenuItem}
+                    disabled={!newItem.name || !newItem.category || !newItem.price}
+                    className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg"
+                  >
+                    Create Product
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1926,199 +2120,354 @@ export default function MenuBuilder() {
         </div>
       )}
 
-      {/* Create Addon Modal */}
+      {/* Modern Enterprise Create Add-on Modal */}
       {showCreateAddonModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Create Add-on</h3>
-            
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Name
-                  </label>
-                  <input
-                    type="text"
-                    value={newAddon.name}
-                    onChange={(e) => setNewAddon(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Add-on name"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Price
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={newAddon.price}
-                    onChange={(e) => setNewAddon(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="0.00"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
-                <textarea
-                  value={newAddon.description}
-                  onChange={(e) => setNewAddon(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  rows={2}
-                  placeholder="Brief description"
-                />
-              </div>
-
-              {/* Ingredients Section */}
-              <div className="border border-gray-200 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-4">
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 px-8 py-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-white bg-opacity-20 rounded-lg">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </div>
                   <div>
-                    <h4 className="text-md font-medium text-gray-900">Add-on Ingredients</h4>
-                    <p className="text-sm text-gray-600">Add ingredients from your inventory to calculate add-on cost</p>
+                    <h2 className="text-xl font-semibold text-white">Add New Add-on</h2>
+                    <p className="text-emerald-100 text-sm">Create a new add-on for {selectedBranch?.name || 'your branch'}</p>
                   </div>
-                  <button
-                    onClick={addAddonIngredient}
-                    className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    Add Ingredient
-                  </button>
                 </div>
-
-                {newAddon.ingredients.length > 0 && (
-                  <div className="space-y-3">
-                    {newAddon.ingredients.map((ingredient, index) => (
-                      <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                        <div className="flex-1">
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Inventory Item
-                          </label>
-                          <select
-                            value={ingredient.inventoryItemId}
-                            onChange={(e) => updateAddonIngredient(index, 'inventoryItemId', e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          >
-                            <option value="">Select ingredient</option>
-                            {inventoryItems.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.name} ({item.unit})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="w-24">
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Quantity
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={ingredient.quantity}
-                            onChange={(e) => updateAddonIngredient(index, 'quantity', parseFloat(e.target.value) || 0)}
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-                        <div className="w-20">
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Unit
-                          </label>
-                          <input
-                            type="text"
-                            value={ingredient.unit}
-                            readOnly
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-100 text-gray-600"
-                          />
-                        </div>
-                        <div className="w-24">
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Cost
-                          </label>
-                          <input
-                            type="text"
-                            value={`₱${ingredient.cost.toFixed(2)}`}
-                            readOnly
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-100 text-gray-600"
-                          />
-                        </div>
-                        <button
-                          onClick={() => removeAddonIngredient(index)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-gray-900">
-                        Total Ingredient Cost: <span className="text-green-600">₱{newAddon.cost.toFixed(2)}</span>
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Profit: <span className="text-green-600">₱{(newAddon.price - newAddon.cost).toFixed(2)}</span>
-                        {newAddon.price > 0 && ` (${(((newAddon.price - newAddon.cost) / newAddon.price) * 100).toFixed(1)}%)`}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {newAddon.ingredients.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <p>No ingredients added yet</p>
-                    <p className="text-sm">Add ingredients to automatically calculate add-on cost</p>
-                  </div>
-                )}
+                <button
+                  onClick={resetAddonForm}
+                  className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
+                >
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
-
-              {/* Legacy single inventory item support for backward compatibility */}
-              {newAddon.ingredients.length === 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Single Inventory Item (Legacy)
-                  </label>
-                  <select 
-                    value={newAddon.inventoryItemId}
-                    onChange={(e) => {
-                      const selectedItem = inventoryItems.find(item => item.id === e.target.value)
-                      setNewAddon(prev => ({ 
-                        ...prev, 
-                        inventoryItemId: e.target.value,
-                        inventoryItemName: selectedItem?.name || '',
-                        cost: selectedItem?.costPerUnit || 0
-                      }))
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select inventory item (or use ingredients above)</option>
-                    {inventoryItems.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name} ({item.currentStock} {item.unit})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
             </div>
 
-            <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
-              <button
-                onClick={resetAddonForm}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateAddon}
-                disabled={!newAddon.name || (!newAddon.inventoryItemId && newAddon.ingredients.length === 0) || !newAddon.price}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300"
-              >
-                Create Add-on
-              </button>
+            {/* Content */}
+            <div className="max-h-[calc(95vh-200px)] overflow-y-auto">
+              <div className="p-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Left Column - Basic Information */}
+                  <div className="space-y-6">
+                    <div className="bg-gray-50 rounded-xl p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
+                        <div className="p-2 bg-emerald-100 rounded-lg mr-3">
+                          <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                        Basic Information
+                      </h3>
+
+                      <div className="space-y-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Add-on Name
+                          </label>
+                          <input
+                            type="text"
+                            value={newAddon.name}
+                            onChange={(e) => setNewAddon(prev => ({ ...prev, name: e.target.value }))}
+                            className="w-full px-4 py-3 text-base border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-sm"
+                            placeholder="Enter add-on name (e.g., Extra Cheese, Hot Sauce)"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Description
+                          </label>
+                          <textarea
+                            value={newAddon.description}
+                            onChange={(e) => setNewAddon(prev => ({ ...prev, description: e.target.value }))}
+                            className="w-full px-4 py-3 text-base border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-sm resize-none"
+                            rows={3}
+                            placeholder="Brief description of the add-on"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Price
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">₱</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={newAddon.price}
+                              onChange={(e) => setNewAddon(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
+                              className="w-full pl-8 pr-4 py-3 text-base border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-sm"
+                              placeholder="0.00"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column - Recipe Ingredients */}
+                  <div className="space-y-6">
+                    <div className="bg-orange-50 rounded-xl p-6">
+                      <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                          <div className="p-2 bg-orange-100 rounded-lg mr-3">
+                            <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                            </svg>
+                          </div>
+                          Recipe Ingredients
+                        </h3>
+                        <button
+                          onClick={addAddonIngredient}
+                          className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors duration-200 flex items-center space-x-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          <span>Add Ingredient</span>
+                        </button>
+                      </div>
+
+                      {newAddon.ingredients.length > 0 ? (
+                        <div className="space-y-6">
+                          {/* Header */}
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-lg font-semibold text-gray-900">Add-on Ingredients</h4>
+                            <span className="text-sm text-gray-500">{newAddon.ingredients.length} ingredient{newAddon.ingredients.length !== 1 ? 's' : ''}</span>
+                          </div>
+                          
+                          {newAddon.ingredients.map((ingredient, index) => (
+                            <div key={index} className="bg-white border border-gray-200 rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 min-h-[280px]">
+                              {/* Ingredient Header - Fixed Height */}
+                              <div className="flex items-center justify-between p-6 pb-4 min-h-[80px]">
+                                <div className="flex items-center space-x-3 flex-1">
+                                  <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                    <span className="text-orange-600 font-semibold text-sm">{index + 1}</span>
+                                  </div>
+                                  <h5 className="text-base font-semibold text-gray-900 truncate">
+                                    {ingredient.inventoryItemName || 'Select Ingredient'}
+                                  </h5>
+                                </div>
+                                <button
+                                  onClick={() => removeAddonIngredient(index)}
+                                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-all duration-200 flex-shrink-0"
+                                  title="Remove ingredient"
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+
+                              {/* Ingredient Details - Consistent Grid */}
+                              <div className="px-6 pb-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-[180px]">
+                                  {/* Left Column */}
+                                  <div className="flex flex-col space-y-4">
+                                    <div className="flex-1">
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Inventory Item
+                                      </label>
+                                      <select
+                                        value={ingredient.inventoryItemId}
+                                        onChange={(e) => updateAddonIngredient(index, 'inventoryItemId', e.target.value)}
+                                        className="w-full px-4 py-3 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white shadow-sm h-[44px]"
+                                      >
+                                        <option value="">Select ingredient</option>
+                                        {inventoryItems.map((item) => (
+                                          <option key={item.id} value={item.id}>
+                                            {item.name} ({item.unit})
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    
+                                    <div className="flex-1">
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Quantity Required
+                                      </label>
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={ingredient.quantity}
+                                        onChange={(e) => updateAddonIngredient(index, 'quantity', parseFloat(e.target.value) || 0)}
+                                        className="w-full px-4 py-3 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent shadow-sm h-[44px]"
+                                        placeholder="Enter quantity"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {/* Right Column */}
+                                  <div className="flex flex-col space-y-4">
+                                    <div className="flex-1">
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Unit of Measurement
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={ingredient.unit}
+                                        readOnly
+                                        className="w-full px-4 py-3 text-sm border border-gray-300 rounded-xl bg-gray-50 text-gray-600 shadow-sm h-[44px]"
+                                        placeholder="Unit will appear here"
+                                      />
+                                    </div>
+                                    
+                                    <div className="flex-1">
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Ingredient Cost
+                                      </label>
+                                      <div className="relative">
+                                        <input
+                                          type="text"
+                                          value={`₱${ingredient.cost.toFixed(2)}`}
+                                          readOnly
+                                          className="w-full px-4 py-3 text-sm border border-gray-300 rounded-xl bg-gray-50 text-gray-900 font-semibold shadow-sm h-[44px]"
+                                        />
+                                        <div className="absolute inset-y-0 right-4 flex items-center">
+                                          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          
+                          {/* Total Cost Summary */}
+                          <div className="bg-gradient-to-r from-slate-50 to-gray-50 border-2 border-dashed border-gray-300 rounded-2xl p-8">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-4">
+                                <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
+                                  <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                                  </svg>
+                                </div>
+                                <div>
+                                  <h3 className="text-lg font-semibold text-gray-900">Total Add-on Cost</h3>
+                                  <p className="text-sm text-gray-600">Based on {newAddon.ingredients.length} ingredient{newAddon.ingredients.length !== 1 ? 's' : ''}</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-3xl font-bold text-emerald-600">₱{newAddon.cost.toFixed(2)}</div>
+                                <div className="text-sm text-gray-500 mt-1">per serving</div>
+                              </div>
+                            </div>
+                            
+                            {/* Profit Calculation */}
+                            {newAddon.price > 0 && (
+                              <div className="mt-6 pt-6 border-t border-gray-300">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm font-medium text-gray-700">Profit Margin:</span>
+                                  <div className="text-right">
+                                    <span className="text-lg font-bold text-green-600">₱{(newAddon.price - newAddon.cost).toFixed(2)}</span>
+                                    <span className="text-sm text-gray-500 ml-2">
+                                      ({(((newAddon.price - newAddon.cost) / newAddon.price) * 100).toFixed(1)}%)
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-16">
+                          <div className="w-24 h-24 bg-orange-50 border-2 border-dashed border-orange-200 rounded-2xl flex items-center justify-center mx-auto mb-8">
+                            <svg className="w-12 h-12 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                            </svg>
+                          </div>
+                          <h3 className="text-xl font-semibold text-gray-900 mb-3">No ingredients added yet</h3>
+                          <p className="text-gray-600 max-w-sm mx-auto mb-8">Add ingredients to calculate add-on cost and enable inventory tracking for this add-on.</p>
+                          <div className="inline-flex items-center space-x-2 px-4 py-2 bg-orange-50 text-orange-700 rounded-full text-sm font-medium">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span>Click "Add Ingredient" button above to get started</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Legacy single inventory item support for backward compatibility */}
+                      {newAddon.ingredients.length === 0 && (
+                        <div className="mt-8 p-6 bg-yellow-50 border border-yellow-200 rounded-xl">
+                          <div className="flex items-start space-x-3">
+                            <div className="p-1 bg-yellow-100 rounded-full mt-0.5">
+                              <svg className="w-4 h-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="text-sm font-medium text-yellow-800 mb-2">Legacy Mode</h4>
+                              <p className="text-sm text-yellow-700 mb-4">You can also select a single inventory item for simple add-ons:</p>
+                              <select 
+                                value={newAddon.inventoryItemId}
+                                onChange={(e) => {
+                                  const selectedItem = inventoryItems.find(item => item.id === e.target.value)
+                                  setNewAddon(prev => ({ 
+                                    ...prev, 
+                                    inventoryItemId: e.target.value,
+                                    inventoryItemName: selectedItem?.name || '',
+                                    cost: selectedItem?.costPerUnit || 0
+                                  }))
+                                }}
+                                className="w-full px-4 py-3 text-sm border border-yellow-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-transparent bg-white shadow-sm"
+                              >
+                                <option value="">Select inventory item (or use ingredients above)</option>
+                                {inventoryItems.map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.name} ({item.currentStock} {item.unit})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="bg-gray-50 px-8 py-6 border-t border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-600">
+                  {!newAddon.name && <span className="text-red-500">• Add-on name is required</span>}
+                  {newAddon.name && !newAddon.price && <span className="text-red-500">• Price is required</span>}
+                  {newAddon.name && newAddon.price && (!newAddon.inventoryItemId && newAddon.ingredients.length === 0) && 
+                    <span className="text-red-500">• Add at least one ingredient or select an inventory item</span>
+                  }
+                  {newAddon.name && newAddon.price && (newAddon.inventoryItemId || newAddon.ingredients.length > 0) && 
+                    <span className="text-green-600">• Ready to create add-on</span>
+                  }
+                </div>
+                <div className="flex space-x-4">
+                  <button
+                    onClick={resetAddonForm}
+                    className="px-6 py-3 text-gray-700 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCreateAddon}
+                    disabled={!newAddon.name || (!newAddon.inventoryItemId && newAddon.ingredients.length === 0) || !newAddon.price}
+                    className="px-6 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
+                  >
+                    Create Add-on
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -17,7 +17,7 @@ import { useBranch } from '../../lib/context/BranchContext';
 const LocationManagement: React.FC = () => {
   const { profile } = useAuth();
   const { canManageSettings, isOwner } = useUserPermissions();
-  const { refreshBranches } = useBranch();
+  const { refreshBranches, selectedBranch, switchBranch } = useBranch();
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -76,7 +76,84 @@ const LocationManagement: React.FC = () => {
     try {
       setLoading(true);
       const locationsData = await getLocations(profile.tenantId);
-      setLocations(locationsData);
+      
+      console.log('🏢 Raw locations data:', locationsData);
+      console.log('🏢 Number of locations loaded:', locationsData.length);
+      
+      // Check if there's a main location
+      const hasMainLocation = locationsData.some(location => location.type === 'main');
+      
+      if (!hasMainLocation) {
+        console.log('🏢 No main location found, creating default main location...');
+        
+        // Create a default main location
+        const mainLocationData = {
+          name: 'Main Location',
+          type: 'main' as Location['type'],
+          address: {
+            street: 'Please update your address',
+            city: 'City',
+            state: 'State',
+            zipCode: '0000',
+            country: 'Philippines'
+          },
+          contact: {
+            phone: 'Please update your phone',
+            email: '',
+            manager: 'Please assign a manager'
+          },
+          settings: {
+            timezone: 'Asia/Manila',
+            currency: 'PHP',
+            businessHours: {
+              monday: { open: '09:00', close: '22:00', closed: false },
+              tuesday: { open: '09:00', close: '22:00', closed: false },
+              wednesday: { open: '09:00', close: '22:00', closed: false },
+              thursday: { open: '09:00', close: '22:00', closed: false },
+              friday: { open: '09:00', close: '22:00', closed: false },
+              saturday: { open: '09:00', close: '22:00', closed: false },
+              sunday: { open: '10:00', close: '20:00', closed: false }
+            },
+            features: {
+              inventory: true,
+              pos: true,
+              expenses: true
+            }
+          },
+          status: 'active' as Location['status'],
+          tenantId: profile.tenantId
+        };
+        
+        try {
+          const mainLocationId = await createLocation(mainLocationData);
+          console.log('🏢 Main location created with ID:', mainLocationId);
+          
+          // Create corresponding branch for the main location
+          const mainLocation: Location = {
+            id: mainLocationId,
+            ...mainLocationData,
+            createdAt: new Date() as any,
+            updatedAt: new Date() as any
+          };
+          
+          const mainBranch = await createBranchFromLocation(mainLocation);
+          console.log('🏢 Main branch created:', mainBranch);
+          
+          // Refresh branches to sync with location management
+          setTimeout(async () => {
+            await refreshBranches();
+          }, 1000);
+          
+          // Reload locations to include the new main location
+          const updatedLocations = await getLocations(profile.tenantId);
+          setLocations(updatedLocations);
+        } catch (error) {
+          console.error('Error creating main location:', error);
+          setLocations(locationsData);
+        }
+      } else {
+        setLocations(locationsData);
+      }
     } catch (error) {
       console.error('Error loading locations:', error);
     } finally {
@@ -142,6 +219,12 @@ const LocationManagement: React.FC = () => {
   };
 
   const handleDeleteLocation = async (location: Location) => {
+    // Prevent deletion of main location
+    if (location.type === 'main') {
+      alert('Cannot delete the main location. You can edit it instead.');
+      return;
+    }
+    
     if (!confirm(`Delete ${location.name}? This action cannot be undone.`)) return;
 
     try {
@@ -281,6 +364,21 @@ const LocationManagement: React.FC = () => {
               🔄 Refresh Branches
             </button>
             
+            {/* Cleanup duplicates button */}
+            {isOwner() && (
+              <button
+                onClick={async () => {
+                  if (confirm('Clean up duplicate locations? This will remove any duplicate main locations.')) {
+                    console.log('🧹 Manual cleanup triggered');
+                    await loadLocations(); // This will trigger the cleanup logic
+                  }
+                }}
+                className="bg-orange-600 text-white px-3 py-2 rounded-lg hover:bg-orange-700 text-sm"
+              >
+                🧹 Cleanup Duplicates
+              </button>
+            )}
+            
             {canManageSettings() && (
               <button
                 onClick={() => {
@@ -300,14 +398,33 @@ const LocationManagement: React.FC = () => {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {locations.map((location) => (
-            <div key={location.id} className="bg-white rounded-lg shadow-sm border border-surface-200 p-6">
+          {locations
+            .sort((a, b) => {
+              // Always show main location first
+              if (a.type === 'main' && b.type !== 'main') return -1;
+              if (b.type === 'main' && a.type !== 'main') return 1;
+              // Then sort by name
+              return a.name.localeCompare(b.name);
+            })
+            .map((location, index) => {
+              console.log(`🏢 Rendering location ${index}:`, location.id, location.name, location.type);
+              return (
+            <div key={location.id} className={`bg-white rounded-lg shadow-sm border p-6 ${
+              location.type === 'main' 
+                ? 'border-purple-300 bg-gradient-to-br from-purple-50 to-white' 
+                : 'border-surface-200'
+            }`}>
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="text-lg font-semibold text-surface-900">{location.name}</h3>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-lg font-semibold text-surface-900">{location.name}</h3>
+                    {location.type === 'main' && (
+                      <span className="text-purple-600">👑</span>
+                    )}
+                  </div>
                   <div className="flex gap-2 mt-2">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getTypeColor(location.type)}`}>
-                      {location.type}
+                      {location.type === 'main' ? 'Main Location' : location.type}
                     </span>
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(location.status)}`}>
                       {location.status}
@@ -325,7 +442,7 @@ const LocationManagement: React.FC = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
                     </button>
-                    {location.type !== 'main' && (
+                    {isOwner() && location.type !== 'main' && (
                       <button
                         onClick={() => handleDeleteLocation(location)}
                         className="p-2 text-surface-400 hover:text-red-600"
@@ -384,7 +501,8 @@ const LocationManagement: React.FC = () => {
                 </div>
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
 
         {/* Create/Edit Modal */}

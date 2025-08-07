@@ -142,7 +142,7 @@ export const removePOSItem = async (tenantId: string, menuItemId: string): Promi
 
 /**
  * Process inventory deductions after a sale
- * Enhanced to handle direct inventory deduction by item name if no menu item link exists
+ * Enhanced to handle multiple items using same ingredients correctly
  */
 export const processInventoryDeduction = async (
   tenantId: string,
@@ -162,6 +162,18 @@ export const processInventoryDeduction = async (
     const batch = writeBatch(db);
     let deductionsMade = 0;
     
+    // 🎯 CRITICAL FIX: Accumulate deductions by inventory item ID
+    const deductionMap = new Map<string, {
+      totalDeduction: number;
+      itemName: string;
+      transactions: Array<{
+        orderItemName: string;
+        quantity: number;
+        deduction: number;
+      }>;
+    }>();
+    
+    // Step 1: Collect all deductions and accumulate by inventory item
     for (const orderItem of orderItems) {
       console.log(`📦 Processing: ${orderItem.name} (x${orderItem.quantity})`)
       console.log(`🔍 Looking for POS item ID: ${orderItem.itemId}`)
@@ -180,20 +192,31 @@ export const processInventoryDeduction = async (
       if (menuItem && menuItem.ingredients && menuItem.ingredients.length > 0) {
         console.log(`✅ [INVENTORY DEDUCTION] Found menu item with ${menuItem.ingredients.length} ingredients:`, menuItem.name)
         
-        // Deduct each ingredient from inventory
+        // Collect each ingredient deduction
         for (const ingredient of menuItem.ingredients) {
           const totalQuantityUsed = ingredient.quantity * orderItem.quantity;
-          console.log(`  📉 [INVENTORY DEDUCTION] Deducting ingredient: ${ingredient.inventoryItemName} (-${totalQuantityUsed} ${ingredient.unit}) from inventory ID: ${ingredient.inventoryItemId}`)
+          console.log(`  � [INVENTORY DEDUCTION] Ingredient: ${ingredient.inventoryItemName} needs ${totalQuantityUsed} ${ingredient.unit} (${ingredient.quantity} × ${orderItem.quantity})`)
           
-          await deductInventoryQuantity(
-            batch,
-            tenantId,
-            ingredient.inventoryItemId,
-            totalQuantityUsed
-          );
-          deductionsMade++;
+          // Accumulate deduction for this inventory item
+          const inventoryItemId = ingredient.inventoryItemId;
+          const existing = deductionMap.get(inventoryItemId) || {
+            totalDeduction: 0,
+            itemName: ingredient.inventoryItemName,
+            transactions: []
+          };
+          
+          existing.totalDeduction += totalQuantityUsed;
+          existing.transactions.push({
+            orderItemName: orderItem.name,
+            quantity: orderItem.quantity,
+            deduction: totalQuantityUsed
+          });
+          
+          deductionMap.set(inventoryItemId, existing);
+          console.log(`  ✅ [INVENTORY DEDUCTION] Accumulated ${existing.totalDeduction} total for ${ingredient.inventoryItemName}`)
         }
-        console.log(`✅ Ingredient-based deduction completed for: ${orderItem.name}`)
+        deductionsMade++;
+        console.log(`✅ Ingredient-based deduction collected for: ${orderItem.name}`)
       } else {
         // Fallback: Try direct inventory deduction only if no ingredients found
         console.log(`⚠️ [INVENTORY DEDUCTION] No ingredients found, trying direct inventory deduction for: ${orderItem.name}`)
@@ -212,10 +235,36 @@ export const processInventoryDeduction = async (
       }
     }
     
-    if (deductionsMade > 0) {
-      console.log(`💾 Committing ${deductionsMade} inventory deductions...`)
+    // Step 2: Apply accumulated deductions to inventory items
+    console.log('📊 [INVENTORY DEDUCTION] Applying accumulated deductions...')
+    console.log(`📊 [INVENTORY DEDUCTION] Total unique inventory items to update: ${deductionMap.size}`)
+    
+    // Process all deductions synchronously to avoid batch issues
+    for (const [inventoryItemId, deductionData] of Array.from(deductionMap.entries())) {
+      console.log(`🎯 [INVENTORY DEDUCTION] Processing inventory item: ${deductionData.itemName}`)
+      console.log(`   Total deduction: ${deductionData.totalDeduction}`)
+      console.log(`   From transactions:`, deductionData.transactions.map((t: any) => `${t.orderItemName} (${t.deduction})`).join(', '))
+      
+      await deductInventoryQuantityAccumulated(
+        batch,
+        tenantId,
+        inventoryItemId,
+        deductionData.totalDeduction,
+        deductionData.itemName,
+        deductionData.transactions
+      );
+    }
+    
+    if (deductionsMade > 0 || deductionMap.size > 0) {
+      console.log(`💾 Committing ${deductionsMade} ingredient-based deductions and ${deductionMap.size} inventory updates...`)
       await batch.commit();
       console.log(`✅ Inventory deduction completed successfully`)
+      
+      // Log final summary
+      console.log('📋 [INVENTORY DEDUCTION] Final Summary:')
+      for (const [inventoryItemId, deductionData] of Array.from(deductionMap.entries())) {
+        console.log(`   - ${deductionData.itemName}: -${deductionData.totalDeduction}`)
+      }
       
       // After deducting inventory, check item availability
       await updateItemAvailability(tenantId);
@@ -547,7 +596,7 @@ const getMenuItemByPOSItemId = async (
 };
 
 /**
- * Deduct quantity from inventory item
+ * Deduct quantity from inventory item (old single-use version)
  */
 const deductInventoryQuantity = async (
   batch: any,
@@ -594,6 +643,68 @@ const deductInventoryQuantity = async (
     console.log(`  ✅ [INVENTORY DEDUCTION] Successfully queued deduction for: ${inventoryItem.name}`)
   } catch (error) {
     console.error('  ❌ [INVENTORY DEDUCTION] Error deducting inventory quantity:', error);
+    throw error;
+  }
+};
+
+/**
+ * Deduct accumulated quantity from inventory item (fixes batch update issue)
+ */
+const deductInventoryQuantityAccumulated = async (
+  batch: any,
+  tenantId: string,
+  inventoryItemId: string,
+  totalQuantityToDeduct: number,
+  itemName: string,
+  transactions: Array<{
+    orderItemName: string;
+    quantity: number;
+    deduction: number;
+  }>
+): Promise<void> => {
+  try {
+    console.log(`  🎯 [INVENTORY DEDUCTION] Applying accumulated deduction of ${totalQuantityToDeduct} to: ${itemName}`)
+    
+    const inventoryItemRef = doc(db, `tenants/${tenantId}/inventory`, inventoryItemId);
+    const inventoryItemDoc = await getDoc(inventoryItemRef);
+    
+    if (!inventoryItemDoc.exists()) {
+      console.log(`  ❌ [INVENTORY DEDUCTION] Inventory item not found: ${inventoryItemId}`)
+      return;
+    }
+    
+    const inventoryItem = inventoryItemDoc.data() as InventoryItem;
+    const currentStock = inventoryItem.currentStock || 0;
+    const newQuantity = Math.max(0, currentStock - totalQuantityToDeduct);
+    
+    console.log(`  📊 [INVENTORY DEDUCTION] ${inventoryItem.name}: ${currentStock} → ${newQuantity} (accumulated deduction: ${totalQuantityToDeduct})`)
+    
+    batch.update(inventoryItemRef, {
+      currentStock: newQuantity,
+      updatedAt: Timestamp.now()
+    });
+    
+    // Log a single consolidated transaction
+    const transactionRef = collection(db, `tenants/${tenantId}/inventoryTransactions`);
+    batch.set(doc(transactionRef), {
+      inventoryItemId,
+      itemName: inventoryItem.name,
+      type: 'sale',
+      quantityChange: -totalQuantityToDeduct,
+      previousStock: currentStock,
+      newQuantity,
+      reason: `POS Sale - Consolidated deduction from ${transactions.length} items: ${transactions.map(t => `${t.orderItemName}(${t.deduction})`).join(', ')}`,
+      createdAt: Timestamp.now(),
+      tenantId,
+      metadata: {
+        consolidatedDeduction: true,
+        sourceTransactions: transactions
+      }
+    });
+    
+    console.log(`  ✅ [INVENTORY DEDUCTION] Successfully queued accumulated deduction for: ${inventoryItem.name}`)
+  } catch (error) {
+    console.error('  ❌ [INVENTORY DEDUCTION] Error deducting accumulated inventory quantity:', error);
     throw error;
   }
 };

@@ -7,6 +7,8 @@ import { collection, doc, addDoc, updateDoc, deleteDoc, getDocs, setDoc } from '
 import { db } from '../../lib/firebase'
 import { createStaffAccount } from '../../lib/auth/roleBasedAuth'
 import { UserRole } from '../../lib/rbac/permissions'
+import ShiftResetManager from './ShiftResetManager'
+import HybridResetManager from './HybridResetManager'
 
 // Platform administration - crucial for SaaS scalability
 const PLATFORM_ADMINS = [
@@ -81,7 +83,7 @@ export default function EnhancedTeamManagement() {
 
   // Coordinated loading state - team loading OR auth still loading
   const isFullyLoading = loading || authLoading
-  const [activeTab, setActiveTab] = useState<'team' | 'roles' | 'activity'>('team')
+  const [activeTab, setActiveTab] = useState<'team' | 'roles' | 'reset' | 'activity'>('team')
   
   // Data mode toggle
   const [useRealData, setUseRealData] = useState(false)
@@ -841,6 +843,7 @@ export default function EnhancedTeamManagement() {
             {[
               { id: 'team', label: 'Team Members', icon: '👥' },
               { id: 'roles', label: 'Role Permissions', icon: '🔑' },
+              { id: 'reset', label: 'Shift Management', icon: '🔄' },
               { id: 'activity', label: 'Recent Activity', icon: '📊' }
             ].map(tab => (
               <button
@@ -981,6 +984,68 @@ export default function EnhancedTeamManagement() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Shift Management Tab */}
+        {activeTab === 'reset' && (
+          <div className="p-6 space-y-6">
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Shift & Data Management</h3>
+              <p className="text-sm text-gray-600">
+                Manage shift transitions and daily data resets. Data is automatically archived and reset at 3AM daily, 
+                or you can manually trigger resets when ending shifts.
+              </p>
+            </div>
+
+            {/* Manual Shift Reset */}
+            <div className="bg-white rounded-xl border border-gray-200">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h4 className="text-lg font-medium text-gray-900">Manual Shift Reset</h4>
+                    <p className="text-sm text-gray-600">End current shift and reset daily operational data</p>
+                  </div>
+                  <div className="text-2xl">🔄</div>
+                </div>
+                <ShiftResetManager />
+              </div>
+            </div>
+
+            {/* Automatic Reset Schedule */}
+            <div className="bg-white rounded-xl border border-gray-200">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h4 className="text-lg font-medium text-gray-900">Automatic Reset Schedule</h4>
+                    <p className="text-sm text-gray-600">Configure automatic daily data resets</p>
+                  </div>
+                  <div className="text-2xl">⏰</div>
+                </div>
+                <HybridResetManager />
+              </div>
+            </div>
+
+            {/* Information Panel */}
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h4 className="text-sm font-medium text-blue-900 mb-1">How Shift Reset Works</h4>
+                  <div className="text-sm text-blue-800 space-y-1">
+                    <p>• <strong>Archives Data:</strong> All sales, expenses, and transactions are safely archived</p>
+                    <p>• <strong>Resets Collections:</strong> Clears daily operational data for fresh start</p>
+                    <p>• <strong>Updates Analytics:</strong> Refreshes all dashboard components automatically</p>
+                    <p>• <strong>Preserves Inventory:</strong> Stock levels are maintained and updated</p>
+                    <p>• <strong>Creates Reports:</strong> Generates comprehensive shift summaries</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}

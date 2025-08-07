@@ -1444,30 +1444,30 @@ export default function POSEnhanced() {
   }
 
   return (
-    <div className="h-screen bg-slate-50 flex flex-col overflow-hidden">
-      {/* 🔝 Enterprise Header */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
-        <div className="px-6 py-4">
+    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
+      {/* 🎯 Minimalist Enterprise Header */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
+        <div className="px-6 py-3">
           <div className="flex items-center justify-between">
-            {/* Left - Brand & Context */}
-            <div className="flex items-center gap-6">
+            {/* Left - Compact Brand & Context */}
+            <div className="flex items-center gap-4">
               <div className="flex items-center gap-3">
                 <CoreTrackLogo size="sm" />
-                <div className="hidden sm:block border-l border-slate-200 pl-4">
-                  <h1 className="text-xl font-bold text-slate-900">Point of Sale</h1>
-                  <div className="flex items-center gap-3 mt-1">
-                    <p className="text-sm text-slate-600">{selectedBranch?.name || 'Main Branch'}</p>
-                    <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
+                <div className="flex items-center gap-4">
+                  <h1 className="text-lg font-bold text-gray-900">Point of Sale</h1>
+                  <div className="hidden sm:flex items-center gap-3">
+                    <span className="text-sm text-gray-600 font-medium">{selectedBranch?.name || 'Main Branch'}</span>
+                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium ${
                       isOnline 
-                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
-                        : 'bg-amber-100 text-amber-700 border border-amber-200'
+                        ? 'bg-green-100 text-green-700' 
+                        : 'bg-orange-100 text-orange-700'
                     }`}>
-                      <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
+                      <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-green-500' : 'bg-orange-500'}`}></div>
                       {isOnline ? 'Online' : 'Offline'}
                     </div>
                     {pendingSyncCount > 0 && (
-                      <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium border border-blue-200">
-                        {pendingSyncCount} pending sync
+                      <div className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-xs font-medium">
+                        {pendingSyncCount} pending
                       </div>
                     )}
                   </div>
@@ -1475,28 +1475,30 @@ export default function POSEnhanced() {
               </div>
             </div>
 
-            {/* Right - Action Buttons */}
-            <div className="flex items-center gap-3">
+            {/* Right - Compact Action Buttons */}
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => {
                   setShowRecentOrders(true)
                   loadRecentOrders()
                 }}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition-all duration-200 border border-slate-200 hover:border-slate-300"
+                className="inline-flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors text-sm"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <span className="hidden sm:inline">Recent Orders</span>
+                <span className="hidden md:inline">Recent Orders</span>
               </button>
               
               {!isOnline && (
                 <button
                   onClick={syncOfflineOrders}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-all duration-200 shadow-sm hover:shadow-md"
+                  className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors text-sm"
                 >
-                  <span className="text-lg">🔄</span>
-                  <span className="hidden sm:inline">Sync Now</span>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span className="hidden md:inline">Sync</span>
                 </button>
               )}
             </div>
@@ -1507,13 +1509,20 @@ export default function POSEnhanced() {
       <div className="flex-1 flex overflow-hidden">
         {/* 📋 Left Panel - Menu */}
         <div className="flex-1 flex flex-col bg-white">
-          {/* Category Filter */}
-          <div className="bg-white border-b border-slate-200 p-6">
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-slate-900">Menu Categories</h2>
-              <p className="text-sm text-slate-600 mt-1">Select a category to browse items</p>
+          {/* Ultra-Compact Category Filter */}
+          <div className="bg-white border-b border-gray-200 px-6 py-3">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-base font-semibold text-gray-900">Menu Categories</h2>
+              <div className="text-xs text-gray-500">
+                {(() => {
+                  const filteredItems = selectedCategory === 'All' 
+                    ? menuItems 
+                    : menuItems.filter(item => (item.category || 'General') === selectedCategory);
+                  return `${filteredItems.length} items`;
+                })()}
+              </div>
             </div>
-            <div className="flex gap-3 overflow-x-auto pb-2">
+            <div className="flex gap-2 overflow-x-auto">
               {(() => {
                 // Get unique categories from menu items dynamically
                 const categories = ['All'];
@@ -1532,18 +1541,18 @@ export default function POSEnhanced() {
                   <button
                     key={category}
                     onClick={() => setSelectedCategory(category)}
-                    className={`inline-flex items-center gap-2 px-4 py-3 rounded-xl font-medium transition-all whitespace-nowrap border ${
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all whitespace-nowrap text-sm ${
                       selectedCategory === category
-                        ? 'bg-blue-600 text-white shadow-lg border-blue-600 scale-105'
-                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300 hover:shadow-sm'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
                     <span>{category}</span>
                     {category !== 'All' && (
-                      <span className={`text-xs px-2 py-1 rounded-full ${
+                      <span className={`text-xs px-1 py-0.5 rounded ${
                         selectedCategory === category
                           ? 'bg-blue-500 text-blue-100'
-                          : 'bg-slate-100 text-slate-600'
+                          : 'bg-gray-200 text-gray-600'
                       }`}>
                         {menuItems.filter(item => 
                           (item.category || 'General') === category
@@ -1557,7 +1566,7 @@ export default function POSEnhanced() {
           </div>
 
           {/* Menu Items Grid */}
-          <div className="flex-1 overflow-y-auto bg-slate-50 p-6">
+          <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
             {loading ? (
               <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
                 {[...Array(12)].map((_, i) => (
@@ -1752,49 +1761,44 @@ export default function POSEnhanced() {
           </div>
         </div>
 
-        {/* 🛒 Right Panel - Cart */}
-        <div className="w-72 lg:w-80 bg-white border-l border-slate-200 flex flex-col shadow-lg">
-          {/* Cart Header */}
-          <div className="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 p-6">
-            <div className="flex items-center justify-between mb-4">
+        {/* 🛒 Right Panel - Compact Cart */}
+        <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
+          {/* Minimalist Cart Header */}
+          <div className="bg-white border-b border-gray-200 px-6 py-4">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ display: 'block', margin: 'auto' }}>
+                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-2.5 5M7 13l2.5 5m0 0H17M17 18a2 2 0 11-4 0 2 2 0 014 0zM9 18a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-slate-900">Order Summary</h3>
-                  <p className="text-sm text-slate-600">{cart.length} {cart.length === 1 ? 'item' : 'items'} • {isOnline ? 'Online' : 'Offline'}</p>
+                  <h3 className="text-lg font-semibold text-gray-900">Order Summary</h3>
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span>{cart.length} {cart.length === 1 ? 'item' : 'items'}</span>
+                    <span>•</span>
+                    <span className={`${isOnline ? 'text-green-600' : 'text-orange-600'}`}>
+                      {isOnline ? 'Online' : 'Offline'}
+                    </span>
+                    {pendingSyncCount > 0 && (
+                      <>
+                        <span>•</span>
+                        <span className="text-yellow-600">{pendingSyncCount} pending</span>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
               {cart.length > 0 && (
                 <button
                   onClick={() => setCart([])}
-                  className="inline-flex items-center gap-1 px-3 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg font-medium transition-all duration-200 border border-red-200 hover:border-red-300"
+                  className="text-gray-400 hover:text-red-600 p-1 rounded transition-colors"
+                  title="Clear cart"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
-                  Clear All
                 </button>
-              )}
-            </div>
-            
-            {/* Order Type & Status Indicators */}
-            <div className="flex items-center gap-2 text-xs">
-              <span className={`px-2 py-1 rounded-full font-medium ${
-                isOnline ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
-              }`}>
-                {isOnline ? '🌐 Online' : '📱 Offline'}
-              </span>
-              <span className="px-2 py-1 bg-slate-100 text-slate-700 rounded-full font-medium">
-                🏪 Dine-in
-              </span>
-              {pendingSyncCount > 0 && (
-                <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full font-medium">
-                  ⏳ {pendingSyncCount} pending
-                </span>
               )}
             </div>
           </div>
@@ -1804,12 +1808,12 @@ export default function POSEnhanced() {
             {cart.length === 0 ? (
               <div className="flex items-center justify-center h-full p-6">
                 <div className="text-center">
-                  <div className="w-20 h-20 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mb-6 mx-auto">
-                    <span className="text-3xl block leading-none">🛒</span>
+                  <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center mb-4 mx-auto">
+                    <span className="text-2xl">🛒</span>
                   </div>
-                  <h3 className="text-lg font-semibold text-slate-900 mb-2">Cart is Empty</h3>
-                  <p className="text-sm text-slate-600 mb-4">Add items from the menu to get started</p>
-                  <div className="text-xs text-slate-500 bg-slate-50 rounded-lg p-3">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Cart is Empty</h3>
+                  <p className="text-sm text-gray-600 mb-4">Add items from the menu to get started</p>
+                  <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-3">
                     💡 Tap any menu item to add it to your order
                   </div>
                 </div>
@@ -1817,41 +1821,36 @@ export default function POSEnhanced() {
             ) : (
               <div className="p-4 space-y-3">
                 {cart.map((item, index) => (
-                  <div key={item.cartItemId} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-200">
-                    <div className="flex items-start justify-between mb-3">
+                  <div key={item.cartItemId} className="bg-gray-50 border border-gray-200 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                    <div className="flex items-start justify-between mb-2">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="w-6 h-6 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center text-xs font-bold">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="w-5 h-5 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center text-xs font-medium">
                             {index + 1}
                           </span>
-                          <h4 className="font-semibold text-slate-900 truncate">{item.name}</h4>
+                          <h4 className="font-medium text-gray-900 truncate text-sm">{item.name}</h4>
                           {item.selectedAddons.length > 0 && (
-                            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full font-medium">
-                              {item.selectedAddons.length} add-on{item.selectedAddons.length > 1 ? 's' : ''}
+                            <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded font-medium">
+                              +{item.selectedAddons.length}
                             </span>
                           )}
                         </div>
                         
-                        <div className="flex items-center gap-4 text-sm text-slate-600 mb-2">
-                          <span className="font-medium">₱{item.price.toFixed(2)}</span>
-                          <span className="text-slate-400">•</span>
+                        <div className="flex items-center gap-3 text-xs text-gray-600 mb-2">
+                          <span className="font-medium text-gray-900">₱{item.price.toFixed(2)}</span>
+                          <span className="text-gray-400">•</span>
                           <span className="capitalize">{item.category}</span>
                         </div>
                         
-                        {/* Add-ons Display */}
+                        {/* Compact Add-ons Display */}
                         {item.selectedAddons.length > 0 && (
-                          <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                            <p className="text-xs font-semibold text-purple-700 mb-2 flex items-center gap-1">
-                              <span>🏷️</span> Add-ons
-                            </p>
+                          <div className="mt-2 p-2 bg-purple-50 rounded-md">
+                            <p className="text-xs font-medium text-purple-700 mb-1">Add-ons</p>
                             <div className="space-y-1">
                               {item.selectedAddons.map((addon, idx) => (
-                                <div key={idx} className="flex justify-between items-center text-sm">
-                                  <span className="text-purple-700 flex items-center gap-2">
-                                    <span className="w-1.5 h-1.5 bg-purple-400 rounded-full"></span>
-                                    {addon.name}
-                                  </span>
-                                  <span className="text-slate-900 font-medium">+₱{addon.price.toFixed(2)}</span>
+                                <div key={idx} className="flex justify-between items-center text-xs">
+                                  <span className="text-purple-700">{addon.name}</span>
+                                  <span className="text-purple-900 font-medium">+₱{addon.price.toFixed(2)}</span>
                                 </div>
                               ))}
                             </div>
@@ -1860,50 +1859,48 @@ export default function POSEnhanced() {
                         
                         {/* Customizations */}
                         {item.customizations && (
-                          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                            <p className="text-xs font-semibold text-blue-700 mb-2 flex items-center gap-1">
-                              <span>📝</span> Special Instructions
-                            </p>
-                            <p className="text-sm text-blue-800 italic leading-relaxed">"{item.customizations}"</p>
+                          <div className="mt-2 p-2 bg-blue-50 rounded-md">
+                            <p className="text-xs font-medium text-blue-700 mb-1">Special Instructions</p>
+                            <p className="text-xs text-blue-800 italic">"{item.customizations}"</p>
                           </div>
                         )}
                       </div>
                       
                       <button
                         onClick={() => removeFromCart(item.cartItemId)}
-                        className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200 ml-3 flex-shrink-0"
+                        className="text-gray-400 hover:text-red-600 p-1 rounded transition-colors"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                       </button>
                     </div>
                     
-                    {/* Quantity Controls & Item Total */}
-                    <div className="flex items-center justify-between pt-3 border-t border-slate-200">
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium text-slate-700">Qty:</span>
-                        <div className="flex items-center gap-2">
+                    {/* Compact Quantity Controls & Item Total */}
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-gray-700">Qty:</span>
+                        <div className="flex items-center gap-1">
                           <button
                             onClick={() => updateQuantity(item.cartItemId, item.quantity - 1)}
-                            className="w-8 h-8 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold flex items-center justify-center transition-colors text-sm"
+                            className="w-6 h-6 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded text-xs flex items-center justify-center transition-colors font-medium"
                           >
                             −
                           </button>
-                          <span className="font-semibold text-slate-900 min-w-[32px] text-center bg-slate-50 px-3 py-1 rounded-lg text-sm">
+                          <span className="w-8 text-center text-sm font-medium text-gray-900 bg-gray-100 rounded px-2 py-1">
                             {item.quantity}
                           </span>
                           <button
                             onClick={() => updateQuantity(item.cartItemId, item.quantity + 1)}
-                            className="w-8 h-8 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold flex items-center justify-center transition-colors text-sm"
+                            className="w-6 h-6 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs flex items-center justify-center transition-colors font-medium"
                           >
                             +
                           </button>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-xs text-slate-500 mb-1">Item Total</div>
-                        <span className="text-lg font-bold text-blue-600">₱{item.total.toFixed(2)}</span>
+                        <div className="text-xs text-gray-500">Total</div>
+                        <span className="text-sm font-bold text-blue-600">₱{item.total.toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
@@ -1911,7 +1908,7 @@ export default function POSEnhanced() {
                 
                 {/* Quick Actions */}
                 {cart.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-slate-200">
+                  <div className="mt-4 pt-4 border-t border-gray-200">
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         onClick={() => {
@@ -1921,7 +1918,7 @@ export default function POSEnhanced() {
                             addToCart(lastItem, lastItem.selectedAddons, lastItem.customizations)
                           }
                         }}
-                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1"
+                        className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -1948,10 +1945,10 @@ export default function POSEnhanced() {
             )}
           </div>
 
-          {/* Cart Footer - Enhanced Checkout */}
+          {/* Compact Cart Footer - Checkout */}
           {cart.length > 0 && (
-            <div className="border-t border-slate-200 bg-gradient-to-r from-slate-50 to-white">
-              <div className="p-6">
+            <div className="border-t border-gray-200 bg-white">
+              <div className="p-4">
                 {/* Detailed Order Summary */}
                 <div className="space-y-3 mb-6">
                   <div className="flex justify-between items-center text-sm">

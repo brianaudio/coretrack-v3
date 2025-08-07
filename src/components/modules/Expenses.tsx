@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
 import { useBranch } from '../../lib/context/BranchContext'
 import { getBranchLocationId } from '../../lib/utils/branchUtils'
@@ -10,6 +10,7 @@ import {
   addExpense, 
   updateExpense, 
   deleteExpense,
+  updateExpenseStatus,
   getExpenseCategories,
   addExpenseCategory,
   type Expense,
@@ -37,6 +38,7 @@ export default function Expenses() {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [dateFilter, setDateFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
 
   // Profit tracking state
   const [profitData, setProfitData] = useState({
@@ -369,6 +371,38 @@ export default function Expenses() {
     } catch (error) {
       console.error('Error deleting expense:', error)
     }
+  }
+
+  const handleUpdateExpenseStatus = async (expenseId: string, newStatus: 'pending' | 'approved' | 'paid' | 'rejected') => {
+    if (!profile?.tenantId) return
+
+    try {
+      await updateExpenseStatus(profile.tenantId, expenseId, newStatus, profile.uid)
+      
+      // Update local state
+      setExpenses(prev => prev.map(expense => 
+        expense.id === expenseId ? { ...expense, status: newStatus } : expense
+      ))
+      
+      // Recalculate profit metrics if status changed to paid
+      if (newStatus === 'paid') {
+        await calculateProfitMetrics()
+      }
+    } catch (error) {
+      console.error('Error updating expense status:', error)
+    }
+  }
+
+  const toggleRowExpansion = (expenseId: string) => {
+    setExpandedRows(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(expenseId)) {
+        newSet.delete(expenseId)
+      } else {
+        newSet.add(expenseId)
+      }
+      return newSet
+    })
   }
 
   const getFilteredExpenses = () => {
@@ -766,52 +800,128 @@ export default function Expenses() {
             </thead>
             <tbody className="bg-white divide-y divide-surface-100">
               {filteredExpenses.map((expense) => (
-                <tr key={expense.id} className="hover:bg-surface-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="text-sm font-semibold text-surface-900">{expense.title}</div>
-                    {expense.description && (
-                      <div className="text-sm text-surface-500 mt-1">{expense.description}</div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="inline-flex px-3 py-1 text-xs font-medium rounded-full bg-primary-100 text-primary-800 border border-primary-200">
-                      {expense.category}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm font-semibold text-surface-900">
-                    ₱{expense.amount.toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full ${getStatusColor(expense.status)}`}>
-                      {expense.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-surface-600">
-                    {expense.date.toDate().toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end space-x-2">
+                <React.Fragment key={expense.id}>
+                  {/* Main Row */}
+                  <tr className="hover:bg-surface-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-semibold text-surface-900">{expense.title}</div>
+                      {expense.description && (
+                        <div className="text-sm text-surface-500 mt-1">{expense.description}</div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex px-3 py-1 text-xs font-medium rounded-full bg-primary-100 text-primary-800 border border-primary-200">
+                        {expense.category}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm font-semibold text-surface-900">
+                      ₱{expense.amount.toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full ${getStatusColor(expense.status)}`}>
+                        {expense.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-surface-600">
+                      {expense.date.toDate().toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 text-right">
                       <button
-                        onClick={() => setEditingExpense(expense)}
-                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-200 rounded-lg transition-colors"
+                        onClick={() => toggleRowExpansion(expense.id!)}
+                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-lg transition-colors"
                       >
-                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        <svg 
+                          className={`w-4 h-4 transition-transform ${expandedRows.has(expense.id!) ? 'rotate-180' : ''}`} 
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
-                        Edit
+                        <span className="ml-1">{expandedRows.has(expense.id!) ? 'Close' : 'Actions'}</span>
                       </button>
-                      <button
-                        onClick={() => handleDeleteExpense(expense.id!)}
-                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors"
-                      >
-                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                    </td>
+                  </tr>
+                  
+                  {/* Expandable Actions Row */}
+                  {expandedRows.has(expense.id!) && (
+                    <tr className="bg-gray-50">
+                      <td colSpan={6} className="px-6 py-4">
+                        <div className="flex flex-wrap items-center gap-3 justify-center">
+                          {/* Edit Button */}
+                          <button
+                            onClick={() => setEditingExpense(expense)}
+                            className="inline-flex items-center px-4 py-2 text-sm font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-200 rounded-lg transition-colors"
+                          >
+                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Edit Expense
+                          </button>
+                          
+                          {/* Status Actions */}
+                          {expense.status === 'pending' && (
+                            <>
+                              <button
+                                onClick={() => handleUpdateExpenseStatus(expense.id!, 'approved')}
+                                className="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+                              >
+                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleUpdateExpenseStatus(expense.id!, 'paid')}
+                                className="inline-flex items-center px-4 py-2 text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition-colors"
+                              >
+                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                                Mark as Paid
+                              </button>
+                            </>
+                          )}
+                          
+                          {expense.status === 'approved' && (
+                            <button
+                              onClick={() => handleUpdateExpenseStatus(expense.id!, 'paid')}
+                              className="inline-flex items-center px-4 py-2 text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition-colors"
+                            >
+                              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                              </svg>
+                              Mark as Paid
+                            </button>
+                          )}
+                          
+                          {(expense.status === 'pending' || expense.status === 'approved') && (
+                            <button
+                              onClick={() => handleUpdateExpenseStatus(expense.id!, 'rejected')}
+                              className="inline-flex items-center px-4 py-2 text-sm font-medium text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-lg transition-colors"
+                            >
+                              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              Reject
+                            </button>
+                          )}
+
+                          {/* Delete Button */}
+                          <button
+                            onClick={() => handleDeleteExpense(expense.id!)}
+                            className="inline-flex items-center px-4 py-2 text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors"
+                          >
+                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>

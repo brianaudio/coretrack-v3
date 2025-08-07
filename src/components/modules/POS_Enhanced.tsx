@@ -7,10 +7,11 @@ import { getPOSItems, createPOSOrder, getPOSOrders, type POSItem as FirebasePOSI
 import { getMenuItems, type MenuItem } from '@/lib/firebase/menuBuilder'
 import { getAddons, type Addon as MenuBuilderAddon } from '@/lib/firebase/addons'
 import { getBranchLocationId } from '@/lib/utils/branchUtils'
-import { doc, updateDoc, getDoc, addDoc, collection } from 'firebase/firestore'
+import { doc, updateDoc, getDoc, addDoc, collection, getDocs, query, orderBy } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { addInventoryItem, updateStockQuantity, findInventoryItemByName } from '@/lib/firebase/inventory'
 import CoreTrackLogo from '@/components/CoreTrackLogo'
+import EnhancedPaymentModal from './EnhancedPaymentModal'
 
 // 🚀 Enhanced Interfaces with Add-ons Support
 interface AddOn {
@@ -22,6 +23,12 @@ interface AddOn {
   options?: string[]
   // For preserving Menu Builder addon data for inventory deduction
   _originalData?: any
+  // For inventory-based add-ons
+  inventoryItemId?: string
+  inventoryItemName?: string
+  quantityPerServing?: number
+  unit?: string
+  costPerServing?: number
 }
 
 interface POSItem extends FirebasePOSItem {
@@ -34,6 +41,12 @@ interface CartItemAddOn {
   name: string
   price: number
   category: string
+  // For inventory-based add-ons
+  inventoryItemId?: string
+  inventoryItemName?: string
+  quantityPerServing?: number
+  unit?: string
+  costPerServing?: number
 }
 
 interface CartItem extends POSItem {
@@ -49,7 +62,17 @@ interface OfflineOrder {
   id: string
   items: CartItem[]
   total: number
+  originalTotal?: number
   paymentMethod: string
+  cashReceived?: number
+  change?: number
+  tipAmount?: number
+  serviceCharge?: number
+  discountAmount?: number
+  splitPayment?: any
+  customerEmail?: string
+  customerPhone?: string
+  notes?: string
   timestamp: number
   synced: boolean
   customerInfo?: any
@@ -110,28 +133,11 @@ export default function POSEnhanced() {
   const [recentOrders, setRecentOrders] = useState<POSOrder[]>([])
   const [loadingOrders, setLoadingOrders] = useState(false)
   
-  // 🛠️ Add-ons Management State
-  const [showAddonsManager, setShowAddonsManager] = useState(false)
-  const [editingAddon, setEditingAddon] = useState<AddOn | null>(null)
-  // customAddons is already declared above - remove duplicate
-  const [newAddon, setNewAddon] = useState<Partial<AddOn>>({
-    name: '',
-    price: 0,
-    category: 'extra'
-  })
+
   
-  // 🎯 Enhanced Add-from-Inventory Modal State
-  const [showInventoryAddonModal, setShowInventoryAddonModal] = useState(false)
-  const [selectedInventoryItem, setSelectedInventoryItem] = useState<any>(null)
-  const [inventoryAddonQuantity, setInventoryAddonQuantity] = useState(1)
-  const [inventoryAddonPrice, setInventoryAddonPrice] = useState(0)
-  const [availableInventory, setAvailableInventory] = useState<any[]>([])
-  
-  // 📦 Inventory Integration State
-  const [addonQuantity, setAddonQuantity] = useState(0)
-  const [addonUnit, setAddonUnit] = useState('pcs')
-  const [addonCost, setAddonCost] = useState(0)
-  const [createInventoryItem, setCreateInventoryItem] = useState(true)
+  // 📋 Inventory Loading State
+  const [inventoryItems, setInventoryItems] = useState<any[]>([])
+  const [loadingInventory, setLoadingInventory] = useState(false)
 
   // 🚫 Void Order Modal State
   const [showVoidOrderModal, setShowVoidOrderModal] = useState(false)
@@ -139,6 +145,8 @@ export default function POSEnhanced() {
   const [voidReason, setVoidReason] = useState('')
   const [restoreInventory, setRestoreInventory] = useState(true)
   const [isVoiding, setIsVoiding] = useState(false)
+
+
 
   // 🔄 Network Status Detection
   useEffect(() => {
@@ -320,103 +328,165 @@ export default function POSEnhanced() {
     }
   }
 
-  // 🛠️ Add-ons Management Functions
-  const saveCustomAddon = async () => {
-    if (!newAddon.name || newAddon.price === undefined) return
+  const printEnhancedReceipt = (order: any, paymentData: any) => {
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) return
 
-    try {
-      const addon: AddOn = {
-        id: `custom_${Date.now()}`,
-        name: newAddon.name,
-        price: newAddon.price,
-        category: newAddon.category as AddOn['category'],
-        required: newAddon.required || false
-      }
-
-      // Create inventory item if requested
-      if (createInventoryItem && businessId && branchId) {
-        const locationId = getBranchLocationId(branchId)
-        
-        try {
-          await addInventoryItem({
-            name: addon.name,
-            category: 'Add-ons',
-            currentStock: addonQuantity,
-            minStock: 5, // Default minimum stock
-            unit: addonUnit,
-            costPerUnit: addonCost,
-            supplier: 'Internal',
-            tenantId: businessId,
-            locationId: locationId,
-            isPerishable: false
-          })
+    const receiptHTML = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Enhanced Receipt - Order #${order.orderNumber || order.id.slice(-6)}</title>
+          <style>
+            body { font-family: monospace; max-width: 320px; margin: 0 auto; padding: 20px; }
+            .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px; }
+            .logo { font-size: 1.5em; font-weight: bold; margin-bottom: 5px; }
+            .order-info { margin-bottom: 20px; }
+            .items { border-bottom: 1px solid #ccc; padding-bottom: 15px; margin-bottom: 15px; }
+            .item { display: flex; justify-content: space-between; margin-bottom: 8px; }
+            .addon { margin-left: 20px; font-size: 0.9em; color: #666; }
+            .totals { margin-bottom: 15px; }
+            .total-line { display: flex; justify-content: space-between; margin-bottom: 5px; }
+            .final-total { font-weight: bold; font-size: 1.2em; border-top: 1px solid #000; padding-top: 8px; }
+            .payment-info { margin-bottom: 15px; padding: 10px; background-color: #f5f5f5; }
+            .footer { text-align: center; margin-top: 20px; font-size: 0.9em; color: #666; }
+            .enhancement { color: #0066cc; font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="logo">🚀 CORETRACK POS</div>
+            <p><strong>Enhanced Receipt</strong></p>
+            <p>Order #${order.orderNumber || order.id.slice(-6)}</p>
+          </div>
           
-          alert(`✅ "${addon.name}" added to both add-ons and inventory!`)
-        } catch (inventoryError) {
-          console.error('Error creating inventory item:', inventoryError)
-          alert(`⚠️ Add-on created but failed to add to inventory. You can manually add it later.`)
-        }
-      } else {
-        alert(`✅ "${addon.name}" added successfully!`)
-      }
+          <div class="order-info">
+            <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+            <p><strong>Time:</strong> ${new Date().toLocaleTimeString()}</p>
+            <p><strong>Branch:</strong> ${selectedBranch?.name || 'Main Branch'}</p>
+            <p><strong>Status:</strong> COMPLETED</p>
+            ${paymentData.notes ? `<p><strong>Notes:</strong> ${paymentData.notes}</p>` : ''}
+          </div>
+          
+          <div class="items">
+            <h3>Items Ordered</h3>
+            ${cart.map((item) => `
+              <div class="item">
+                <span>${item.quantity}x ${item.name}</span>
+                <span>₱${item.total.toFixed(2)}</span>
+              </div>
+              ${item.selectedAddons && item.selectedAddons.length > 0 ? item.selectedAddons.map((addon) => `
+                <div class="item addon">
+                  <span>+ ${addon.name}</span>
+                  <span>₱${addon.price.toFixed(2)}</span>
+                </div>
+              `).join('') : ''}
+            `).join('')}
+          </div>
+          
+          <div class="totals">
+            <div class="total-line">
+              <span>Subtotal:</span>
+              <span>₱${cartTotal.toFixed(2)}</span>
+            </div>
+            ${paymentData.tipAmount > 0 ? `
+              <div class="total-line enhancement">
+                <span>Tip:</span>
+                <span>+₱${paymentData.tipAmount.toFixed(2)}</span>
+              </div>
+            ` : ''}
+            ${paymentData.serviceCharge > 0 ? `
+              <div class="total-line enhancement">
+                <span>Service Charge:</span>
+                <span>+₱${paymentData.serviceCharge.toFixed(2)}</span>
+              </div>
+            ` : ''}
+            ${paymentData.discountAmount > 0 ? `
+              <div class="total-line enhancement" style="color: #cc0000;">
+                <span>Discount:</span>
+                <span>-₱${paymentData.discountAmount.toFixed(2)}</span>
+              </div>
+            ` : ''}
+            <div class="total-line final-total">
+              <span>TOTAL:</span>
+              <span>₱${paymentData.total.toFixed(2)}</span>
+            </div>
+          </div>
+          
+          <div class="payment-info">
+            <h4 style="margin: 0 0 10px 0;">💳 Payment Details</h4>
+            <div class="total-line">
+              <span>Method:</span>
+              <span style="text-transform: uppercase;">${paymentData.method}</span>
+            </div>
+            ${paymentData.method === 'cash' ? `
+              <div class="total-line">
+                <span>Cash Received:</span>
+                <span>₱${paymentData.cashReceived.toFixed(2)}</span>
+              </div>
+              <div class="total-line">
+                <span>Change:</span>
+                <span>₱${paymentData.change.toFixed(2)}</span>
+              </div>
+            ` : ''}
+            ${paymentData.method === 'card' && paymentData.cardDetails ? `
+              <div class="total-line">
+                <span>Card Type:</span>
+                <span style="text-transform: capitalize;">${paymentData.cardDetails.cardType} ****${paymentData.cardDetails.last4}</span>
+              </div>
+              <div class="total-line">
+                <span>Transaction ID:</span>
+                <span>${paymentData.cardDetails.transactionId}</span>
+              </div>
+              <div class="total-line">
+                <span>Status:</span>
+                <span style="color: #10b981; font-weight: bold;">APPROVED</span>
+              </div>
+            ` : ''}
+            ${paymentData.method === 'split' && paymentData.splitPayment ? `
+              <div class="total-line">
+                <span>Cash Part:</span>
+                <span>₱${paymentData.splitPayment.cash.toFixed(2)}</span>
+              </div>
+              <div class="total-line">
+                <span>Card Part:</span>
+                <span>₱${paymentData.splitPayment.card.toFixed(2)}</span>
+              </div>
+              <div class="total-line">
+                <span>Digital Part:</span>
+                <span>₱${paymentData.splitPayment.digital.toFixed(2)}</span>
+              </div>
+            ` : ''}
+            ${paymentData.customerEmail ? `
+              <div class="total-line">
+                <span>Email:</span>
+                <span style="font-size: 0.8em;">${paymentData.customerEmail}</span>
+              </div>
+            ` : ''}
+            ${paymentData.customerPhone ? `
+              <div class="total-line">
+                <span>Phone:</span>
+                <span>${paymentData.customerPhone}</span>
+              </div>
+            ` : ''}
+          </div>
+          
+          <div class="footer">
+            <p>Thank you for your business! 🙏</p>
+            <p>Powered by CoreTrack Enhanced POS</p>
+            <p>Generated: ${new Date().toLocaleString()}</p>
+            ${isOnline ? '<p>🌐 Processed Online</p>' : '<p>📱 Processed Offline</p>'}
+          </div>
+        </body>
+      </html>
+    `
 
-      // Update local state
-      const updatedAddons = [...customAddons, addon]
-      setCustomAddons(updatedAddons)
-      localStorage.setItem('coretrack_custom_addons', JSON.stringify(updatedAddons))
-      
-      // Reset form
-      setNewAddon({ name: '', price: 0, category: 'extra' })
-      setAddonQuantity(0)
-      setAddonUnit('pcs')
-      setAddonCost(0)
-      setCreateInventoryItem(true)
-      
-    } catch (error) {
-      console.error('Error saving add-on:', error)
-      alert('❌ Error saving add-on. Please try again.')
-    }
+    printWindow.document.write(receiptHTML)
+    printWindow.document.close()
+    printWindow.print()
   }
 
-  const deleteCustomAddon = (addonId: string) => {
-    const updated = customAddons.filter(addon => addon.id !== addonId)
-    setCustomAddons(updated)
-    localStorage.setItem('coretrack_custom_addons', JSON.stringify(updated))
-  }
-
-  const editCustomAddon = (addon: AddOn) => {
-    setEditingAddon(addon)
-    setNewAddon(addon)
-  }
-
-  const updateCustomAddon = () => {
-    if (!editingAddon || !newAddon.name) return
-
-    const updated = customAddons.map(addon => 
-      addon.id === editingAddon.id 
-        ? { ...addon, ...newAddon }
-        : addon
-    )
-    
-    setCustomAddons(updated)
-    localStorage.setItem('coretrack_custom_addons', JSON.stringify(updated))
-    setEditingAddon(null)
-    setNewAddon({ name: '', price: 0, category: 'extra' })
-  }
-
-  // Load custom add-ons from localStorage
-  useEffect(() => {
-    const stored = localStorage.getItem('coretrack_custom_addons')
-    if (stored) {
-      try {
-        setCustomAddons(JSON.parse(stored))
-      } catch (error) {
-        console.error('Failed to load custom add-ons:', error)
-      }
-    }
-  }, [])
-
-  // 📋 Recent Orders Management Functions
+  // �📋 Recent Orders Management Functions
   const printReceipt = (order: any) => {
     const printWindow = window.open('', '_blank')
     if (!printWindow) return
@@ -646,6 +716,13 @@ export default function POSEnhanced() {
         }
       }
       
+      // Ensure we have a valid orderRef before proceeding
+      if (!orderRef) {
+        console.error('Could not determine order reference path');
+        alert('Error: Could not locate order. Please try again.');
+        return;
+      }
+      
       await updateDoc(orderRef, {
         status: 'voided',
         voidedAt: new Date(),
@@ -750,6 +827,14 @@ export default function POSEnhanced() {
           setIsVoiding(false);
           return;
         }
+      }
+      
+      // Ensure we have a valid orderRef before proceeding
+      if (!orderRef) {
+        console.error('Could not determine order reference path');
+        alert('Error: Could not locate order. Please try again.');
+        setIsVoiding(false);
+        return;
       }
       
       await updateDoc(orderRef, {
@@ -1019,6 +1104,36 @@ export default function POSEnhanced() {
     loadMenuItems()
   }, [profile?.tenantId, selectedBranch?.id])
 
+  // 📦 Load Inventory Items for Add-on Creation
+  useEffect(() => {
+    const loadInventoryItems = async () => {
+      if (!profile?.tenantId || !selectedBranch) return
+
+      try {
+        setLoadingInventory(true)
+        const locationId = getBranchLocationId(selectedBranch.id)
+        
+        // Load inventory items from Firestore
+        const inventoryRef = collection(db, 'tenants', profile.tenantId, 'branches', locationId, 'inventory')
+        const inventorySnapshot = await getDocs(query(inventoryRef, orderBy('name')))
+        
+        const items = inventorySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        
+        setInventoryItems(items)
+      } catch (error) {
+        console.error('❌ Error loading inventory items:', error)
+        setInventoryItems([])
+      } finally {
+        setLoadingInventory(false)
+      }
+    }
+
+    loadInventoryItems()
+  }, [profile?.tenantId, selectedBranch?.id])
+
   // Update menu items when custom addons change
   useEffect(() => {
     if (menuItems.length > 0) {
@@ -1092,8 +1207,8 @@ export default function POSEnhanced() {
     return cart.reduce((sum, item) => sum + item.total, 0)
   }, [cart])
 
-  // 💳 Process Payment (Online/Offline)
-  const processPayment = async () => {
+  // 💳 Process Payment (Online/Offline) - Enhanced
+  const processPayment = async (paymentData: any) => {
     if (cart.length === 0) return
 
     setIsProcessingPayment(true)
@@ -1116,17 +1231,28 @@ export default function POSEnhanced() {
             })) : []
           })),
           subtotal: cartTotal,
-          total: cartTotal,
-          paymentMethod: selectedPaymentMethod,
+          total: paymentData.total,
+          originalTotal: paymentData.originalTotal,
+          paymentMethod: paymentData.method,
+          cashReceived: paymentData.cashReceived,
+          change: paymentData.change,
+          tipAmount: paymentData.tipAmount,
+          serviceCharge: paymentData.serviceCharge,
+          discountAmount: paymentData.discountAmount,
+          splitPayment: paymentData.splitPayment,
+          customerEmail: paymentData.customerEmail,
+          customerPhone: paymentData.customerPhone,
+          notes: paymentData.notes,
           tenantId: profile.tenantId,
           locationId: getBranchLocationId(selectedBranch.id),
           orderType: 'dine-in' as const,
-          status: 'completed' as const
+          status: 'completed' as const,
+          paymentTimestamp: paymentData.timestamp
         }
 
         // Create the order
-        console.log('🚨 ABOUT TO CREATE POS ORDER WITH ITEMS:', firestoreOrder.items)
-        await createPOSOrder(firestoreOrder)
+        console.log('🚨 ABOUT TO CREATE POS ORDER WITH ENHANCED PAYMENT DATA:', firestoreOrder)
+        const createdOrder = await createPOSOrder(firestoreOrder)
 
         // 📦 Deduct add-ons from inventory (only if there are add-ons)
         const hasAddons = cart.some(item => item.selectedAddons && item.selectedAddons.length > 0)
@@ -1136,15 +1262,33 @@ export default function POSEnhanced() {
         } else {
           console.log('📝 No add-ons in cart, skipping add-on inventory deduction')
         }
-        
+
+        // Handle receipt options
+        if (paymentData.receiptOptions.print) {
+          // Auto-print receipt
+          setTimeout(() => {
+            printEnhancedReceipt(createdOrder, paymentData)
+          }, 1000)
+        }
+
         alert('✅ Payment successful! Order completed and inventory updated.')
       } else {
-        // 📱 Offline: Save to localStorage
+        // 📱 Offline: Save to localStorage with enhanced data
         const offlineOrder: OfflineOrder = {
           id: `offline_${Date.now()}`,
           items: cart, // Store full cart items for offline
-          total: cartTotal,
-          paymentMethod: selectedPaymentMethod,
+          total: paymentData.total,
+          originalTotal: paymentData.originalTotal,
+          paymentMethod: paymentData.method,
+          cashReceived: paymentData.cashReceived,
+          change: paymentData.change,
+          tipAmount: paymentData.tipAmount,
+          serviceCharge: paymentData.serviceCharge,
+          discountAmount: paymentData.discountAmount,
+          splitPayment: paymentData.splitPayment,
+          customerEmail: paymentData.customerEmail,
+          customerPhone: paymentData.customerPhone,
+          notes: paymentData.notes,
           timestamp: Date.now(),
           synced: false
         }
@@ -1155,7 +1299,7 @@ export default function POSEnhanced() {
         
         localStorage.setItem('coretrack_offline_orders', JSON.stringify(updatedOfflineOrders))
         
-        alert('📱 Payment successful! Order saved offline. Inventory will update when synced.')
+        alert('📱 Payment successful! Order saved offline with enhanced details. Will sync when online.')
       }
 
       // Reset cart and modal
@@ -1222,24 +1366,41 @@ export default function POSEnhanced() {
                 console.warn(`⚠️ Menu Builder add-on "${addon.name}" has no inventory linkage`)
               }
             } else {
-              // 🛠️ Custom add-on or fallback: Find by name (existing behavior)
-              const inventoryItem = await findInventoryItemByName(profile.tenantId, addon.name)
-              
-              if (inventoryItem) {
-                const quantityToDeduct = cartItem.quantity
+              // 🛠️ Custom add-on: Check if it's inventory-based first
+              if (addon.inventoryItemId && addon.quantityPerServing) {
+                // Custom inventory-based add-on
+                const quantityToDeduct = addon.quantityPerServing * cartItem.quantity
                 
                 await updateStockQuantity(
                   profile.tenantId,
-                  inventoryItem.id,
+                  addon.inventoryItemId,
                   quantityToDeduct,
                   'subtract',
-                  `Used in POS order - ${cartItem.name} (Custom Add-on)`,
+                  `Used in POS order - ${cartItem.name} (Custom Add-on: ${addon.name})`,
                   user?.uid,
                   user?.email || 'POS System'
                 )
-                console.log(`✅ Deducted custom add-on "${addon.name}" for ${cartItem.quantity} servings`)
+                console.log(`✅ Deducted custom inventory add-on "${addon.name}" - ${quantityToDeduct} ${addon.unit} for ${cartItem.quantity} servings`)
               } else {
-                console.warn(`⚠️ Inventory item not found for add-on: ${addon.name}`)
+                // Legacy custom add-on: Find by name (existing behavior)
+                const inventoryItem = await findInventoryItemByName(profile.tenantId, addon.name)
+                
+                if (inventoryItem) {
+                  const quantityToDeduct = cartItem.quantity
+                  
+                  await updateStockQuantity(
+                    profile.tenantId,
+                    inventoryItem.id,
+                    quantityToDeduct,
+                    'subtract',
+                    `Used in POS order - ${cartItem.name} (Custom Add-on)`,
+                    user?.uid,
+                    user?.email || 'POS System'
+                  )
+                  console.log(`✅ Deducted legacy custom add-on "${addon.name}" for ${cartItem.quantity} servings`)
+                } else {
+                  console.warn(`⚠️ Inventory item not found for add-on: ${addon.name}`)
+                }
               }
             }
           } catch (error) {
@@ -1249,21 +1410,6 @@ export default function POSEnhanced() {
         }
       }
     }
-  }
-
-  // 💰 Calculate Change
-  const calculateChange = () => {
-    const received = parseFloat(cashReceived) || 0
-    return Math.max(0, received - cartTotal)
-  }
-
-  // ✅ Payment Validation
-  const isPaymentValid = () => {
-    if (selectedPaymentMethod === 'cash') {
-      const received = parseFloat(cashReceived) || 0
-      return received >= cartTotal
-    }
-    return true
   }
 
   // 🎨 Get Item Emoji
@@ -1298,52 +1444,59 @@ export default function POSEnhanced() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* 🔝 Enhanced Header with Offline Indicator */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
-        <div className="px-4 sm:px-6 py-4">
+    <div className="h-screen bg-slate-50 flex flex-col overflow-hidden">
+      {/* 🔝 Enterprise Header */}
+      <div className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
+        <div className="px-6 py-4">
           <div className="flex items-center justify-between">
-            {/* Left - Logo & Branch Info */}
-            <div className="flex items-center gap-4">
-              <CoreTrackLogo size="sm" />
-              <div className="hidden sm:block">
-                <h1 className="text-xl font-bold text-gray-900">POS Enhanced</h1>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm text-gray-500">{selectedBranch?.name || 'Main Branch'}</p>
-                  <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                    isOnline ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
-                  }`}>
-                    <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-orange-500'}`}></div>
-                    {isOnline ? 'Online' : 'Offline'}
-                  </div>
-                  {pendingSyncCount > 0 && (
-                    <div className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-medium">
-                      {pendingSyncCount} pending sync
+            {/* Left - Brand & Context */}
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-3">
+                <CoreTrackLogo size="sm" />
+                <div className="hidden sm:block border-l border-slate-200 pl-4">
+                  <h1 className="text-xl font-bold text-slate-900">Point of Sale</h1>
+                  <div className="flex items-center gap-3 mt-1">
+                    <p className="text-sm text-slate-600">{selectedBranch?.name || 'Main Branch'}</p>
+                    <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
+                      isOnline 
+                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
+                        : 'bg-amber-100 text-amber-700 border border-amber-200'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
+                      {isOnline ? 'Online' : 'Offline'}
                     </div>
-                  )}
+                    {pendingSyncCount > 0 && (
+                      <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium border border-blue-200">
+                        {pendingSyncCount} pending sync
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Right - Quick Actions */}
-            <div className="flex items-center gap-2">
+            {/* Right - Action Buttons */}
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => {
                   setShowRecentOrders(true)
                   loadRecentOrders()
                 }}
-                className="px-3 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-medium transition-all duration-200 hover:scale-105 hover:shadow-sm flex items-center gap-2"
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition-all duration-200 border border-slate-200 hover:border-slate-300"
               >
-                <span className="text-lg">🕒</span>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
                 <span className="hidden sm:inline">Recent Orders</span>
               </button>
               
               {!isOnline && (
                 <button
                   onClick={syncOfflineOrders}
-                  className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-all duration-200 shadow-sm hover:shadow-md"
                 >
-                  🔄 Sync Now
+                  <span className="text-lg">🔄</span>
+                  <span className="hidden sm:inline">Sync Now</span>
                 </button>
               )}
             </div>
@@ -1351,12 +1504,16 @@ export default function POSEnhanced() {
         </div>
       </div>
 
-      <div className="flex-1 flex">
+      <div className="flex-1 flex overflow-hidden">
         {/* 📋 Left Panel - Menu */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col bg-white">
           {/* Category Filter */}
-          <div className="bg-white border-b border-gray-200 p-4">
-            <div className="flex gap-2 overflow-x-auto">
+          <div className="bg-white border-b border-slate-200 p-6">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-slate-900">Menu Categories</h2>
+              <p className="text-sm text-slate-600 mt-1">Select a category to browse items</p>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2">
               {(() => {
                 // Get unique categories from menu items dynamically
                 const categories = ['All'];
@@ -1375,18 +1532,22 @@ export default function POSEnhanced() {
                   <button
                     key={category}
                     onClick={() => setSelectedCategory(category)}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all whitespace-nowrap ${
+                    className={`inline-flex items-center gap-2 px-4 py-3 rounded-xl font-medium transition-all whitespace-nowrap border ${
                       selectedCategory === category
-                        ? 'bg-blue-600 text-white shadow-md'
-                        : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+                        ? 'bg-blue-600 text-white shadow-lg border-blue-600 scale-105'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300 hover:shadow-sm'
                     }`}
                   >
-                    {category}
+                    <span>{category}</span>
                     {category !== 'All' && (
-                      <span className="ml-2 text-xs opacity-75">
-                        ({menuItems.filter(item => 
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        selectedCategory === category
+                          ? 'bg-blue-500 text-blue-100'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {menuItems.filter(item => 
                           (item.category || 'General') === category
-                        ).length})
+                        ).length}
                       </span>
                     )}
                   </button>
@@ -1396,21 +1557,35 @@ export default function POSEnhanced() {
           </div>
 
           {/* Menu Items Grid */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto bg-slate-50 p-6">
             {loading ? (
-              <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {[...Array(8)].map((_, i) => (
-                  <div key={i} className="bg-gray-100 rounded-xl h-48 animate-pulse"></div>
+              <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+                {[...Array(12)].map((_, i) => (
+                  <div key={i} className="bg-white rounded-2xl shadow-sm border border-slate-200">
+                    <div className="aspect-square bg-slate-100 rounded-t-2xl animate-pulse"></div>
+                    <div className="p-4 space-y-3">
+                      <div className="h-4 bg-slate-200 rounded animate-pulse"></div>
+                      <div className="h-3 bg-slate-100 rounded animate-pulse"></div>
+                      <div className="h-6 bg-slate-200 rounded animate-pulse w-20"></div>
+                    </div>
+                  </div>
                 ))}
               </div>
             ) : menuItems.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-6xl mb-4">🍽️</div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Menu Items</h3>
-                <p className="text-gray-500">Add items in Menu Builder to start selling</p>
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center mb-6">
+                    <span className="text-4xl">🍽️</span>
+                  </div>
+                  <h3 className="text-xl font-semibold text-slate-900 mb-2">No Menu Items Available</h3>
+                  <p className="text-slate-600 mb-6 max-w-md">Get started by adding items in Menu Builder to begin selling.</p>
+                  <button className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">
+                    Go to Menu Builder
+                  </button>
+                </div>
               </div>
             ) : selectedCategory === 'All' ? (
-              // Group by categories when "All" is selected - show ALL actual categories
+              // Group by categories when "All" is selected
               <div className="space-y-8">
                 {Array.from(new Set(menuItems.map(item => item.category || 'General')))
                   .sort()
@@ -1422,238 +1597,518 @@ export default function POSEnhanced() {
                     if (categoryItems.length === 0) return null;
                     
                     return (
-                      <div key={category} className="space-y-4">
-                        <div className="flex items-center gap-3">
-                          <h3 className="text-xl font-bold text-gray-900">{category}</h3>
-                          <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                            {categoryItems.length} items
-                          </span>
+                      <div key={category} className="space-y-6">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <h3 className="text-2xl font-bold text-slate-900">{category}</h3>
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                              {categoryItems.length} {categoryItems.length === 1 ? 'item' : 'items'}
+                            </span>
+                          </div>
+                          <button 
+                            onClick={() => setSelectedCategory(category)}
+                            className="text-blue-600 hover:text-blue-700 font-medium text-sm"
+                          >
+                            View all →
+                          </button>
                         </div>
                       
-                      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {categoryItems.map((item) => (
-                          <div
-                            key={item.id}
-                            onClick={() => addToCartWithAddons(item)}
-                            className="group bg-white border border-gray-200 rounded-xl p-4 hover:shadow-lg hover:border-blue-300 transition-all cursor-pointer"
-                          >
-                            <div className="aspect-square bg-gray-100 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
-                              {item.image ? (
-                                <img 
-                                  src={item.image} 
-                                  alt={item.name}
-                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                                />
-                              ) : (
-                                <div className="text-5xl flex items-center justify-center h-full transform group-hover:scale-110 transition-all duration-200 group-hover:rotate-6">
-                                  <span role="img" aria-label={`${item.name} emoji`}>
-                                    {getItemEmoji(item)}
+                        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+                          {categoryItems.map((item) => (
+                            <div
+                              key={item.id}
+                              onClick={() => addToCartWithAddons(item)}
+                              className="group bg-white border border-slate-200 rounded-2xl overflow-hidden hover:shadow-xl hover:border-blue-300 transition-all duration-300 cursor-pointer hover:-translate-y-1"
+                            >
+                              <div className="aspect-square bg-slate-50 flex items-center justify-center overflow-hidden relative">
+                                {item.image ? (
+                                  <img 
+                                    src={item.image} 
+                                    alt={item.name}
+                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                  />
+                                ) : (
+                                  <div className="text-6xl flex items-center justify-center h-full transform group-hover:scale-110 transition-all duration-300">
+                                    <span role="img" aria-label={`${item.name} emoji`}>
+                                      {getItemEmoji(item)}
+                                    </span>
+                                  </div>
+                                )}
+                                {item.addons && item.addons.length > 0 && (
+                                  <div className="absolute top-3 right-3">
+                                    <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700 border border-purple-200">
+                                      +Add-ons
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              <div className="p-4">
+                                <h3 className="font-semibold text-slate-900 mb-2 group-hover:text-blue-600 transition-colors line-clamp-1">
+                                  {item.name}
+                                </h3>
+                                
+                                <p className="text-sm text-slate-600 mb-3 line-clamp-2 leading-relaxed">
+                                  {item.description}
+                                </p>
+                                
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xl font-bold text-blue-600">
+                                    ₱{item.price?.toFixed(2) || '0.00'}
                                   </span>
+                                  <button className="inline-flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full group-hover:bg-blue-700 transition-colors">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                    </svg>
+                                  </button>
                                 </div>
-                              )}
+                              </div>
                             </div>
-                            
-                            <h3 className="font-semibold text-gray-900 mb-1 group-hover:text-blue-600 transition-colors">
-                              {item.name}
-                            </h3>
-                            
-                            <p className="text-xs text-gray-500 mb-2 line-clamp-2">
-                              {item.description}
-                            </p>
-                            
-                            <div className="flex items-center justify-between">
-                              <span className="text-lg font-bold text-blue-600">
-                                ₱{item.price?.toFixed(2) || '0.00'}
-                              </span>
-                              {item.addons && item.addons.length > 0 && (
-                                <div className="text-xs text-purple-600 bg-purple-100 px-2 py-1 rounded-full">
-                                  +Add-ons
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
             ) : (
               // Single category view
-              <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {menuItems
-                  .filter(item => (item.category || 'General') === selectedCategory)
-                  .map((item) => (
-                    <div
-                      key={item.id}
-                      onClick={() => addToCartWithAddons(item)}
-                      className="group bg-white border border-gray-200 rounded-xl p-4 hover:shadow-lg hover:border-blue-300 transition-all cursor-pointer"
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={() => setSelectedCategory('All')}
+                      className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 font-medium"
                     >
-                      <div className="aspect-square bg-gray-100 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
-                        {item.image ? (
-                          <img 
-                            src={item.image} 
-                            alt={item.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                          />
-                        ) : (
-                          <div className="text-5xl flex items-center justify-center h-full transform group-hover:scale-110 transition-all duration-200 group-hover:rotate-6">
-                            <span role="img" aria-label={`${item.name} emoji`}>
-                              {getItemEmoji(item)}
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      Back to All
+                    </button>
+                    <div className="w-px h-6 bg-slate-300"></div>
+                    <h3 className="text-2xl font-bold text-slate-900">{selectedCategory}</h3>
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                      {menuItems.filter(item => (item.category || 'General') === selectedCategory).length} items
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+                  {menuItems
+                    .filter(item => (item.category || 'General') === selectedCategory)
+                    .map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => addToCartWithAddons(item)}
+                        className="group bg-white border border-slate-200 rounded-2xl overflow-hidden hover:shadow-xl hover:border-blue-300 transition-all duration-300 cursor-pointer hover:-translate-y-1"
+                      >
+                        <div className="aspect-square bg-slate-50 flex items-center justify-center overflow-hidden relative">
+                          {item.image ? (
+                            <img 
+                              src={item.image} 
+                              alt={item.name}
+                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                            />
+                          ) : (
+                            <div className="text-6xl flex items-center justify-center h-full transform group-hover:scale-110 transition-all duration-300">
+                              <span role="img" aria-label={`${item.name} emoji`}>
+                                {getItemEmoji(item)}
+                              </span>
+                            </div>
+                          )}
+                          {item.addons && item.addons.length > 0 && (
+                            <div className="absolute top-3 right-3">
+                              <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700 border border-purple-200">
+                                +Add-ons
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="p-4">
+                          <h3 className="font-semibold text-slate-900 mb-2 group-hover:text-blue-600 transition-colors line-clamp-1">
+                            {item.name}
+                          </h3>
+                          
+                          <p className="text-sm text-slate-600 mb-3 line-clamp-2 leading-relaxed">
+                            {item.description}
+                          </p>
+                          
+                          <div className="flex items-center justify-between">
+                            <span className="text-xl font-bold text-blue-600">
+                              ₱{item.price?.toFixed(2) || '0.00'}
                             </span>
+                            <button className="inline-flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full group-hover:bg-blue-700 transition-colors">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                              </svg>
+                            </button>
                           </div>
-                        )}
+                        </div>
                       </div>
-                      
-                      <h3 className="font-semibold text-gray-900 mb-1 group-hover:text-blue-600 transition-colors">
-                        {item.name}
-                      </h3>
-                      
-                      <p className="text-xs text-gray-500 mb-2 line-clamp-2">
-                        {item.description}
-                      </p>
-                      
-                      <div className="flex items-center justify-between">
-                        <span className="text-lg font-bold text-blue-600">
-                          ₱{item.price?.toFixed(2) || '0.00'}
-                        </span>
-                        {item.addons && item.addons.length > 0 && (
-                          <div className="text-xs text-purple-600 bg-purple-100 px-2 py-1 rounded-full">
-                            +Add-ons
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                </div>
               </div>
             )}
           </div>
         </div>
 
         {/* 🛒 Right Panel - Cart */}
-        <div className="w-64 lg:w-72 bg-white border-l border-gray-200 flex flex-col shadow-lg">
+        <div className="w-72 lg:w-80 bg-white border-l border-slate-200 flex flex-col shadow-lg">
           {/* Cart Header */}
-          <div className="bg-gray-50 border-b border-gray-200 p-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-semibold text-gray-900">Order Summary</h3>
-                <p className="text-xs text-gray-500">{cart.length} items</p>
+          <div className="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ display: 'block', margin: 'auto' }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-2.5 5M7 13l2.5 5m0 0H17M17 18a2 2 0 11-4 0 2 2 0 014 0zM9 18a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">Order Summary</h3>
+                  <p className="text-sm text-slate-600">{cart.length} {cart.length === 1 ? 'item' : 'items'} • {isOnline ? 'Online' : 'Offline'}</p>
+                </div>
               </div>
               {cart.length > 0 && (
                 <button
                   onClick={() => setCart([])}
-                  className="text-red-600 hover:text-red-700 text-xs font-medium px-2 py-1 rounded hover:bg-red-50"
+                  className="inline-flex items-center gap-1 px-3 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg font-medium transition-all duration-200 border border-red-200 hover:border-red-300"
                 >
-                  Clear
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Clear All
                 </button>
+              )}
+            </div>
+            
+            {/* Order Type & Status Indicators */}
+            <div className="flex items-center gap-2 text-xs">
+              <span className={`px-2 py-1 rounded-full font-medium ${
+                isOnline ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
+              }`}>
+                {isOnline ? '🌐 Online' : '📱 Offline'}
+              </span>
+              <span className="px-2 py-1 bg-slate-100 text-slate-700 rounded-full font-medium">
+                🏪 Dine-in
+              </span>
+              {pendingSyncCount > 0 && (
+                <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full font-medium">
+                  ⏳ {pendingSyncCount} pending
+                </span>
               )}
             </div>
           </div>
 
           {/* Cart Items */}
-          <div className="flex-1 overflow-y-auto p-3">
+          <div className="flex-1 overflow-y-auto">
             {cart.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="text-3xl mb-3">🛒</div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-1">Cart is Empty</h3>
-                <p className="text-xs text-gray-500">Add items from menu</p>
+              <div className="flex items-center justify-center h-full p-6">
+                <div className="text-center">
+                  <div className="w-20 h-20 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mb-6 mx-auto">
+                    <span className="text-3xl block leading-none">🛒</span>
+                  </div>
+                  <h3 className="text-lg font-semibold text-slate-900 mb-2">Cart is Empty</h3>
+                  <p className="text-sm text-slate-600 mb-4">Add items from the menu to get started</p>
+                  <div className="text-xs text-slate-500 bg-slate-50 rounded-lg p-3">
+                    💡 Tap any menu item to add it to your order
+                  </div>
+                </div>
               </div>
             ) : (
-              <div className="space-y-2">
-                {cart.map((item) => (
-                  <div key={item.cartItemId} className="bg-gray-50 rounded-lg p-2.5">
-                    <div className="flex items-start justify-between mb-2">
+              <div className="p-4 space-y-3">
+                {cart.map((item, index) => (
+                  <div key={item.cartItemId} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-200">
+                    <div className="flex items-start justify-between mb-3">
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-gray-900 text-sm truncate">{item.name}</h4>
-                        <p className="text-xs text-gray-500">₱{item.price.toFixed(2)} base</p>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="w-6 h-6 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center text-xs font-bold">
+                            {index + 1}
+                          </span>
+                          <h4 className="font-semibold text-slate-900 truncate">{item.name}</h4>
+                          {item.selectedAddons.length > 0 && (
+                            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full font-medium">
+                              {item.selectedAddons.length} add-on{item.selectedAddons.length > 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+                        
+                        <div className="flex items-center gap-4 text-sm text-slate-600 mb-2">
+                          <span className="font-medium">₱{item.price.toFixed(2)}</span>
+                          <span className="text-slate-400">•</span>
+                          <span className="capitalize">{item.category}</span>
+                        </div>
                         
                         {/* Add-ons Display */}
                         {item.selectedAddons.length > 0 && (
-                          <div className="mt-1 space-y-0.5">
-                            {item.selectedAddons.map((addon, idx) => (
-                              <div key={idx} className="text-xs text-blue-600 flex justify-between">
-                                <span className="truncate">+ {addon.name}</span>
-                                <span className="ml-2 flex-shrink-0">₱{addon.price.toFixed(2)}</span>
-                              </div>
-                            ))}
+                          <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                            <p className="text-xs font-semibold text-purple-700 mb-2 flex items-center gap-1">
+                              <span>🏷️</span> Add-ons
+                            </p>
+                            <div className="space-y-1">
+                              {item.selectedAddons.map((addon, idx) => (
+                                <div key={idx} className="flex justify-between items-center text-sm">
+                                  <span className="text-purple-700 flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 bg-purple-400 rounded-full"></span>
+                                    {addon.name}
+                                  </span>
+                                  <span className="text-slate-900 font-medium">+₱{addon.price.toFixed(2)}</span>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
                         
                         {/* Customizations */}
                         {item.customizations && (
-                          <p className="text-xs text-gray-400 mt-1 italic truncate">&quot;{item.customizations}&quot;</p>
+                          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p className="text-xs font-semibold text-blue-700 mb-2 flex items-center gap-1">
+                              <span>📝</span> Special Instructions
+                            </p>
+                            <p className="text-sm text-blue-800 italic leading-relaxed">"{item.customizations}"</p>
+                          </div>
                         )}
                       </div>
                       
                       <button
                         onClick={() => removeFromCart(item.cartItemId)}
-                        className="text-red-500 hover:text-red-700 p-1 ml-2 flex-shrink-0"
+                        className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200 ml-3 flex-shrink-0"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                       </button>
                     </div>
                     
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => updateQuantity(item.cartItemId, item.quantity - 1)}
-                          className="w-5 h-5 bg-gray-200 hover:bg-gray-300 rounded text-xs font-bold flex items-center justify-center"
-                        >
-                          -
-                        </button>
-                        <span className="font-medium text-xs min-w-[16px] text-center">{item.quantity}</span>
-                        <button
-                          onClick={() => updateQuantity(item.cartItemId, item.quantity + 1)}
-                          className="w-5 h-5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold flex items-center justify-center"
-                        >
-                          +
-                        </button>
+                    {/* Quantity Controls & Item Total */}
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium text-slate-700">Qty:</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => updateQuantity(item.cartItemId, item.quantity - 1)}
+                            className="w-8 h-8 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold flex items-center justify-center transition-colors text-sm"
+                          >
+                            −
+                          </button>
+                          <span className="font-semibold text-slate-900 min-w-[32px] text-center bg-slate-50 px-3 py-1 rounded-lg text-sm">
+                            {item.quantity}
+                          </span>
+                          <button
+                            onClick={() => updateQuantity(item.cartItemId, item.quantity + 1)}
+                            className="w-8 h-8 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold flex items-center justify-center transition-colors text-sm"
+                          >
+                            +
+                          </button>
+                        </div>
                       </div>
-                      <span className="font-bold text-blue-600 text-sm">₱{item.total.toFixed(2)}</span>
+                      <div className="text-right">
+                        <div className="text-xs text-slate-500 mb-1">Item Total</div>
+                        <span className="text-lg font-bold text-blue-600">₱{item.total.toFixed(2)}</span>
+                      </div>
                     </div>
                   </div>
                 ))}
+                
+                {/* Quick Actions */}
+                {cart.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-slate-200">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => {
+                          // Duplicate last item functionality
+                          const lastItem = cart[cart.length - 1]
+                          if (lastItem) {
+                            addToCart(lastItem, lastItem.selectedAddons, lastItem.customizations)
+                          }
+                        }}
+                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        Duplicate Last
+                      </button>
+                      <button
+                        onClick={() => {
+                          // Apply quick discount
+                          // This would integrate with a discount system
+                          console.log('Apply quick discount')
+                        }}
+                        className="px-3 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
+                        Discount
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
-          {/* Cart Footer - Checkout */}
+          {/* Cart Footer - Enhanced Checkout */}
           {cart.length > 0 && (
-            <div className="border-t border-gray-200 p-3 bg-white">
-              <div className="mb-3">
-                <div className="flex justify-between items-center">
-                  <span className="font-semibold text-gray-900">Total:</span>
-                  <span className="text-xl font-bold text-blue-600">₱{cartTotal.toFixed(2)}</span>
+            <div className="border-t border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+              <div className="p-6">
+                {/* Detailed Order Summary */}
+                <div className="space-y-3 mb-6">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-600 flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                      Items ({cart.reduce((sum, item) => sum + item.quantity, 0)})
+                    </span>
+                    <span className="font-medium text-slate-900">₱{cartTotal.toFixed(2)}</span>
+                  </div>
+                  
+                  {/* Add-ons Summary */}
+                  {cart.some(item => item.selectedAddons.length > 0) && (
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-purple-600 flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Add-ons ({cart.reduce((sum, item) => sum + item.selectedAddons.length, 0)})
+                      </span>
+                      <span className="font-medium text-purple-700">
+                        +₱{cart.reduce((sum, item) => 
+                          sum + item.selectedAddons.reduce((addonSum, addon) => addonSum + (addon.price * item.quantity), 0), 0
+                        ).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* Tax/Service Charge (if applicable) */}
+                  <div className="flex justify-between items-center text-sm text-slate-500">
+                    <span className="flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Tax Included
+                    </span>
+                    <span className="font-medium">₱0.00</span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center pt-3 border-t border-slate-200">
+                    <span className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                      </svg>
+                      Total:
+                    </span>
+                    <span className="text-2xl font-bold text-blue-600">₱{cartTotal.toFixed(2)}</span>
+                  </div>
+                </div>
+                
+                {/* Quick Payment Options */}
+                <div className="space-y-3">
+                  {/* Primary Checkout Button */}
+                  <button
+                    onClick={() => setShowPaymentModal(true)}
+                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                  >
+                    <div className="flex items-center justify-center gap-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                      </svg>
+                      <span>{isOnline ? 'Process Payment' : 'Process Offline Order'}</span>
+                      <div className="px-2 py-1 bg-white/20 rounded-lg text-sm">
+                        ₱{cartTotal.toFixed(2)}
+                      </div>
+                    </div>
+                  </button>
+                  
+                  {/* Quick Actions Row */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => {
+                        // Save draft functionality
+                        const draftOrder = {
+                          id: `draft_${Date.now()}`,
+                          items: cart,
+                          total: cartTotal,
+                          timestamp: Date.now(),
+                          status: 'draft'
+                        }
+                        localStorage.setItem(`draft_order_${draftOrder.id}`, JSON.stringify(draftOrder))
+                        setCart([])
+                        console.log('Order saved as draft:', draftOrder.id)
+                      }}
+                      className="px-4 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                      </svg>
+                      Save Draft
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Hold order functionality
+                        const holdOrder = {
+                          id: `hold_${Date.now()}`,
+                          items: cart,
+                          total: cartTotal,
+                          timestamp: Date.now(),
+                          status: 'hold'
+                        }
+                        localStorage.setItem(`hold_order_${holdOrder.id}`, JSON.stringify(holdOrder))
+                        setCart([])
+                        console.log('Order put on hold:', holdOrder.id)
+                      }}
+                      className="px-4 py-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Hold Order
+                    </button>
+                  </div>
+                  
+                  {/* Order Notes */}
+                  <details className="group">
+                    <summary className="flex items-center justify-between cursor-pointer text-sm font-medium text-slate-700 hover:text-slate-900 py-2">
+                      <span className="flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Add Order Notes
+                      </span>
+                      <svg className="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </summary>
+                    <div className="mt-2">
+                      <textarea
+                        placeholder="Special instructions for kitchen or customer..."
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        rows={3}
+                      />
+                    </div>
+                  </details>
                 </div>
               </div>
-              
-              <button
-                onClick={() => setShowPaymentModal(true)}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm"
-              >
-                {isOnline ? 'Process Order' : 'Process Offline Order'}
-              </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* 🍕 Add-ons Modal */}
+      {/* 🍕 Enhanced Add-ons & Customization Modal */}
       {showAddonsModal && selectedItem && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl border border-slate-200">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 text-white">
+            <div className="bg-slate-50 border-b border-slate-200 px-6 py-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-xl font-bold">{selectedItem.name}</h3>
-                  <p className="text-blue-100">Customize your order</p>
+                  <h3 className="text-xl font-bold text-slate-900">{selectedItem.name}</h3>
+                  <p className="text-sm text-slate-600 mt-1">Customize your order</p>
                 </div>
                 <button
                   onClick={() => setShowAddonsModal(false)}
-                  className="text-white hover:text-gray-200 p-1"
+                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1665,11 +2120,11 @@ export default function POSEnhanced() {
             {/* Modal Content */}
             <div className="p-6 max-h-[70vh] overflow-y-auto">
               {/* Base Item */}
-              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6">
                 <div className="flex justify-between items-center">
                   <div>
-                    <h4 className="font-semibold text-gray-900">{selectedItem.name}</h4>
-                    <p className="text-sm text-gray-500">{selectedItem.description}</p>
+                    <h4 className="font-semibold text-slate-900">{selectedItem.name}</h4>
+                    <p className="text-sm text-slate-600">{selectedItem.description}</p>
                   </div>
                   <span className="text-lg font-bold text-blue-600">₱{selectedItem.price.toFixed(2)}</span>
                 </div>
@@ -1746,7 +2201,13 @@ export default function POSEnhanced() {
                                                   id: `${addon.id}_${idx}`,
                                                   name: optionName,
                                                   price: price,
-                                                  category: addon.category
+                                                  category: addon.category,
+                                                  // Include inventory properties if they exist
+                                                  inventoryItemId: addon.inventoryItemId,
+                                                  inventoryItemName: addon.inventoryItemName,
+                                                  quantityPerServing: addon.quantityPerServing,
+                                                  unit: addon.unit,
+                                                  costPerServing: addon.costPerServing
                                                 }
                                               ])
                                             }}
@@ -1774,7 +2235,13 @@ export default function POSEnhanced() {
                                             id: addon.id,
                                             name: addon.name,
                                             price: addon.price,
-                                            category: addon.category
+                                            category: addon.category,
+                                            // Include inventory properties if they exist
+                                            inventoryItemId: addon.inventoryItemId,
+                                            inventoryItemName: addon.inventoryItemName,
+                                            quantityPerServing: addon.quantityPerServing,
+                                            unit: addon.unit,
+                                            costPerServing: addon.costPerServing
                                           }])
                                         } else {
                                           setSelectedAddons(selectedAddons.filter(selected => selected.id !== addon.id))
@@ -1840,102 +2307,15 @@ export default function POSEnhanced() {
         </div>
       )}
 
-      {/* 💳 Payment Modal */}
-      {showPaymentModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
-            <div className="bg-gradient-to-r from-green-600 to-blue-600 px-6 py-4 text-white rounded-t-xl">
-              <h3 className="text-xl font-bold">Process Payment</h3>
-              <p className="text-green-100">{isOnline ? 'Online Order' : 'Offline Order - Will sync later'}</p>
-            </div>
-
-            <div className="p-6">
-              {/* Order Summary */}
-              <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                <div className="flex justify-between items-center">
-                  <span className="font-semibold text-gray-900">Total Amount:</span>
-                  <span className="text-2xl font-bold text-blue-600">₱{cartTotal.toFixed(2)}</span>
-                </div>
-              </div>
-
-              {/* Payment Methods */}
-              <div className="mb-6">
-                <h4 className="font-semibold text-gray-900 mb-3">Payment Method</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { id: 'cash', name: 'Cash', icon: '💵' },
-                    { id: 'card', name: 'Card', icon: '💳' },
-                    { id: 'gcash', name: 'GCash', icon: '📱' },
-                    { id: 'maya', name: 'Maya', icon: '💙' }
-                  ].map(method => (
-                    <button
-                      key={method.id}
-                      onClick={() => setSelectedPaymentMethod(method.id as any)}
-                      className={`p-3 border rounded-lg text-center transition-colors ${
-                        selectedPaymentMethod === method.id
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 hover:bg-gray-50'
-                      }`}
-                    >
-                      <div className="text-2xl mb-1">{method.icon}</div>
-                      <div className="text-sm font-medium">{method.name}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Cash Payment Input */}
-              {selectedPaymentMethod === 'cash' && (
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Cash Received
-                  </label>
-                  <input
-                    type="number"
-                    value={cashReceived}
-                    onChange={(e) => setCashReceived(e.target.value)}
-                    placeholder="Enter amount received"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    step="0.01"
-                  />
-                  {parseFloat(cashReceived) >= cartTotal && (
-                    <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-green-700">
-                      Change: ₱{calculateChange().toFixed(2)}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="bg-gray-50 px-6 py-4 rounded-b-xl flex justify-end gap-3">
-              <button
-                onClick={() => setShowPaymentModal(false)}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={processPayment}
-                disabled={!isPaymentValid() || isProcessingPayment}
-                className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                  isPaymentValid() && !isProcessingPayment
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                }`}
-              >
-                {isProcessingPayment ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white inline-block mr-2"></div>
-                    Processing...
-                  </>
-                ) : (
-                  'Complete Payment'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 💳 Enhanced Payment Modal */}
+      <EnhancedPaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        cartTotal={cartTotal}
+        onPaymentComplete={processPayment}
+        isOnline={isOnline}
+        isProcessing={isProcessingPayment}
+      />
 
       {/* 📋 Recent Orders Modal */}
       {showRecentOrders && (
@@ -2075,282 +2455,7 @@ export default function POSEnhanced() {
         </div>
       )}
 
-      {/* 🛠️ Add-ons Manager Modal */}
-      {showAddonsManager && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
-            {/* Modal Header */}
-            <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-4 text-white">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-bold">Manage Add-ons</h3>
-                  <p className="text-purple-100">Create, edit, and delete custom add-ons</p>
-                </div>
-                <button
-                  onClick={() => {
-                    setShowAddonsManager(false)
-                    setEditingAddon(null)
-                    setNewAddon({ name: '', price: 0, category: 'extra' })
-                  }}
-                  className="text-white hover:text-gray-200 p-1"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
 
-            <div className="p-6 max-h-[70vh] overflow-y-auto">
-              {/* 🎯 Action Buttons */}
-              <div className="flex gap-3 mb-6">
-                <button
-                  onClick={() => setShowInventoryAddonModal(true)}
-                  className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-3 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all flex items-center justify-center gap-2 font-medium"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                  </svg>
-                  📦 Add from Inventory
-                </button>
-                <button
-                  onClick={() => {
-                    setEditingAddon(null)
-                    setNewAddon({ name: '', price: 0, category: 'extra' })
-                  }}
-                  className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-3 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all flex items-center justify-center gap-2 font-medium"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  🛠️ Create Custom
-                </button>
-              </div>
-
-              {/* Add/Edit Form */}
-              <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                <h4 className="font-semibold text-gray-900 mb-4">
-                  {editingAddon ? 'Edit Add-on' : 'Create New Add-on'}
-                </h4>
-                
-                {/* Basic Add-on Information */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                    <input
-                      type="text"
-                      value={newAddon.name || ''}
-                      onChange={(e) => setNewAddon(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="e.g., Extra Bacon"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price</label>
-                    <input
-                      type="number"
-                      value={newAddon.price || 0}
-                      onChange={(e) => setNewAddon(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
-                      placeholder="0.00"
-                      step="0.01"
-                      min="0"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                    <select
-                      value={newAddon.category || 'extra'}
-                      onChange={(e) => setNewAddon(prev => ({ ...prev, category: e.target.value as AddOn['category'] }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    >
-                      <option value="ingredient">🥬 Ingredient</option>
-                      <option value="size">📏 Size</option>
-                      <option value="extra">➕ Extra</option>
-                      <option value="modification">🔧 Modification</option>
-                      <option value="special">⭐ Special</option>
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
-                    <select
-                      value={addonUnit}
-                      onChange={(e) => setAddonUnit(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    >
-                      <option value="pcs">Pieces</option>
-                      <option value="grams">Grams</option>
-                      <option value="ml">Milliliters</option>
-                      <option value="cups">Cups</option>
-                      <option value="tbsp">Tablespoons</option>
-                      <option value="tsp">Teaspoons</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Inventory Integration */}
-                <div className="border-t border-gray-200 pt-4 mb-4">
-                  <div className="flex items-center gap-3 mb-4">
-                    <input
-                      type="checkbox"
-                      id="createInventory"
-                      checked={createInventoryItem}
-                      onChange={(e) => setCreateInventoryItem(e.target.checked)}
-                      className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="createInventory" className="text-sm font-medium text-gray-900">
-                      📦 Add to Inventory Center
-                    </label>
-                    <span className="text-xs text-gray-500">(Track stock levels and deduct when used)</span>
-                  </div>
-
-                  {createInventoryItem && (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-blue-50 p-4 rounded-lg">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Initial Stock</label>
-                        <input
-                          type="number"
-                          value={addonQuantity}
-                          onChange={(e) => setAddonQuantity(parseInt(e.target.value) || 0)}
-                          placeholder="0"
-                          min="0"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">Current stock quantity</p>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Cost per Unit</label>
-                        <input
-                          type="number"
-                          value={addonCost}
-                          onChange={(e) => setAddonCost(parseFloat(e.target.value) || 0)}
-                          placeholder="0.00"
-                          step="0.01"
-                          min="0"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">Purchase/preparation cost</p>
-                      </div>
-                      
-                      <div className="flex items-end">
-                        <div className="text-sm text-blue-700 bg-blue-100 p-3 rounded-lg w-full">
-                          <p className="font-medium">💡 Profit Margin</p>
-                          <p className="text-lg font-bold">
-                            ₱{((newAddon.price || 0) - addonCost).toFixed(2)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Submit Button */}
-                <div className="flex items-end">
-                  <button
-                    onClick={editingAddon ? updateCustomAddon : saveCustomAddon}
-                    disabled={!newAddon.name?.trim()}
-                    className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium"
-                  >
-                    {editingAddon ? 'Update Add-on' : 'Create Add-on & Add to Inventory'}
-                  </button>
-                </div>
-              </div>
-
-              {/* 🎯 Menu Builder Add-ons List */}
-              {menuBuilderAddons.length > 0 && (
-                <div className="mb-8">
-                  <h4 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <span className="text-green-600">🏗️</span>
-                    Menu Builder Add-ons ({menuBuilderAddons.length})
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {menuBuilderAddons.map((addon) => (
-                      <div key={addon.id} className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-4">
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <h5 className="font-medium text-gray-900">{addon.name}</h5>
-                            <p className="text-sm text-gray-500 flex items-center gap-1">
-                              {addon.category === 'ingredient' && '🥬'}
-                              {addon.category === 'size' && '📏'}
-                              {addon.category === 'modification' && '🔧'}
-                              {addon.category === 'special' && '⭐'}
-                              <span className="capitalize">{addon.category}</span>
-                              {addon.required && <span className="text-red-500 text-xs">• Required</span>}
-                            </p>
-                          </div>
-                          <span className="text-lg font-bold text-green-600">
-                            {addon.price === 0 ? 'Free' : `₱${addon.price.toFixed(2)}`}
-                          </span>
-                        </div>
-                        
-                        <div className="text-xs text-green-700 bg-green-100 px-2 py-1 rounded-full">
-                          Managed in Menu Builder
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Custom Add-ons List */}
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <span className="text-purple-600">🛠️</span>
-                  Custom Add-ons ({customAddons.length})
-                </h4>
-                
-                {customAddons.length === 0 ? (
-                  <div className="text-center py-8">
-                    <div className="text-4xl mb-2">🛠️</div>
-                    <p className="text-gray-500">No custom add-ons yet. Create your first one above!</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {customAddons.map((addon) => (
-                      <div key={addon.id} className="bg-white border border-gray-200 rounded-lg p-4">
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <h5 className="font-medium text-gray-900">{addon.name}</h5>
-                            <p className="text-sm text-gray-500 flex items-center gap-1">
-                              {addon.category === 'size' && '📏'}
-                              {addon.category === 'extra' && '➕'}
-                              {addon.category === 'modification' && '🔧'}
-                              {addon.category === 'special' && '⭐'}
-                              <span className="capitalize">{addon.category}</span>
-                            </p>
-                          </div>
-                          <span className="text-lg font-bold text-purple-600">
-                            {addon.price === 0 ? 'Free' : `₱${addon.price.toFixed(2)}`}
-                          </span>
-                        </div>
-                        
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => editCustomAddon(addon)}
-                            className="flex-1 px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => deleteCustomAddon(addon.id)}
-                            className="flex-1 px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 🚫 Void Order Modal */}
       {showVoidOrderModal && orderToVoid && (
@@ -2484,206 +2589,6 @@ export default function POSEnhanced() {
         </div>
       )}
 
-      {/* 🎯 Add from Inventory Modal */}
-      {showInventoryAddonModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
-            {/* Modal Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 text-white">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-bold">Add Add-on from Inventory</h3>
-                  <p className="text-blue-100">Select inventory item and set pricing with profit analysis</p>
-                </div>
-                <button
-                  onClick={() => {
-                    setShowInventoryAddonModal(false)
-                    setSelectedInventoryItem(null)
-                    setInventoryAddonQuantity(1)
-                    setInventoryAddonPrice(0)
-                  }}
-                  className="text-white hover:text-gray-200 p-1"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <div className="p-6 max-h-[70vh] overflow-y-auto">
-              {!selectedInventoryItem ? (
-                // Step 1: Select Inventory Item
-                <div>
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4">📦 Select Inventory Item</h4>
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {/* Placeholder - we'll load actual inventory */}
-                    <div className="text-center py-8 text-gray-500">
-                      <div className="text-4xl mb-2">📦</div>
-                      <p>Loading inventory items...</p>
-                      <p className="text-sm">Feature will load your actual inventory here</p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                // Step 2: Set Pricing and Profit Analysis
-                <div>
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4">💰 Pricing & Profit Analysis</h4>
-                  
-                  {/* Selected Item Display */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
-                        <span className="text-white text-xl">📦</span>
-                      </div>
-                      <div>
-                        <h5 className="font-semibold text-gray-900">{selectedInventoryItem.name}</h5>
-                        <p className="text-sm text-gray-600">
-                          Cost: ₱{selectedInventoryItem.cost?.toFixed(2) || '0.00'} per {selectedInventoryItem.unit}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          Stock: {selectedInventoryItem.quantity} {selectedInventoryItem.unit}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Pricing Configuration */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Quantity per Add-on
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          value={inventoryAddonQuantity}
-                          onChange={(e) => setInventoryAddonQuantity(parseFloat(e.target.value) || 1)}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          min="0.01"
-                          step="0.01"
-                        />
-                        <span className="text-sm text-gray-500">{selectedInventoryItem.unit}</span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Your Selling Price
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <span className="text-gray-500">₱</span>
-                        <input
-                          type="number"
-                          value={inventoryAddonPrice}
-                          onChange={(e) => setInventoryAddonPrice(parseFloat(e.target.value) || 0)}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          min="0.01"
-                          step="0.01"
-                          placeholder="0.00"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Profit Analysis */}
-                  {inventoryAddonPrice > 0 && (
-                    <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-4 mb-6">
-                      <h6 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                        <span className="text-green-600">📊</span>
-                        Profit Analysis
-                      </h6>
-                      
-                      {(() => {
-                        const totalCost = (selectedInventoryItem.cost || 0) * inventoryAddonQuantity
-                        const profit = inventoryAddonPrice - totalCost
-                        const margin = inventoryAddonPrice > 0 ? (profit / inventoryAddonPrice) * 100 : 0
-                        const marginColor = margin >= 60 ? 'text-green-600' : margin >= 40 ? 'text-yellow-600' : 'text-red-600'
-                        
-                        return (
-                          <div className="grid grid-cols-3 gap-4">
-                            <div className="text-center">
-                              <p className="text-sm text-gray-600">Cost per Add-on</p>
-                              <p className="text-lg font-bold text-gray-900">₱{totalCost.toFixed(2)}</p>
-                            </div>
-                            <div className="text-center">
-                              <p className="text-sm text-gray-600">Profit</p>
-                              <p className={`text-lg font-bold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                ₱{profit.toFixed(2)}
-                              </p>
-                            </div>
-                            <div className="text-center">
-                              <p className="text-sm text-gray-600">Margin</p>
-                              <p className={`text-lg font-bold ${marginColor}`}>
-                                {margin.toFixed(1)}%
-                              </p>
-                            </div>
-                          </div>
-                        )
-                      })()}
-                      
-                      {/* Margin Recommendations */}
-                      {(() => {
-                        const totalCost = (selectedInventoryItem.cost || 0) * inventoryAddonQuantity
-                        const margin = inventoryAddonPrice > 0 ? ((inventoryAddonPrice - totalCost) / inventoryAddonPrice) * 100 : 0
-                        
-                        if (margin < 40) {
-                          return (
-                            <div className="mt-3 p-2 bg-red-100 border border-red-200 rounded text-sm text-red-800">
-                              ⚠️ Low margin. Consider pricing at ₱{(totalCost * 2.5).toFixed(2)} for 60% margin.
-                            </div>
-                          )
-                        } else if (margin < 60) {
-                          return (
-                            <div className="mt-3 p-2 bg-yellow-100 border border-yellow-200 rounded text-sm text-yellow-800">
-                              💡 Good margin. For premium pricing, try ₱{(totalCost * 3).toFixed(2)} for 67% margin.
-                            </div>
-                          )
-                        } else {
-                          return (
-                            <div className="mt-3 p-2 bg-green-100 border border-green-200 rounded text-sm text-green-800">
-                              ✅ Excellent margin! This pricing will be very profitable.
-                            </div>
-                          )
-                        }
-                      })()}
-                    </div>
-                  )}
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => setSelectedInventoryItem(null)}
-                      className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      ← Back to Selection
-                    </button>
-                    <button
-                      onClick={() => {
-                        // Create add-on logic here
-                        console.log('Creating add-on from inventory:', {
-                          item: selectedInventoryItem,
-                          quantity: inventoryAddonQuantity,
-                          price: inventoryAddonPrice
-                        })
-                        setShowInventoryAddonModal(false)
-                      }}
-                      disabled={!inventoryAddonPrice || inventoryAddonPrice <= 0}
-                      className={`flex-1 px-4 py-3 rounded-lg font-medium transition-colors ${
-                        inventoryAddonPrice > 0
-                          ? 'bg-blue-600 text-white hover:bg-blue-700'
-                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      }`}
-                    >
-                      Create Add-on ₱{inventoryAddonPrice.toFixed(2)}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

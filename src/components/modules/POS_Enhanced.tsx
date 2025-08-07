@@ -1125,6 +1125,7 @@ export default function POSEnhanced() {
         }
 
         // Create the order
+        console.log('🚨 ABOUT TO CREATE POS ORDER WITH ITEMS:', firestoreOrder.items)
         await createPOSOrder(firestoreOrder)
 
         // 📦 Deduct add-ons from inventory (only if there are add-ons)

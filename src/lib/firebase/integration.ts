@@ -17,7 +17,7 @@ import {
 import { db } from '../firebase';
 import { MenuItem, MenuIngredient } from './menuBuilder';
 import { POSItem, CreatePOSItem } from './pos';
-import { InventoryItem } from './inventory';
+import { InventoryItem, logInventoryMovement } from './inventory';
 
 /**
  * Integration Service - Connects MenuBuilder, POS, and Inventory
@@ -700,6 +700,22 @@ const deductInventoryQuantityAccumulated = async (
         consolidatedDeduction: true,
         sourceTransactions: transactions
       }
+    });
+
+    // 🔥 CRITICAL FIX: Also log to inventoryMovements for the Recent Movements tab
+    await logInventoryMovement({
+      tenantId,
+      itemId: inventoryItemId,
+      itemName: inventoryItem.name,
+      movementType: 'subtract',
+      quantity: -totalQuantityToDeduct,
+      previousStock: currentStock,
+      newStock: newQuantity,
+      unit: inventoryItem.unit || 'piece',
+      locationId: 'default', // TODO: Use actual branch location ID
+      reason: `POS Sale - ${transactions.map(t => t.orderItemName).join(', ')}`,
+      userId: 'system', // Will be replaced with actual user in a future update
+      userName: 'POS System'
     });
     
     console.log(`  ✅ [INVENTORY DEDUCTION] Successfully queued accumulated deduction for: ${inventoryItem.name}`)

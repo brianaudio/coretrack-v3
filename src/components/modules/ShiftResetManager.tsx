@@ -1,6 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Timestamp } from 'firebase/firestore'
+import { useAuth } from '../../lib/context/AuthContext'
+import { useBranch } from '../../lib/context/BranchContext'
 import { useShiftReset } from '../../lib/hooks/useShiftReset'
 import { useShift } from '../../lib/context/ShiftContext'
 import type { ShiftResetSummary } from '../../lib/services/ShiftResetService'
@@ -11,10 +14,13 @@ interface ShiftResetManagerProps {
 }
 
 export default function ShiftResetManager({ onResetComplete, className = '' }: ShiftResetManagerProps) {
+  const { profile } = useAuth()
+  const { selectedBranch } = useBranch()
   const { currentShift, endCurrentShift } = useShift()
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [showSummaryModal, setShowSummaryModal] = useState(false)
   const [resetReason, setResetReason] = useState<'shift_end' | 'manual' | 'system'>('shift_end')
+  const [isManualResetting, setIsManualResetting] = useState(false)
   
   const {
     isResetting,
@@ -56,6 +62,67 @@ export default function ShiftResetManager({ onResetComplete, className = '' }: S
     }
   }
 
+  const handleManualReset = async () => {
+    try {
+      setIsManualResetting(true)
+      console.log('🔄 Starting manual reset...')
+      console.log('Profile:', profile?.tenantId)
+      console.log('Branch:', selectedBranch?.id)
+      
+      if (!profile?.tenantId || !selectedBranch?.id) {
+        throw new Error('Missing tenant or branch information')
+      }
+      
+      // Import and use the actual ShiftResetService
+      const { ShiftResetService } = await import('../../lib/services/ShiftResetService')
+      const resetService = new ShiftResetService(profile.tenantId, selectedBranch.id)
+      
+      // Create a manual shift reset with default values
+      const manualShiftData = {
+        tenantId: profile.tenantId,
+        branchId: selectedBranch.id,
+        shiftId: `manual-reset-${Date.now()}`,
+        shiftName: `Manual Reset ${new Date().toLocaleDateString()}`,
+        startTime: Timestamp.fromDate(new Date(Date.now() - 8 * 60 * 60 * 1000)), // 8 hours ago
+        resetBy: profile.uid || profile.email || 'manual-user',
+        resetReason: 'manual' as const,
+        generateReport: true,
+        preserveInventoryLevels: false
+      }
+      
+      console.log('🔧 Performing manual reset with data:', manualShiftData)
+      const summary = await resetService.performShiftReset(manualShiftData)
+      
+      console.log('✅ Manual reset completed:', summary)
+      alert(`✅ Manual reset completed successfully!\n\nSummary:\n• Total Sales: ₱${summary.totalSales.toLocaleString()}\n• Total Orders: ${summary.totalOrders}\n• Archive ID: ${summary.archiveId}\n\nCheck console for full details.`)
+      
+      // Update the state with the summary
+      setShowConfirmModal(false)
+      if (onResetComplete) {
+        onResetComplete(summary)
+      }
+      
+    } catch (error) {
+      console.error('Failed to perform manual reset:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      alert(`Reset failed: ${errorMessage}`)
+    } finally {
+      setIsManualResetting(false)
+    }
+  }
+
+  const handleTestReset = () => {
+    console.log('🧪 Test Reset Button Clicked!')
+    console.log('Current state:', {
+      profile: profile?.tenantId,
+      branch: selectedBranch?.id,
+      currentShift: currentShift?.id,
+      canPerformReset,
+      isResetting
+    })
+    alert('Test reset button works! Check console for details.')
+  }
+
   const formatCurrency = (amount: number) => {
     return `₱${amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
   }
@@ -81,19 +148,19 @@ export default function ShiftResetManager({ onResetComplete, className = '' }: S
             </p>
           </div>
           
-          {currentShift && (
-            <div className="flex items-center gap-3">
-              <select
-                value={resetReason}
-                onChange={(e) => setResetReason(e.target.value as any)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
-                disabled={isResetting}
-              >
-                <option value="shift_end">Shift End</option>
-                <option value="manual">Manual Reset</option>
-                <option value="system">System Reset</option>
-              </select>
-              
+          <div className="flex items-center gap-3">
+            <select
+              value={resetReason}
+              onChange={(e) => setResetReason(e.target.value as any)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+              disabled={isResetting}
+            >
+              <option value="shift_end">Shift End</option>
+              <option value="manual">Manual Reset</option>
+              <option value="system">System Reset</option>
+            </select>
+            
+            {currentShift ? (
               <button
                 onClick={() => setShowConfirmModal(true)}
                 disabled={!canPerformReset}
@@ -105,8 +172,24 @@ export default function ShiftResetManager({ onResetComplete, className = '' }: S
               >
                 {isResetting ? 'Resetting...' : 'End Shift & Reset'}
               </button>
-            </div>
-          )}
+            ) : (
+              <div className="flex gap-2">
+                <button
+                  onClick={handleTestReset}
+                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors"
+                >
+                  Test Button
+                </button>
+                <button
+                  onClick={() => setShowConfirmModal(true)}
+                  disabled={isManualResetting}
+                  className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium text-sm transition-colors"
+                >
+                  {isManualResetting ? 'Resetting...' : 'Manual Data Reset'}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Current Shift Info */}
@@ -222,7 +305,9 @@ export default function ShiftResetManager({ onResetComplete, className = '' }: S
                 </svg>
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">End Shift & Reset Data</h3>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {currentShift ? 'End Shift & Reset Data' : 'Manual Data Reset'}
+                </h3>
                 <p className="text-sm text-gray-600">This action cannot be undone</p>
               </div>
             </div>
@@ -234,8 +319,8 @@ export default function ShiftResetManager({ onResetComplete, className = '' }: S
                   <li>• All sales data will be archived</li>
                   <li>• Expenses will be archived</li>
                   <li>• Inventory transactions will be archived</li>
-                  <li>• Current shift will be ended</li>
-                  <li>• System will be ready for next shift</li>
+                  {currentShift && <li>• Current shift will be ended</li>}
+                  <li>• System will be ready for {currentShift ? 'next shift' : 'fresh start'}</li>
                 </ul>
               </div>
             </div>
@@ -244,16 +329,16 @@ export default function ShiftResetManager({ onResetComplete, className = '' }: S
               <button
                 onClick={() => setShowConfirmModal(false)}
                 className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium"
-                disabled={isResetting}
+                disabled={isManualResetting}
               >
                 Cancel
               </button>
               <button
-                onClick={handleEndShiftWithReset}
+                onClick={currentShift ? handleEndShiftWithReset : handleManualReset}
                 className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
-                disabled={isResetting}
+                disabled={isResetting || isManualResetting}
               >
-                {isResetting ? 'Processing...' : 'Confirm Reset'}
+                {(isResetting || isManualResetting) ? 'Processing...' : 'Confirm Reset'}
               </button>
             </div>
           </div>

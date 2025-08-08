@@ -80,26 +80,51 @@ export const uploadQRCode = async (
 ): Promise<string> => {
   try {
     const branch = branchId || 'main'
+    console.log(`🔄 Starting QR upload process...`)
+    console.log(`📋 Upload details:`, {
+      tenantId,
+      type,
+      fileName: file.name,
+      fileSize: file.size,
+      userId,
+      branch
+    })
+    
     // Create a unique filename
     const timestamp = Date.now();
-    const fileName = `qr-${type}-${branch}-${timestamp}.${file.name.split('.').pop()}`;
-    const storageRef = ref(storage, `tenants/${tenantId}/branches/${branch}/qr-codes/${fileName}`);
+    const fileExtension = file.name.split('.').pop();
+    const fileName = `qr-${type}-${branch}-${timestamp}.${fileExtension}`;
+    const storagePath = `tenants/${tenantId}/branches/${branch}/qr-codes/${fileName}`;
     
+    console.log(`📁 Storage path: ${storagePath}`)
+    
+    const storageRef = ref(storage, storagePath);
+    
+    console.log(`📤 Uploading file to Firebase Storage...`)
     // Upload file to Firebase Storage
     const uploadResult = await uploadBytes(storageRef, file);
+    console.log(`✅ File uploaded successfully to storage`)
+    
+    console.log(`🔗 Getting download URL...`)
     const downloadURL = await getDownloadURL(uploadResult.ref);
+    console.log(`✅ Download URL obtained: ${downloadURL}`)
     
     // Update Firestore with new QR code info
+    const firestorePath = `tenants/${tenantId}/branches/${branch}/settings/qrCodes`
+    console.log(`💾 Updating Firestore at path: ${firestorePath}`)
+    
     const qrRef = doc(db, 'tenants', tenantId, 'branches', branch, 'settings', 'qrCodes');
     const currentSettings = await getQRCodeSettings(tenantId, branch);
     
     // Delete old QR code file if it exists
     if (currentSettings[type]?.fileName) {
       try {
+        console.log(`🗑️ Deleting old QR file: ${currentSettings[type]!.fileName}`)
         const oldFileRef = ref(storage, `tenants/${tenantId}/branches/${branch}/qr-codes/${currentSettings[type]!.fileName}`);
         await deleteObject(oldFileRef);
+        console.log(`✅ Old QR file deleted successfully`)
       } catch (deleteError) {
-        console.warn('Could not delete old QR file:', deleteError);
+        console.warn('⚠️ Could not delete old QR file:', deleteError);
       }
     }
     
@@ -115,13 +140,30 @@ export const uploadQRCode = async (
     };
     
     await setDoc(qrRef, updatedSettings);
+    console.log(`✅ Firestore updated successfully`)
     
-    console.log(`✅ ${type.toUpperCase()} QR code uploaded successfully for branch: ${branch}`);
+    console.log(`🎉 ${type.toUpperCase()} QR code upload process completed successfully for branch: ${branch}`);
     return downloadURL;
     
-  } catch (error) {
-    console.error(`Error uploading ${type} QR code:`, error);
-    throw error;
+  } catch (error: any) {
+    console.error(`❌ Error uploading ${type} QR code:`, error);
+    
+    // Provide more specific error information
+    if (error?.code) {
+      console.error(`🔴 Firebase Error Code: ${error.code}`);
+    }
+    
+    if (error?.message) {
+      console.error(`📝 Error Message: ${error.message}`);
+    }
+    
+    // Re-throw with additional context
+    const enhancedError = new Error(`Failed to upload ${type.toUpperCase()} QR code: ${error?.message || 'Unknown error'}`);
+    enhancedError.name = 'QRUploadError';
+    (enhancedError as any).originalError = error;
+    (enhancedError as any).code = error?.code;
+    
+    throw enhancedError;
   }
 };
 

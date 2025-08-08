@@ -1,21 +1,58 @@
 {
   "name": "CoreTrack - Restaurant Management System",
   "short_name": "CoreTrack",
-  "description": "Professional business inventory and restaurant management system",
+  "description": "Professional business inventory and restaurant management system with offline capabilities",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0ea5e9",
   "theme_color": "#0ea5e9",
   "orientation": "any",
+  "scope": "/",
   "icons": [
     {
       "src": "/icon-192.svg",
       "sizes": "192x192",
       "type": "image/svg+xml",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ],
   "categories": ["business", "productivity", "utilities"],
   "lang": "en",
-  "dir": "ltr"
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "POS System",
+      "short_name": "POS",
+      "description": "Quick access to Point of Sale",
+      "url": "/pos-enhanced",
+      "icons": [{ "src": "/icon-192.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Inventory",
+      "short_name": "Inventory",
+      "description": "Manage inventory items",
+      "url": "/inventory",
+      "icons": [{ "src": "/icon-192.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Menu Builder",
+      "short_name": "Menu",
+      "description": "Build and manage menus",
+      "url": "/menu-builder",
+      "icons": [{ "src": "/icon-192.svg", "sizes": "192x192" }]
+    }
+  ],
+  "protocol_handlers": [
+    {
+      "protocol": "web+coretrack",
+      "url": "/?action=%s"
+    }
+  ]
 }

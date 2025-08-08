@@ -38,6 +38,12 @@ export function BranchSwitcher({ showDetails = false, className = '' }: BranchSw
 
     await switchBranch(branchId);
     setShowDropdown(false);
+    
+    // Auto-refresh the app after branch switch (perfect for PWA mode)
+    console.log('🔄 Refreshing app after branch switch for clean state...')
+    setTimeout(() => {
+      window.location.reload()
+    }, 500) // Small delay to ensure the branch switch is saved
   };
 
   const handleDeleteBranch = async (branch: any, event: React.MouseEvent) => {

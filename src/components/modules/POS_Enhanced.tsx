@@ -12,6 +12,8 @@ import { db } from '@/lib/firebase'
 import { addInventoryItem, updateStockQuantity, findInventoryItemByName } from '@/lib/firebase/inventory'
 import CoreTrackLogo from '@/components/CoreTrackLogo'
 import EnhancedPaymentModal from './EnhancedPaymentModal'
+import { useOfflineStatus } from '@/hooks/useOfflineStatus'
+import OfflineIndicator from '@/components/ui/OfflineIndicator'
 
 // 🚀 Enhanced Interfaces with Add-ons Support
 interface AddOn {
@@ -82,14 +84,21 @@ export default function POSEnhanced() {
   const { user, profile } = useAuth()
   const { selectedBranch } = useBranch()
   
+  // 🚀 Enhanced Offline Status Management
+  const { 
+    isOnline, 
+    pendingSync, 
+    addToSyncQueue,
+    forceSyncAll 
+  } = useOfflineStatus()
+  
   // 🏢 Business and Branch IDs for Firebase operations
   const businessId = profile?.tenantId || ''
   const branchId = selectedBranch?.id || ''
   
-  // 🔄 Online/Offline State Management
-  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  // 🔄 Legacy Offline Support (keeping for backward compatibility)
   const [offlineOrders, setOfflineOrders] = useState<OfflineOrder[]>([])
-  const [pendingSyncCount, setPendingSyncCount] = useState(0)
+  const pendingSyncCount = pendingSync
   
   // 🛒 Cart and Menu State
   const [cart, setCart] = useState<CartItem[]>([])
@@ -148,87 +157,32 @@ export default function POSEnhanced() {
 
 
 
-  // 🔄 Network Status Detection
+  // 🔄 Enhanced Effects with Background Sync Integration
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true)
-      syncOfflineOrders()
+    // Auto-sync when online and there are pending items
+    if (isOnline && pendingSync > 0) {
+      console.log(`🔄 Auto-syncing ${pendingSync} pending items...`)
+      forceSyncAll().catch(console.error)
     }
-    const handleOffline = () => setIsOnline(false)
+  }, [isOnline, pendingSync, forceSyncAll])
 
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-
-    // Load offline orders from localStorage
-    loadOfflineOrders()
-
-    return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
-    }
-  }, [])
-
-  // 💾 Load Offline Orders from LocalStorage
+  // Load offline orders for legacy compatibility
   const loadOfflineOrders = () => {
     try {
       const stored = localStorage.getItem('coretrack_offline_orders')
       if (stored) {
         const orders = JSON.parse(stored)
         setOfflineOrders(orders)
-        setPendingSyncCount(orders.filter((o: OfflineOrder) => !o.synced).length)
       }
     } catch (error) {
       console.error('Failed to load offline orders:', error)
     }
   }
 
-  // 🔄 Sync Offline Orders when Online
+  // Enhanced sync using background sync service
   const syncOfflineOrders = async () => {
-    if (!isOnline || !profile?.tenantId || !selectedBranch) return
-
-    try {
-      const unsyncedOrders = offlineOrders.filter(order => !order.synced)
-      
-      for (const order of unsyncedOrders) {
-        const orderData = {
-          items: order.items.map(item => ({
-            itemId: item.id,
-            name: item.name,
-            price: item.price,
-            quantity: item.quantity,
-            total: item.total,
-            addons: item.selectedAddons ? item.selectedAddons.map(addon => ({
-              id: addon.id || `addon-${addon.name}`,
-              name: addon.name,
-              price: addon.price,
-              category: addon.category
-            })) : []
-          })),
-          subtotal: order.total,
-          total: order.total,
-          paymentMethod: order.paymentMethod,
-          tenantId: profile.tenantId,
-          locationId: getBranchLocationId(selectedBranch.id),
-          orderType: 'dine-in' as const,
-          status: 'completed' as const
-        }
-
-        await createPOSOrder(orderData)
-        
-        // Deduct add-ons from inventory for this synced order
-        await deductAddonsFromInventoryForOrder(order.items)
-        
-        // Mark as synced
-        order.synced = true
-      }
-
-      // Update localStorage
-      localStorage.setItem('coretrack_offline_orders', JSON.stringify(offlineOrders))
-      setPendingSyncCount(0)
-      
-      console.log(`✅ Synced ${unsyncedOrders.length} offline orders with inventory updates`)
-    } catch (error) {
-      console.error('Failed to sync offline orders:', error)
+    if (isOnline && pendingSync > 0) {
+      await forceSyncAll()
     }
   }
 
@@ -329,36 +283,57 @@ export default function POSEnhanced() {
   }
 
   const printEnhancedReceipt = (order: any, paymentData: any) => {
-    const printWindow = window.open('', '_blank')
-    if (!printWindow) return
+    try {
+      console.log('🖨️ Printing receipt for order:', order)
+      console.log('🖨️ Payment data:', paymentData)
 
-    const receiptHTML = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Enhanced Receipt - Order #${order.orderNumber || order.id.slice(-6)}</title>
-          <style>
-            body { font-family: monospace; max-width: 320px; margin: 0 auto; padding: 20px; }
-            .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px; }
-            .logo { font-size: 1.5em; font-weight: bold; margin-bottom: 5px; }
-            .order-info { margin-bottom: 20px; }
-            .items { border-bottom: 1px solid #ccc; padding-bottom: 15px; margin-bottom: 15px; }
-            .item { display: flex; justify-content: space-between; margin-bottom: 8px; }
-            .addon { margin-left: 20px; font-size: 0.9em; color: #666; }
-            .totals { margin-bottom: 15px; }
-            .total-line { display: flex; justify-content: space-between; margin-bottom: 5px; }
-            .final-total { font-weight: bold; font-size: 1.2em; border-top: 1px solid #000; padding-top: 8px; }
-            .payment-info { margin-bottom: 15px; padding: 10px; background-color: #f5f5f5; }
-            .footer { text-align: center; margin-top: 20px; font-size: 0.9em; color: #666; }
-            .enhancement { color: #0066cc; font-weight: bold; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="logo">🚀 CORETRACK POS</div>
-            <p><strong>Enhanced Receipt</strong></p>
-            <p>Order #${order.orderNumber || order.id.slice(-6)}</p>
-          </div>
+      const printWindow = window.open('', '_blank')
+      if (!printWindow) {
+        console.error('❌ Could not open print window')
+        return
+      }
+
+      // Safe order ID extraction with fallbacks
+      const getOrderId = () => {
+        if (order?.orderNumber) return order.orderNumber
+        if (order?.id && typeof order.id === 'string') return order.id.slice(-6)
+        return `POS-${Date.now().toString().slice(-6)}`
+      }
+
+      const orderId = getOrderId()
+      console.log('🔢 Generated order ID:', orderId)
+
+      // Safe cart data extraction
+      const orderItems = order?.items || cart || []
+      console.log('📝 Order items for receipt:', orderItems)
+
+      const receiptHTML = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Enhanced Receipt - Order #${orderId}</title>
+            <style>
+              body { font-family: monospace; max-width: 320px; margin: 0 auto; padding: 20px; }
+              .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px; }
+              .logo { font-size: 1.5em; font-weight: bold; margin-bottom: 5px; }
+              .order-info { margin-bottom: 20px; }
+              .items { border-bottom: 1px solid #ccc; padding-bottom: 15px; margin-bottom: 15px; }
+              .item { display: flex; justify-content: space-between; margin-bottom: 8px; }
+              .addon { margin-left: 20px; font-size: 0.9em; color: #666; }
+              .totals { margin-bottom: 15px; }
+              .total-line { display: flex; justify-content: space-between; margin-bottom: 5px; }
+              .final-total { font-weight: bold; font-size: 1.2em; border-top: 1px solid #000; padding-top: 8px; }
+              .payment-info { margin-bottom: 15px; padding: 10px; background-color: #f5f5f5; }
+              .footer { text-align: center; margin-top: 20px; font-size: 0.9em; color: #666; }
+              .enhancement { color: #0066cc; font-weight: bold; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="logo">🚀 CORETRACK POS</div>
+              <p><strong>Enhanced Receipt</strong></p>
+              <p>Order #${orderId}</p>
+            </div>
           
           <div class="order-info">
             <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
@@ -484,6 +459,36 @@ export default function POSEnhanced() {
     printWindow.document.write(receiptHTML)
     printWindow.document.close()
     printWindow.print()
+    
+    } catch (error) {
+      console.error('❌ Error printing enhanced receipt:', error)
+      // Use non-blocking notification instead of alert
+      if (typeof window !== 'undefined') {
+        const notification = document.createElement('div')
+        notification.style.cssText = `
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          background: #ef4444;
+          color: white;
+          padding: 16px 24px;
+          border-radius: 8px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          z-index: 9999;
+          font-family: system-ui, -apple-system, sans-serif;
+          font-size: 14px;
+          font-weight: 500;
+        `
+        notification.textContent = '❌ Error printing receipt. Please try again.'
+        document.body.appendChild(notification)
+        
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification)
+          }
+        }, 4000)
+      }
+    }
   }
 
   // �📋 Recent Orders Management Functions
@@ -1271,15 +1276,61 @@ export default function POSEnhanced() {
           }, 1000)
         }
 
-        alert('✅ Payment successful! Order completed and inventory updated.')
+        // Show success feedback without blocking navigation
+        console.log('✅ Payment successful! Order completed and inventory updated.')
+        
+        // Use a non-blocking notification instead of alert
+        if (typeof window !== 'undefined') {
+          // Create a temporary success notification
+          const notification = document.createElement('div')
+          notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #10b981;
+            color: white;
+            padding: 16px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 9999;
+            font-family: system-ui, -apple-system, sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+          `
+          notification.textContent = '✅ Payment successful! Order completed.'
+          document.body.appendChild(notification)
+          
+          // Auto-remove after 3 seconds
+          setTimeout(() => {
+            if (notification.parentNode) {
+              notification.parentNode.removeChild(notification)
+            }
+          }, 3000)
+        }
       } else {
-        // 📱 Offline: Save to localStorage with enhanced data
-        const offlineOrder: OfflineOrder = {
-          id: `offline_${Date.now()}`,
-          items: cart, // Store full cart items for offline
+        // 📱 Store offline order using background sync service
+        const orderData = {
+          items: cart.map(item => ({
+            itemId: item.id,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            total: item.total,
+            addons: item.selectedAddons ? item.selectedAddons.map(addon => ({
+              id: addon.id || `addon-${addon.name}`,
+              name: addon.name,
+              price: addon.price,
+              category: addon.category
+            })) : []
+          })),
+          subtotal: paymentData.originalTotal || paymentData.total,
           total: paymentData.total,
-          originalTotal: paymentData.originalTotal,
           paymentMethod: paymentData.method,
+          tenantId: profile!.tenantId,
+          locationId: getBranchLocationId(selectedBranch!.id),
+          orderType: 'dine-in' as const,
+          status: 'completed' as const,
+          // Enhanced payment details
           cashReceived: paymentData.cashReceived,
           change: paymentData.change,
           tipAmount: paymentData.tipAmount,
@@ -1288,18 +1339,41 @@ export default function POSEnhanced() {
           splitPayment: paymentData.splitPayment,
           customerEmail: paymentData.customerEmail,
           customerPhone: paymentData.customerPhone,
-          notes: paymentData.notes,
-          timestamp: Date.now(),
-          synced: false
+          notes: paymentData.notes
         }
 
-        const updatedOfflineOrders = [...offlineOrders, offlineOrder]
-        setOfflineOrders(updatedOfflineOrders)
-        setPendingSyncCount(prev => prev + 1)
+        // Add to background sync queue
+        addToSyncQueue('pos-order', orderData, 5)
         
-        localStorage.setItem('coretrack_offline_orders', JSON.stringify(updatedOfflineOrders))
+        // Show offline success feedback without blocking navigation
+        console.log('📱 Payment successful! Order queued for sync when online.')
         
-        alert('📱 Payment successful! Order saved offline with enhanced details. Will sync when online.')
+        // Use a non-blocking notification instead of alert
+        if (typeof window !== 'undefined') {
+          const notification = document.createElement('div')
+          notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #3b82f6;
+            color: white;
+            padding: 16px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 9999;
+            font-family: system-ui, -apple-system, sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+          `
+          notification.textContent = '📱 Payment successful! Order queued for sync.'
+          document.body.appendChild(notification)
+          
+          setTimeout(() => {
+            if (notification.parentNode) {
+              notification.parentNode.removeChild(notification)
+            }
+          }, 3000)
+        }
       }
 
       // Reset cart and modal
@@ -1310,7 +1384,33 @@ export default function POSEnhanced() {
 
     } catch (error) {
       console.error('Payment error:', error)
-      alert('❌ Payment failed. Please try again.')
+      
+      // Show error feedback without blocking navigation
+      if (typeof window !== 'undefined') {
+        const notification = document.createElement('div')
+        notification.style.cssText = `
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          background: #ef4444;
+          color: white;
+          padding: 16px 24px;
+          border-radius: 8px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          z-index: 9999;
+          font-family: system-ui, -apple-system, sans-serif;
+          font-size: 14px;
+          font-weight: 500;
+        `
+        notification.textContent = '❌ Payment failed. Please try again.'
+        document.body.appendChild(notification)
+        
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification)
+          }
+        }, 4000)
+      }
     } finally {
       setIsProcessingPayment(false)
     }

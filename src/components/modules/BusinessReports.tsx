@@ -96,6 +96,7 @@ export default function BusinessReports() {
     switch (dateRange) {
       case 'today':
         startDate.setHours(0, 0, 0, 0)
+        endDate.setHours(23, 59, 59, 999)  // Fix: Include the full day
         break
       case 'week':
         startDate.setDate(startDate.getDate() - 7)
@@ -108,6 +109,14 @@ export default function BusinessReports() {
         if (customEndDate) endDate.setTime(new Date(customEndDate).getTime())
         break
     }
+
+    console.log('📊 BusinessReports Debug - Date Range:', {
+      dateRange,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      locationId,
+      tenantId: profile.tenantId
+    })
 
     const timeRangeLabel = dateRange === 'custom' 
       ? `${customStartDate} to ${customEndDate}`
@@ -124,6 +133,18 @@ export default function BusinessReports() {
     )
     const ordersSnapshot = await getDocs(ordersQuery)
     const orders = ordersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+
+    console.log('📊 BusinessReports Debug - Orders fetched:', {
+      totalCount: orders.length,
+      firstOrder: orders[0] || 'No orders found',
+      sampleData: orders.slice(0, 3).map(o => ({
+        id: o.id,
+        total: (o as any).total,
+        status: (o as any).status,
+        paymentMethod: (o as any).paymentMethod,
+        createdAt: (o as any).createdAt
+      }))
+    })
 
     // Fetch inventory (current state) - SECURED: Filter by locationId
     const inventoryRef = collection(db, `tenants/${profile.tenantId}/inventory`)
@@ -275,6 +296,15 @@ export default function BusinessReports() {
     const totalRevenue = completedOrders.reduce((sum, order) => sum + (order.total || 0), 0)
     const totalTransactions = completedOrders.length
     const averageOrderValue = totalTransactions > 0 ? totalRevenue / totalTransactions : 0
+
+    console.log('📊 PDF Report Debug - Sales Summary:', {
+      totalOrders: data.orders.length,
+      completedOrders: completedOrders.length,
+      totalRevenue,
+      totalTransactions,
+      averageOrderValue,
+      sampleOrder: completedOrders[0] || 'No completed orders'
+    })
 
     pdf.setFontSize(16)
     pdf.setFont('helvetica', 'bold')
@@ -513,11 +543,25 @@ export default function BusinessReports() {
     pdf.text(`Generated: ${new Date().toLocaleString()}`, 20, yPos)
     yPos += 15
 
-    // Analyze shifts data
+    console.log('⏰ Shift Performance Debug:', {
+      totalShifts: data.shifts.length,
+      totalOrders: data.orders.length,
+      sampleShift: data.shifts[0],
+      sampleOrder: data.orders[0],
+      shiftStatuses: Array.from(new Set(data.shifts.map(s => s.status || 'no-status'))),
+      orderFields: data.orders[0] ? Object.keys(data.orders[0]) : 'No orders'
+    })
+
+    // Analyze shifts data - FIXED: Better status filtering
     const shifts = data.shifts
     const totalShifts = shifts.length
-    const completedShifts = shifts.filter(s => s.status === 'completed')
-    const activeShifts = shifts.filter(s => s.status === 'active')
+    const completedShifts = shifts.filter(s => {
+      const status = (s.status || '').toLowerCase()
+      const isCompleted = status === 'completed' || status === 'closed' || status === 'finished'
+      console.log('⏰ Shift status check:', { id: s.id, status: s.status, isCompleted })
+      return isCompleted
+    })
+    const activeShifts = shifts.filter(s => (s.status || '').toLowerCase() === 'active')
 
     // Shift Overview
     pdf.setFontSize(16)
@@ -544,7 +588,7 @@ export default function BusinessReports() {
 
     yPos += 10
 
-    // Individual Shift Performance
+    // Individual Shift Performance - FIXED: Better order matching
     if (completedShifts.length > 0) {
       pdf.setFontSize(16)
       pdf.setFont('helvetica', 'bold')
@@ -554,22 +598,55 @@ export default function BusinessReports() {
       pdf.setFontSize(10)
       pdf.setFont('helvetica', 'normal')
 
-      // Sort shifts by revenue and show top 5
+      // Sort shifts by revenue and show top 5 - FIXED: Multiple matching strategies
       const shiftPerformance = completedShifts.map(shift => {
-        const shiftOrders = data.orders.filter(order => 
-          order.shiftId === shift.id && order.status === 'completed'
-        )
+        const shiftOrders = data.orders.filter(order => {
+          if (order.status !== 'completed') return false
+          
+          // Try multiple matching methods
+          const matchByShiftId = order.shiftId === shift.id
+          const matchByDate = order.createdAt && shift.startTime && 
+                             new Date(order.createdAt).toDateString() === new Date(shift.startTime.seconds ? shift.startTime.seconds * 1000 : shift.startTime).toDateString()
+          
+          const matched = matchByShiftId || matchByDate
+          
+          if (matched) {
+            console.log('⏰ Order matched to shift:', {
+              orderId: order.id,
+              shiftId: shift.id,
+              method: matchByShiftId ? 'shiftId' : 'date'
+            })
+          }
+          
+          return matched
+        })
+        
         const revenue = shiftOrders.reduce((sum, order) => sum + (order.total || 0), 0)
+        
+        console.log('⏰ Shift revenue calculation:', {
+          shiftId: shift.id,
+          ordersFound: shiftOrders.length,
+          revenue
+        })
+        
         return { ...shift, revenue, orderCount: shiftOrders.length }
       }).sort((a, b) => b.revenue - a.revenue).slice(0, 5)
 
-      shiftPerformance.forEach((shift, index) => {
-        const startTime = shift.startTime ? new Date(shift.startTime.seconds * 1000).toLocaleDateString() : 'N/A'
-        pdf.text(`${index + 1}. ${startTime}`, 20, yPos)
-        pdf.text(`₱${shift.revenue.toLocaleString()}`, 80, yPos)
-        pdf.text(`${shift.orderCount} orders`, 140, yPos)
-        yPos += 6
-      })
+      if (shiftPerformance.length > 0) {
+        shiftPerformance.forEach((shift, index) => {
+          const startTime = shift.startTime ? 
+            new Date(shift.startTime.seconds ? shift.startTime.seconds * 1000 : shift.startTime).toLocaleDateString() : 'N/A'
+          pdf.text(`${index + 1}. ${startTime}`, 20, yPos)
+          pdf.text(`₱${shift.revenue.toLocaleString()}`, 80, yPos)
+          pdf.text(`${shift.orderCount} orders`, 140, yPos)
+          yPos += 6
+        })
+      } else {
+        pdf.text('No shift performance data available', 20, yPos)
+      }
+    } else {
+      pdf.setFontSize(10)
+      pdf.text('No completed shifts found for the selected period', 20, yPos)
     }
   }
 
@@ -591,12 +668,31 @@ export default function BusinessReports() {
   }
 
   const calculateShiftRevenue = (shifts: any[], orders: any[]): number => {
-    return shifts.reduce((total, shift) => {
-      const shiftOrders = orders.filter(order => 
-        order.shiftId === shift.id && order.status === 'completed'
-      )
-      return total + shiftOrders.reduce((sum, order) => sum + (order.total || 0), 0)
+    const totalRevenue = shifts.reduce((total, shift) => {
+      const shiftOrders = orders.filter(order => {
+        if (order.status !== 'completed') return false
+        
+        // Try multiple matching methods
+        const matchByShiftId = order.shiftId === shift.id
+        const matchByDate = order.createdAt && shift.startTime && 
+                           new Date(order.createdAt).toDateString() === new Date(shift.startTime.seconds ? shift.startTime.seconds * 1000 : shift.startTime).toDateString()
+        
+        return matchByShiftId || matchByDate
+      })
+      
+      const shiftRevenue = shiftOrders.reduce((sum, order) => sum + (order.total || 0), 0)
+      
+      console.log('⏰ calculateShiftRevenue for shift:', {
+        shiftId: shift.id,
+        ordersMatched: shiftOrders.length,
+        revenue: shiftRevenue
+      })
+      
+      return total + shiftRevenue
     }, 0)
+    
+    console.log('⏰ Total shift revenue calculated:', totalRevenue)
+    return totalRevenue
   }
 
   const generateInventorySummaryReport = async (pdf: jsPDF, data: ReportData) => {
@@ -619,12 +715,64 @@ export default function BusinessReports() {
     pdf.text(`Generated: ${new Date().toLocaleString()}`, 20, yPos)
     yPos += 15
 
-    // Inventory Analysis
+    console.log('📦 Inventory Summary Debug:', {
+      totalInventory: data.inventory.length,
+      sampleItem: data.inventory[0],
+      inventoryFields: data.inventory[0] ? Object.keys(data.inventory[0]) : 'No inventory',
+      stockFields: data.inventory.slice(0, 3).map(item => ({
+        name: item.name,
+        currentStock: item.currentStock,
+        quantity: item.quantity,
+        unit: item.unit
+      })),
+      priceFields: data.inventory.slice(0, 3).map(item => ({
+        name: item.name,
+        price: item.price,
+        cost: item.cost,
+        costPerUnit: item.costPerUnit,
+        unitPrice: item.unitPrice,
+        sellPrice: item.sellPrice
+      }))
+    })
+
+    // Inventory Analysis - FIXED: Handle multiple price field names
     const inventory = data.inventory
     const totalItems = inventory.length
-    const lowStockItems = inventory.filter(item => (item.quantity || 0) <= (item.reorderPoint || 0))
-    const outOfStockItems = inventory.filter(item => (item.quantity || 0) === 0)
-    const totalValue = inventory.reduce((sum, item) => sum + ((item.quantity || 0) * (item.price || 0)), 0)
+    
+    // FIXED: Better low stock detection
+    const lowStockItems = inventory.filter(item => {
+      const quantity = item.currentStock || item.quantity || 0
+      const reorderPoint = item.reorderPoint || item.minStock || item.lowStockThreshold || 5 // fallback to 5
+      const isLowStock = quantity <= reorderPoint
+      
+      if (isLowStock) {
+        console.log('📦 Low stock item:', { name: item.name, currentStock: item.currentStock, quantity: item.quantity, reorderPoint })
+      }
+      
+      return isLowStock
+    })
+    
+    const outOfStockItems = inventory.filter(item => (item.currentStock || item.quantity || 0) === 0)
+    
+    // FIXED: Multiple price field handling
+    const totalValue = inventory.reduce((sum, item) => {
+      const quantity = item.currentStock || item.quantity || 0
+      const price = item.price || item.cost || item.costPerUnit || item.unitPrice || item.sellPrice || 0
+      const itemValue = quantity * price
+      
+      if (itemValue > 0) {
+        console.log('📦 Item value:', { name: item.name, currentStock: item.currentStock, quantity: item.quantity, price, itemValue })
+      }
+      
+      return sum + itemValue
+    }, 0)
+
+    console.log('📦 Inventory calculations:', {
+      totalItems,
+      lowStockCount: lowStockItems.length,
+      outOfStockCount: outOfStockItems.length,
+      totalValue
+    })
 
     // Inventory Overview
     pdf.setFontSize(16)
@@ -671,10 +819,14 @@ export default function BusinessReports() {
       yPos += 2
 
       lowStockItems.slice(0, 15).forEach(item => { // Show max 15 items
+        const price = item.price || item.cost || item.unitPrice || item.sellPrice || 0
+        const reorderPoint = item.reorderPoint || item.minStock || item.lowStockThreshold || 5
+        const currentStock = item.currentStock || item.quantity || 0
+        
         pdf.text(item.name || 'N/A', 20, yPos)
-        pdf.text((item.quantity || 0).toString(), 100, yPos)
-        pdf.text((item.reorderPoint || 0).toString(), 150, yPos)  
-        pdf.text(`₱${(item.price || 0).toFixed(2)}`, 180, yPos)
+        pdf.text(currentStock.toString(), 100, yPos)
+        pdf.text(reorderPoint.toString(), 150, yPos)  
+        pdf.text(`₱${price.toFixed(2)}`, 180, yPos)
         yPos += 6
       })
 
@@ -683,13 +835,23 @@ export default function BusinessReports() {
         pdf.setFont('helvetica', 'italic')
         pdf.text(`... and ${lowStockItems.length - 15} more items`, 20, yPos)
       }
+    } else {
+      pdf.setFontSize(12)
+      pdf.text('✅ No low stock items found', 20, yPos)
+      yPos += 10
     }
 
     yPos += 10
 
-    // Top Value Items
+    // Top Value Items - FIXED: Better price field handling
     const topValueItems = inventory
-      .map(item => ({ ...item, totalValue: (item.quantity || 0) * (item.price || 0) }))
+      .map(item => {
+        const price = item.price || item.cost || item.unitPrice || item.sellPrice || 0
+        const currentStock = item.currentStock || item.quantity || 0
+        const totalValue = currentStock * price
+        return { ...item, totalValue, displayPrice: price, displayStock: currentStock }
+      })
+      .filter(item => item.totalValue > 0) // Only show items with value
       .sort((a, b) => b.totalValue - a.totalValue)
       .slice(0, 10)
 
@@ -712,11 +874,14 @@ export default function BusinessReports() {
 
       topValueItems.forEach(item => {
         pdf.text(item.name || 'N/A', 20, yPos)
-        pdf.text((item.quantity || 0).toString(), 100, yPos)
-        pdf.text(`₱${(item.price || 0).toFixed(2)}`, 140, yPos)
+        pdf.text(item.displayStock.toString(), 100, yPos)
+        pdf.text(`₱${item.displayPrice.toFixed(2)}`, 140, yPos)
         pdf.text(`₱${item.totalValue.toFixed(2)}`, 180, yPos)
         yPos += 6
       })
+    } else {
+      pdf.setFontSize(12)
+      pdf.text('No inventory items with value found', 20, yPos)
     }
   }
 
@@ -952,14 +1117,45 @@ export default function BusinessReports() {
     pdf.text(`Generated: ${new Date().toLocaleString()}`, 20, yPos)
     yPos += 15
 
-    // Calculate cash flow from orders and expenses
-    const cashIncome = data.orders.filter(o => o.status === 'completed' && o.paymentMethod === 'cash')
-      .reduce((sum, order) => sum + (order.total || 0), 0)
-    
-    const cashExpenses = data.expenses.filter(e => e.paymentMethod === 'cash')
-      .reduce((sum, expense) => sum + (expense.amount || 0), 0)
+    console.log('💰 Cash Flow Report Debug:', {
+      totalOrders: data.orders.length,
+      totalExpenses: data.expenses.length,
+      sampleOrder: data.orders[0],
+      sampleExpense: data.expenses[0],
+      orderPaymentMethods: Array.from(new Set(data.orders.map(o => o.paymentMethod))),
+      expenseFields: data.expenses[0] ? Object.keys(data.expenses[0]) : 'No expenses'
+    })
 
-    const netCashFlow = cashIncome - cashExpenses
+    // Calculate cash flow from orders and expenses - FIXED: Handle missing paymentMethod
+    const cashIncome = data.orders.filter(o => {
+      const isCompleted = o.status === 'completed'
+      const isCash = (o.paymentMethod || '').toLowerCase() === 'cash'
+      console.log('💰 Order cash check:', { id: o.id, status: o.status, paymentMethod: o.paymentMethod, isCompleted, isCash })
+      return isCompleted && isCash
+    }).reduce((sum, order) => sum + (order.total || 0), 0)
+    
+    // FIXED: Look for expenses without requiring paymentMethod field
+    const cashExpenses = data.expenses.filter(e => {
+      // Check multiple possible payment method fields
+      const paymentMethod = e.paymentMethod || e.method || e.type || 'unknown'
+      const isCash = paymentMethod.toLowerCase() === 'cash'
+      console.log('💰 Expense cash check:', { id: e.id, amount: e.amount, paymentMethod, isCash })
+      return isCash
+    }).reduce((sum, expense) => sum + (expense.amount || 0), 0)
+
+    // FALLBACK: If no cash expenses found, use all expenses (assuming cash)
+    const totalExpenses = data.expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0)
+    const expensesToUse = cashExpenses > 0 ? cashExpenses : totalExpenses
+
+    const netCashFlow = cashIncome - expensesToUse
+
+    console.log('💰 Cash Flow Calculations:', {
+      cashIncome,
+      cashExpenses,
+      totalExpenses,
+      expensesToUse,
+      netCashFlow
+    })
 
     pdf.setFontSize(14)
     pdf.setFont('helvetica', 'bold')
@@ -970,8 +1166,14 @@ export default function BusinessReports() {
     pdf.setFont('helvetica', 'normal')
     pdf.text(`Cash Income: ₱${cashIncome.toLocaleString()}`, 20, yPos)
     yPos += 7
-    pdf.text(`Cash Expenses: ₱${cashExpenses.toLocaleString()}`, 20, yPos)
+    pdf.text(`Cash Expenses: ₱${expensesToUse.toLocaleString()}`, 20, yPos)
     yPos += 7
+    if (expensesToUse === totalExpenses && cashExpenses === 0) {
+      pdf.setFontSize(9)
+      pdf.text('(Note: All expenses assumed as cash - no payment method specified)', 20, yPos)
+      yPos += 7
+    }
+    pdf.setFontSize(11)
     pdf.text(`Net Cash Flow: ₱${netCashFlow.toLocaleString()}`, 20, yPos)
   }
 
@@ -1076,11 +1278,186 @@ export default function BusinessReports() {
 
     pdf.setFontSize(12)
     pdf.setFont('helvetica', 'normal')
-    pdf.text('This report requires inventory transaction tracking.', 20, yPos)
-    yPos += 10
+    pdf.text(`Business: ${profile?.displayName || 'N/A'}`, 20, yPos)
+    yPos += 8
+    pdf.text(`Branch: ${selectedBranch?.name || 'N/A'}`, 20, yPos)
+    yPos += 8
     pdf.text(`Period: ${data.timeRange}`, 20, yPos)
     yPos += 8
     pdf.text(`Generated: ${new Date().toLocaleString()}`, 20, yPos)
+    yPos += 15
+
+    console.log('📊 Stock Movement Report Debug:', {
+      totalOrders: data.orders.length,
+      totalInventory: data.inventory.length,
+      reportPeriod: data.timeRange
+    })
+
+    // IMPLEMENTED: Stock movement analysis based on completed orders
+    const completedOrders = data.orders.filter(order => order.status === 'completed')
+    
+    console.log('📊 Analyzing stock movements from orders:', {
+      totalOrders: data.orders.length,
+      completedOrders: completedOrders.length
+    })
+
+    // Calculate stock movements from sales
+    const stockMovements = new Map<string, {
+      itemName: string,
+      totalSold: number,
+      orderCount: number,
+      revenue: number,
+      unit: string
+    }>()
+
+    // Process each completed order
+    completedOrders.forEach(order => {
+      if (order.items && Array.isArray(order.items)) {
+        order.items.forEach((orderItem: any) => {
+          const itemName = orderItem.name || orderItem.itemName || 'Unknown Item'
+          const quantity = orderItem.quantity || 1
+          const price = orderItem.price || orderItem.total || 0
+          
+          if (stockMovements.has(itemName)) {
+            const existing = stockMovements.get(itemName)!
+            existing.totalSold += quantity
+            existing.orderCount += 1
+            existing.revenue += price * quantity
+          } else {
+            stockMovements.set(itemName, {
+              itemName,
+              totalSold: quantity,
+              orderCount: 1,
+              revenue: price * quantity,
+              unit: orderItem.unit || 'units'
+            })
+          }
+        })
+      }
+    })
+
+    console.log('📊 Stock movement summary:', {
+      uniqueItems: stockMovements.size,
+      movements: Array.from(stockMovements.values())
+    })
+
+    // Display movement summary
+    pdf.setFontSize(14)
+    pdf.setFont('helvetica', 'bold')
+    pdf.text('Stock Movement Summary', 20, yPos)
+    yPos += 12
+
+    pdf.setFontSize(11)
+    pdf.setFont('helvetica', 'normal')
+    
+    const totalItemsSold = Array.from(stockMovements.values()).reduce((sum, item) => sum + item.totalSold, 0)
+    const totalRevenue = Array.from(stockMovements.values()).reduce((sum, item) => sum + item.revenue, 0)
+    
+    const summaryStats = [
+      ['Period:', data.timeRange],
+      ['Completed Orders:', completedOrders.length.toString()],
+      ['Unique Items Sold:', stockMovements.size.toString()],
+      ['Total Items Moved:', totalItemsSold.toString()],
+      ['Total Sales Revenue:', `₱${totalRevenue.toLocaleString()}`]
+    ]
+
+    summaryStats.forEach(([label, value]) => {
+      pdf.text(label, 20, yPos)
+      pdf.text(value, 120, yPos)
+      yPos += 7
+    })
+
+    yPos += 10
+
+    // Top moving items
+    if (stockMovements.size > 0) {
+      pdf.setFontSize(14)
+      pdf.setFont('helvetica', 'bold')
+      pdf.text('Top Moving Items', 20, yPos)
+      yPos += 12
+
+      pdf.setFontSize(10)
+      pdf.setFont('helvetica', 'normal')
+      pdf.text('Item Name', 20, yPos)
+      pdf.text('Qty Sold', 100, yPos)
+      pdf.text('Orders', 140, yPos)
+      pdf.text('Revenue', 180, yPos)
+      yPos += 8
+
+      pdf.line(20, yPos - 2, 200, yPos - 2)
+      yPos += 2
+
+      // Sort by quantity sold
+      const topMovingItems = Array.from(stockMovements.values())
+        .sort((a, b) => b.totalSold - a.totalSold)
+        .slice(0, 15)
+
+      topMovingItems.forEach(item => {
+        pdf.text(item.itemName, 20, yPos)
+        pdf.text(`${item.totalSold} ${item.unit}`, 100, yPos)
+        pdf.text(item.orderCount.toString(), 140, yPos)
+        pdf.text(`₱${item.revenue.toLocaleString()}`, 180, yPos)
+        yPos += 6
+      })
+
+      if (stockMovements.size > 15) {
+        yPos += 5
+        pdf.setFont('helvetica', 'italic')
+        pdf.text(`... and ${stockMovements.size - 15} more items`, 20, yPos)
+      }
+    } else {
+      pdf.setFontSize(12)
+      pdf.text('No stock movements found for the selected period', 20, yPos)
+      yPos += 10
+      pdf.setFontSize(10)
+      pdf.text('• No completed orders with item details', 20, yPos)
+      yPos += 6
+      pdf.text('• Check if orders contain item information', 20, yPos)
+      yPos += 6
+      pdf.text('• Verify the selected date range includes recent sales', 20, yPos)
+    }
+
+    // Current inventory status
+    yPos += 15
+    pdf.setFontSize(14)
+    pdf.setFont('helvetica', 'bold')
+    pdf.text('Current Inventory Status', 20, yPos)
+    yPos += 12
+
+    if (data.inventory.length > 0) {
+      pdf.setFontSize(10)
+      pdf.setFont('helvetica', 'normal')
+      pdf.text('Item Name', 20, yPos)
+      pdf.text('Current Stock', 100, yPos)
+      pdf.text('Status', 140, yPos)
+      pdf.text('Value', 180, yPos)
+      yPos += 8
+
+      pdf.line(20, yPos - 2, 200, yPos - 2)
+      yPos += 2
+
+      data.inventory.slice(0, 10).forEach(item => {
+        const stock = item.currentStock || item.quantity || 0
+        const price = item.price || item.cost || item.costPerUnit || 0
+        const value = stock * price
+        const status = stock === 0 ? 'Out' : (stock <= (item.minStock || item.reorderPoint || 5)) ? 'Low' : 'Good'
+        
+        pdf.text(item.name || 'Unknown', 20, yPos)
+        pdf.text(`${stock} ${item.unit || 'units'}`, 100, yPos)
+        pdf.text(status, 140, yPos)
+        pdf.text(`₱${value.toFixed(2)}`, 180, yPos)
+        yPos += 6
+      })
+
+      if (data.inventory.length > 10) {
+        yPos += 5
+        pdf.setFont('helvetica', 'italic')
+        pdf.text(`... and ${data.inventory.length - 10} more inventory items`, 20, yPos)
+      }
+    } else {
+      pdf.setFontSize(12)
+      pdf.text('No inventory data available', 20, yPos)
+    }
   }
 
   const generateReorderAlertsReport = async (pdf: jsPDF, data: ReportData) => {

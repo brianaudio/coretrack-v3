@@ -14,7 +14,17 @@ import DataInitializer from '../components/DataInitializer'
 
 export const metadata: Metadata = {
   title: 'CoreTrack - Business Inventory Management',
-  description: 'Complete inventory management system for businesses',
+  description: 'Complete inventory management system for businesses with offline capabilities',
+  manifest: '/manifest.json',
+  icons: {
+    icon: '/favicon.svg',
+    apple: '/icon-192.svg',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'CoreTrack',
+  },
 }
 
 export const viewport: Viewport = {

@@ -17,6 +17,18 @@ service firebase.storage {
                          request.auth.uid == userId;
     }
     
+    // Allow authenticated users to upload QR codes to their tenant/branch folder
+    match /tenants/{tenantId}/branches/{branchId}/qr-codes/{allPaths=**} {
+      allow read, write: if request.auth != null && 
+                         request.auth.uid != null &&
+                         isValidImageFile();
+    }
+    
+    // Allow public read access to QR codes for display purposes
+    match /tenants/{tenantId}/branches/{branchId}/qr-codes/{fileName} {
+      allow read: if true; // QR codes need to be publicly readable for payment processing
+    }
+    
     // Default deny all other access
     match /{allPaths=**} {
       allow read, write: if false;

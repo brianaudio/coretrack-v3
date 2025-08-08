@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
 import { getCurrentBranch } from '../../lib/utils/branchUtils'
+import { storage } from '../../lib/firebase'
 import { 
   getQRCodeSettings, 
   uploadQRCode, 
@@ -96,6 +97,8 @@ export default function EnhancedPaymentModal({
   const [qrTimer, setQrTimer] = useState(300) // 5 minutes countdown
   const [showQRSettings, setShowQRSettings] = useState(false)
   const [isUploadingQR, setIsUploadingQR] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
 
   // Firebase QR code settings
   const [qrSettings, setQrSettings] = useState<QRCodeSettings>({
@@ -112,6 +115,14 @@ export default function EnhancedPaymentModal({
     if (!profile?.tenantId) return
 
     const currentBranch = getCurrentBranch()
+    
+    // Debug: Check Firebase Storage configuration
+    console.log('🔍 Firebase Storage Debug Info:', {
+      storageAvailable: !!storage,
+      storageBucket: storage?.app?.options?.storageBucket,
+      currentBranch,
+      tenantId: profile.tenantId
+    })
     
     const loadQRSettings = async () => {
       try {
@@ -136,17 +147,232 @@ export default function EnhancedPaymentModal({
   const handleQRUpload = async (type: 'gcash' | 'maya', file: File) => {
     if (!profile?.tenantId || !user?.uid) {
       console.error('Missing tenant ID or user ID')
+      // Use non-blocking notification instead of alert
+      if (typeof window !== 'undefined') {
+        const notification = document.createElement('div')
+        notification.style.cssText = `
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          background: #ef4444;
+          color: white;
+          padding: 16px 24px;
+          border-radius: 8px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          z-index: 9999;
+          font-family: system-ui, -apple-system, sans-serif;
+          font-size: 14px;
+          font-weight: 500;
+        `
+        notification.textContent = '❌ Error: Missing authentication data. Please refresh and try again.'
+        document.body.appendChild(notification)
+        
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification)
+          }
+        }, 4000)
+      }
+      return
+    }
+
+    // Validate file type and size
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+    const maxSize = 2 * 1024 * 1024 // 2MB (reduced for base64 storage)
+
+    if (!allowedTypes.includes(file.type)) {
+      // Use non-blocking notification instead of alert
+      if (typeof window !== 'undefined') {
+        const notification = document.createElement('div')
+        notification.style.cssText = `
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          background: #ef4444;
+          color: white;
+          padding: 16px 24px;
+          border-radius: 8px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          z-index: 9999;
+          font-family: system-ui, -apple-system, sans-serif;
+          font-size: 14px;
+          font-weight: 500;
+        `
+        notification.textContent = '❌ Please upload a valid image file (JPEG, PNG, WebP)'
+        document.body.appendChild(notification)
+        
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification)
+          }
+        }, 4000)
+      }
+      return
+    }
+
+    if (file.size > maxSize) {
+      // Use non-blocking notification instead of alert
+      if (typeof window !== 'undefined') {
+        const notification = document.createElement('div')
+        notification.style.cssText = `
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          background: #ef4444;
+          color: white;
+          padding: 16px 24px;
+          border-radius: 8px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          z-index: 9999;
+          font-family: system-ui, -apple-system, sans-serif;
+          font-size: 14px;
+          font-weight: 500;
+        `
+        notification.textContent = '❌ File size must be less than 2MB for QR codes'
+        document.body.appendChild(notification)
+        
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification)
+          }
+        }, 4000)
+      }
       return
     }
 
     const currentBranch = getCurrentBranch()
+    
+    // Reset states
     setIsUploadingQR(true)
+    setUploadProgress(0)
+    setUploadStatus('uploading')
+    
     try {
-      await uploadQRCode(profile.tenantId, type, file, user.uid, currentBranch)
-      console.log(`✅ ${type.toUpperCase()} QR code uploaded successfully for branch: ${currentBranch}`)
-    } catch (error) {
-      console.error(`Error uploading ${type} QR code:`, error)
-      // You might want to show a toast notification here
+      console.log(`🔄 Starting ${type.toUpperCase()} QR code upload for branch: ${currentBranch}`)
+      console.log(`📁 File details:`, {
+        name: file.name,
+        size: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
+        type: file.type
+      })
+      
+      // Update progress
+      setUploadProgress(20)
+      
+      // Convert file to base64 as fallback for Firebase Storage CORS issues
+      const base64String = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+          const result = reader.result as string
+          resolve(result)
+        }
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      
+      setUploadProgress(60)
+      
+      // Store QR data directly in Firestore instead of Firebase Storage
+      const qrCodeData = {
+        url: base64String,
+        uploadedAt: new Date(),
+        uploadedBy: user.uid,
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type
+      }
+      
+      setUploadProgress(80)
+      
+      // Save to Firestore using the existing qrCodes functions (modified approach)
+      await handleQRDataSave(type, base64String)
+      
+      setUploadProgress(100)
+      setUploadStatus('success')
+      
+      console.log(`✅ ${type.toUpperCase()} QR code saved successfully as base64!`)
+      
+      // Show success message
+      setTimeout(() => {
+        // Use non-blocking notification instead of alert
+        if (typeof window !== 'undefined') {
+          const notification = document.createElement('div')
+          notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #10b981;
+            color: white;
+            padding: 16px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 9999;
+            font-family: system-ui, -apple-system, sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+          `
+          notification.textContent = `✅ ${type.toUpperCase()} QR code uploaded successfully! You can now use it for payments.`
+          document.body.appendChild(notification)
+          
+          setTimeout(() => {
+            if (notification.parentNode) {
+              notification.parentNode.removeChild(notification)
+            }
+          }, 4000)
+        }
+        setUploadStatus('idle')
+        setUploadProgress(0)
+      }, 1000)
+      
+    } catch (error: any) {
+      console.error(`❌ Error uploading ${type} QR code:`, error)
+      setUploadStatus('error')
+      
+      // Provide detailed error messages
+      let errorMessage = `Failed to upload ${type.toUpperCase()} QR code. `
+      
+      if (error?.message?.includes('FileReader')) {
+        errorMessage += 'Error reading the image file. Please try a different image.'
+      } else if (error?.message?.includes('network')) {
+        errorMessage += 'Network error. Please check your internet connection.'
+      } else if (error?.message) {
+        errorMessage += error.message
+      } else {
+        errorMessage += 'Please try again or contact support.'
+      }
+      
+      // Use non-blocking notification instead of alert
+      if (typeof window !== 'undefined') {
+        const notification = document.createElement('div')
+        notification.style.cssText = `
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          background: #ef4444;
+          color: white;
+          padding: 16px 24px;
+          border-radius: 8px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          z-index: 9999;
+          font-family: system-ui, -apple-system, sans-serif;
+          font-size: 14px;
+          font-weight: 500;
+        `
+        notification.textContent = `❌ ${errorMessage}`
+        document.body.appendChild(notification)
+        
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification)
+          }
+        }, 4000)
+      }
+      
+      // Reset states after error
+      setTimeout(() => {
+        setUploadStatus('idle')
+        setUploadProgress(0)
+      }, 2000)
+      
     } finally {
       setIsUploadingQR(false)
     }
@@ -301,8 +527,10 @@ export default function EnhancedPaymentModal({
     // Auto-close QR modal after 2 seconds
     setTimeout(() => {
       setShowQRModal(false)
-      // Auto-submit payment
-      handlePaymentSubmit()
+      // Auto-submit payment only if not already processing
+      if (!isProcessing) {
+        handlePaymentSubmit()
+      }
     }, 2000)
   }
 
@@ -315,6 +543,12 @@ export default function EnhancedPaymentModal({
 
   // Handle payment submission
   const handlePaymentSubmit = () => {
+    // Prevent double submissions
+    if (isProcessing) {
+      console.log('Payment already processing, ignoring duplicate submission')
+      return
+    }
+
     const paymentData = {
       method: selectedPaymentMethod,
       total: finalTotal,
@@ -338,7 +572,23 @@ export default function EnhancedPaymentModal({
       timestamp: new Date()
     }
     
-    onPaymentComplete(paymentData)
+    console.log('🎯 Submitting payment data:', paymentData)
+    
+    // Close modal immediately to prevent navigation issues
+    setTimeout(() => {
+      onClose()
+    }, 0)
+    
+    // Process payment after modal closes
+    setTimeout(() => {
+      try {
+        onPaymentComplete(paymentData)
+      } catch (error) {
+        console.error('Payment processing error:', error)
+        // Re-open modal if there was an error
+        // Note: We don't re-open here to avoid navigation issues
+      }
+    }, 100)
   }
 
   // Reset form when modal opens
@@ -363,6 +613,30 @@ export default function EnhancedPaymentModal({
       setShowQRModal(false)
       setQrPaymentStatus('waiting')
       setQrTimer(300)
+    }
+  }, [isOpen])
+
+  // Auto-open QR modal when GCash or Maya is selected (streamlined workflow)
+  useEffect(() => {
+    if (selectedPaymentMethod === 'gcash' || selectedPaymentMethod === 'maya') {
+      // Small delay to let the UI update first
+      const timer = setTimeout(() => {
+        generateQRCode(selectedPaymentMethod as 'gcash' | 'maya')
+      }, 300)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [selectedPaymentMethod])
+
+  // Also auto-open QR modal when modal opens with GCash/Maya already selected
+  useEffect(() => {
+    if (isOpen && (selectedPaymentMethod === 'gcash' || selectedPaymentMethod === 'maya')) {
+      // Small delay to let the modal and form reset first
+      const timer = setTimeout(() => {
+        generateQRCode(selectedPaymentMethod as 'gcash' | 'maya')
+      }, 500)
+      
+      return () => clearTimeout(timer)
     }
   }, [isOpen])
 
@@ -428,7 +702,15 @@ export default function EnhancedPaymentModal({
               {PAYMENT_METHODS.slice(0, 4).map(method => (
                 <button
                   key={method.id}
-                  onClick={() => setSelectedPaymentMethod(method.id)}
+                  onClick={() => {
+                    setSelectedPaymentMethod(method.id)
+                    // For GCash/Maya, force open QR modal even if already selected
+                    if (method.id === 'gcash' || method.id === 'maya') {
+                      setTimeout(() => {
+                        generateQRCode(method.id as 'gcash' | 'maya')
+                      }, 200)
+                    }
+                  }}
                   className={`p-4 border-2 rounded-xl text-center transition-all ${
                     selectedPaymentMethod === method.id
                       ? 'border-blue-500 bg-blue-50 text-blue-700'
@@ -619,21 +901,11 @@ export default function EnhancedPaymentModal({
                   Amount: ₱{finalTotal.toFixed(2)}
                 </p>
                 
-                {/* QR Code Generation for GCash/Maya */}
+                {/* Auto-show QR Code for GCash/Maya */}
                 {(selectedPaymentMethod === 'gcash' || selectedPaymentMethod === 'maya') && (
                   <div className="space-y-3">
-                    <button
-                      onClick={() => generateQRCode(selectedPaymentMethod as 'gcash' | 'maya')}
-                      className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors flex items-center justify-center gap-2"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                      </svg>
-                      Show QR Code to Customer
-                    </button>
-                    
-                    <div className="text-xs text-slate-500 bg-slate-100 rounded-lg p-3">
-                      💡 Click above to generate a QR code that customers can scan with their {selectedPaymentMethod === 'gcash' ? 'GCash' : 'Maya'} app
+                    <div className="text-sm text-slate-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      🚀 <strong>Streamlined Payment:</strong> QR code automatically opens when you select {selectedPaymentMethod === 'gcash' ? 'GCash' : 'Maya'}
                     </div>
                   </div>
                 )}
@@ -866,12 +1138,23 @@ export default function EnhancedPaymentModal({
 
                 {/* Demo: Simulate Payment Button */}
                 <div className="pt-4 border-t border-slate-200">
-                  <button
-                    onClick={simulateQRPayment}
-                    className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-sm"
-                  >
-                    🧪 Simulate Payment Received (Demo)
-                  </button>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={simulateQRPayment}
+                      className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-sm flex items-center justify-center gap-2"
+                    >
+                      ✅ Payment Received
+                    </button>
+                    <button
+                      onClick={closeQRModal}
+                      className="flex-1 px-4 py-2 bg-slate-300 text-slate-700 rounded-lg hover:bg-slate-400 font-medium text-sm"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-2 text-center">
+                    🚀 <strong>Quick workflow:</strong> Just click "Payment Received" when customer confirms payment
+                  </div>
                 </div>
               </div>
             )}
@@ -1004,15 +1287,48 @@ export default function EnhancedPaymentModal({
                     />
                     <label
                       htmlFor="gcash-upload"
-                      className={`w-full px-4 py-3 border-2 border-dashed border-slate-300 rounded-lg text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors block ${
-                        isUploadingQR ? 'opacity-50 cursor-not-allowed' : ''
+                      className={`w-full px-4 py-3 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors block ${
+                        isUploadingQR 
+                          ? 'opacity-75 cursor-not-allowed border-blue-400 bg-blue-50' 
+                          : uploadStatus === 'success'
+                          ? 'border-green-400 bg-green-50'
+                          : uploadStatus === 'error'
+                          ? 'border-red-400 bg-red-50'
+                          : 'border-slate-300 hover:border-blue-500 hover:bg-blue-50'
                       }`}
                     >
                       <div className="text-slate-600">
                         {isUploadingQR ? (
-                          <div className="flex items-center justify-center gap-2">
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                            <span className="text-sm font-medium">Uploading...</span>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-center gap-2">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                              <span className="text-sm font-medium">Uploading GCash QR...</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div 
+                                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${uploadProgress}%` }}
+                              ></div>
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {Math.round(uploadProgress)}% complete
+                            </div>
+                          </div>
+                        ) : uploadStatus === 'success' ? (
+                          <div className="text-green-700">
+                            <svg className="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span className="text-sm font-medium">Upload Complete!</span>
+                            <div className="text-xs text-green-600 mt-1">Click to upload a new QR code</div>
+                          </div>
+                        ) : uploadStatus === 'error' ? (
+                          <div className="text-red-700">
+                            <svg className="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                            <span className="text-sm font-medium">Upload Failed</span>
+                            <div className="text-xs text-red-600 mt-1">Click to try again</div>
                           </div>
                         ) : (
                           <>
@@ -1076,15 +1392,48 @@ export default function EnhancedPaymentModal({
                     />
                     <label
                       htmlFor="maya-upload"
-                      className={`w-full px-4 py-3 border-2 border-dashed border-slate-300 rounded-lg text-center cursor-pointer hover:border-orange-500 hover:bg-orange-50 transition-colors block ${
-                        isUploadingQR ? 'opacity-50 cursor-not-allowed' : ''
+                      className={`w-full px-4 py-3 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors block ${
+                        isUploadingQR 
+                          ? 'opacity-75 cursor-not-allowed border-orange-400 bg-orange-50' 
+                          : uploadStatus === 'success'
+                          ? 'border-green-400 bg-green-50'
+                          : uploadStatus === 'error'
+                          ? 'border-red-400 bg-red-50'
+                          : 'border-slate-300 hover:border-orange-500 hover:bg-orange-50'
                       }`}
                     >
                       <div className="text-slate-600">
                         {isUploadingQR ? (
-                          <div className="flex items-center justify-center gap-2">
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600"></div>
-                            <span className="text-sm font-medium">Uploading...</span>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-center gap-2">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600"></div>
+                              <span className="text-sm font-medium">Uploading Maya QR...</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div 
+                                className="bg-orange-600 h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${uploadProgress}%` }}
+                              ></div>
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {Math.round(uploadProgress)}% complete
+                            </div>
+                          </div>
+                        ) : uploadStatus === 'success' ? (
+                          <div className="text-green-700">
+                            <svg className="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span className="text-sm font-medium">Upload Complete!</span>
+                            <div className="text-xs text-green-600 mt-1">Click to upload a new QR code</div>
+                          </div>
+                        ) : uploadStatus === 'error' ? (
+                          <div className="text-red-700">
+                            <svg className="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                            <span className="text-sm font-medium">Upload Failed</span>
+                            <div className="text-xs text-red-600 mt-1">Click to try again</div>
                           </div>
                         ) : (
                           <>

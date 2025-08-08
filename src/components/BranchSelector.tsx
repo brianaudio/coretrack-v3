@@ -12,6 +12,7 @@ export default function BranchSelector() {
   const { branches, selectedBranch, switchBranch, loading, refreshBranches, setSelectedBranch } = useBranch()
   const { profile } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const [localSelectedBranch, setLocalSelectedBranch] = useState(selectedBranch)
 
@@ -104,6 +105,13 @@ export default function BranchSelector() {
       
       console.log('✅ Branch switch completed successfully')
       
+      // Auto-refresh the app after branch switch (perfect for PWA mode)
+      console.log('🔄 Refreshing app after branch switch for clean state...')
+      setIsRefreshing(true) // Show refreshing state
+      setTimeout(() => {
+        window.location.reload()
+      }, 500) // Small delay to ensure the branch switch is saved
+      
       // Verify the switch after a longer delay (after auto-selection timeout)
       setTimeout(() => {
         console.log('🔄 Final verification after auto-selection period:', {
@@ -126,6 +134,7 @@ export default function BranchSelector() {
       console.error('❌ Branch switch failed:', error)
       // Revert local state on error
       setLocalSelectedBranch(selectedBranch)
+      setIsRefreshing(false) // Reset refreshing state on error
       alert('Failed to switch branch. Please try again.')
     }
   }
@@ -205,52 +214,63 @@ export default function BranchSelector() {
       {/* Trigger Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center space-x-3 bg-white border border-surface-200 rounded-lg px-4 py-2 shadow-sm hover:bg-surface-50 hover:border-surface-300 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        disabled={isRefreshing}
+        className={`flex items-center space-x-3 bg-white border border-surface-200 rounded-lg px-4 py-2 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
+          isRefreshing 
+            ? 'opacity-75 cursor-not-allowed' 
+            : 'hover:bg-surface-50 hover:border-surface-300'
+        }`}
       >
         {/* Branch Icon */}
         <div className="text-lg">
-          {displayBranch.icon}
+          {isRefreshing ? '🔄' : displayBranch.icon}
         </div>
         
         {/* Branch Info */}
         <div className="flex flex-col items-start min-w-0">
           <div className="flex items-center space-x-2">
             <span className="text-sm font-medium text-surface-900 truncate">
-              📍 {displayBranch.name}
+              {isRefreshing ? '🔄 Refreshing...' : `📍 ${displayBranch.name}`}
             </span>
-            {displayBranch.isMain && (
+            {!isRefreshing && displayBranch.isMain && (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
                 Main
               </span>
             )}
           </div>
-          <span className="text-xs text-surface-500 truncate">
-            ID: {displayBranch.id.slice(-8)} • {displayBranch.manager}
-          </span>
+          {!isRefreshing && (
+            <span className="text-xs text-surface-500 truncate">
+              ID: {displayBranch.id.slice(-8)} • {displayBranch.manager}
+            </span>
+          )}
         </div>
 
         {/* Status Indicator */}
         <div className="flex items-center space-x-2">
           <div className={`w-2 h-2 rounded-full ${
-            displayBranch.status === 'active' ? 'bg-green-500' : 'bg-red-500'
+            isRefreshing 
+              ? 'bg-blue-500 animate-pulse' 
+              : displayBranch.status === 'active' ? 'bg-green-500' : 'bg-red-500'
           }`}></div>
           
           {/* Dropdown Arrow */}
-          <svg 
-            className={`w-4 h-4 text-surface-400 transition-transform duration-200 ${
-              isOpen ? 'rotate-180' : ''
-            }`} 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
+          {!isRefreshing && (
+            <svg 
+              className={`w-4 h-4 text-surface-400 transition-transform duration-200 ${
+                isOpen ? 'rotate-180' : ''
+              }`} 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          )}
         </div>
       </button>
 
       {/* Dropdown Menu */}
-      {isOpen && (
+      {isOpen && !isRefreshing && (
         <div className="absolute top-full left-0 mt-2 w-80 bg-white border border-surface-200 rounded-xl shadow-lg z-50 overflow-hidden">
           {/* Header */}
           <div className="px-4 py-3 bg-surface-50 border-b border-surface-200">

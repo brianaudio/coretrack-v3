@@ -83,7 +83,7 @@ export default function EnhancedPaymentModal({
   
   // Receipt options
   const [receiptOptions, setReceiptOptions] = useState({
-    print: true,
+    print: false, // Changed from true to false to prevent auto-redirect
     email: false,
     sms: false
   })

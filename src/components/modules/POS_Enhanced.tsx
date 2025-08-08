@@ -350,8 +350,8 @@ export default function POSEnhanced() {
                 <span>${item.quantity}x ${item.name}</span>
                 <span>₱${item.total.toFixed(2)}</span>
               </div>
-              ${item.selectedAddons && item.selectedAddons.length > 0 ? item.selectedAddons.map((addon) => `
-                <div class="item addon">
+              ${item.selectedAddons ? item.selectedAddons.map(addon => `
+                <div class="addon">
                   <span>+ ${addon.name}</span>
                   <span>₱${addon.price.toFixed(2)}</span>
                 </div>
@@ -362,22 +362,22 @@ export default function POSEnhanced() {
           <div class="totals">
             <div class="total-line">
               <span>Subtotal:</span>
-              <span>₱${cartTotal.toFixed(2)}</span>
+              <span>₱${(paymentData.originalTotal || paymentData.total).toFixed(2)}</span>
             </div>
-            ${paymentData.tipAmount > 0 ? `
-              <div class="total-line enhancement">
-                <span>Tip:</span>
-                <span>+₱${paymentData.tipAmount.toFixed(2)}</span>
+            ${paymentData.serviceCharge > 0 ? `
+              <div class="total-line">
+                <span>Service Charge:</span>
+                <span>₱${paymentData.serviceCharge.toFixed(2)}</span>
               </div>
             ` : ''}
-            ${paymentData.serviceCharge > 0 ? `
-              <div class="total-line enhancement">
-                <span>Service Charge:</span>
-                <span>+₱${paymentData.serviceCharge.toFixed(2)}</span>
+            ${paymentData.tipAmount > 0 ? `
+              <div class="total-line">
+                <span>Tip:</span>
+                <span>₱${paymentData.tipAmount.toFixed(2)}</span>
               </div>
             ` : ''}
             ${paymentData.discountAmount > 0 ? `
-              <div class="total-line enhancement" style="color: #cc0000;">
+              <div class="total-line">
                 <span>Discount:</span>
                 <span>-₱${paymentData.discountAmount.toFixed(2)}</span>
               </div>
@@ -389,12 +389,12 @@ export default function POSEnhanced() {
           </div>
           
           <div class="payment-info">
-            <h4 style="margin: 0 0 10px 0;">💳 Payment Details</h4>
+            <h3>Payment Details</h3>
             <div class="total-line">
               <span>Method:</span>
-              <span style="text-transform: uppercase;">${paymentData.method}</span>
+              <span class="enhancement">${paymentData.method.toUpperCase()}</span>
             </div>
-            ${paymentData.method === 'cash' ? `
+            ${paymentData.method === 'cash' && paymentData.cashReceived > 0 ? `
               <div class="total-line">
                 <span>Cash Received:</span>
                 <span>₱${paymentData.cashReceived.toFixed(2)}</span>
@@ -404,38 +404,16 @@ export default function POSEnhanced() {
                 <span>₱${paymentData.change.toFixed(2)}</span>
               </div>
             ` : ''}
-            ${paymentData.method === 'card' && paymentData.cardDetails ? `
+            ${paymentData.splitPayment ? `
               <div class="total-line">
-                <span>Card Type:</span>
-                <span style="text-transform: capitalize;">${paymentData.cardDetails.cardType} ****${paymentData.cardDetails.last4}</span>
-              </div>
-              <div class="total-line">
-                <span>Transaction ID:</span>
-                <span>${paymentData.cardDetails.transactionId}</span>
-              </div>
-              <div class="total-line">
-                <span>Status:</span>
-                <span style="color: #10b981; font-weight: bold;">APPROVED</span>
-              </div>
-            ` : ''}
-            ${paymentData.method === 'split' && paymentData.splitPayment ? `
-              <div class="total-line">
-                <span>Cash Part:</span>
-                <span>₱${paymentData.splitPayment.cash.toFixed(2)}</span>
-              </div>
-              <div class="total-line">
-                <span>Card Part:</span>
-                <span>₱${paymentData.splitPayment.card.toFixed(2)}</span>
-              </div>
-              <div class="total-line">
-                <span>Digital Part:</span>
-                <span>₱${paymentData.splitPayment.digital.toFixed(2)}</span>
+                <span>Split Payment:</span>
+                <span>Multiple Methods</span>
               </div>
             ` : ''}
             ${paymentData.customerEmail ? `
               <div class="total-line">
                 <span>Email:</span>
-                <span style="font-size: 0.8em;">${paymentData.customerEmail}</span>
+                <span>${paymentData.customerEmail}</span>
               </div>
             ` : ''}
             ${paymentData.customerPhone ? `
@@ -491,7 +469,89 @@ export default function POSEnhanced() {
     }
   }
 
-  // �📋 Recent Orders Management Functions
+  // Non-intrusive print function that doesn't redirect focus
+  const printReceiptToHiddenFrame = (order: any, paymentData: any) => {
+    try {
+      console.log('🖨️ Printing receipt (non-intrusive) for order:', order)
+      
+      // Create a hidden iframe for printing
+      const iframe = document.createElement('iframe')
+      iframe.style.display = 'none'
+      document.body.appendChild(iframe)
+      
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document
+      if (!iframeDoc) return
+      
+      const getOrderId = () => {
+        if (order?.orderNumber) return order.orderNumber
+        if (order?.id && typeof order.id === 'string') return order.id.slice(-6)
+        return `POS-${Date.now().toString().slice(-6)}`
+      }
+
+      const orderId = getOrderId()
+      const orderItems = order?.items || cart || []
+
+      const receiptHTML = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Receipt - Order #${orderId}</title>
+            <style>
+              body { font-family: monospace; max-width: 320px; margin: 0 auto; padding: 20px; }
+              .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px; }
+              .items { border-bottom: 1px solid #ccc; padding-bottom: 15px; margin-bottom: 15px; }
+              .item { display: flex; justify-content: space-between; margin-bottom: 8px; }
+              .total-line { display: flex; justify-content: space-between; margin-bottom: 5px; }
+              .final-total { font-weight: bold; font-size: 1.2em; border-top: 1px solid #000; padding-top: 8px; }
+              .footer { text-align: center; margin-top: 20px; font-size: 0.9em; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h2>🚀 CORETRACK POS</h2>
+              <p>Order #${orderId}</p>
+              <p>${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</p>
+            </div>
+            
+            <div class="items">
+              ${cart.map((item) => `
+                <div class="item">
+                  <span>${item.quantity}x ${item.name}</span>
+                  <span>₱${item.total.toFixed(2)}</span>
+                </div>
+              `).join('')}
+            </div>
+            
+            <div class="total-line final-total">
+              <span>TOTAL:</span>
+              <span>₱${paymentData.total.toFixed(2)}</span>
+            </div>
+            
+            <div class="footer">
+              <p>Thank you for your business!</p>
+              <p>Generated: ${new Date().toLocaleString()}</p>
+            </div>
+          </body>
+        </html>
+      `
+      
+      iframeDoc.write(receiptHTML)
+      iframeDoc.close()
+      
+      // Print the iframe content
+      iframe.contentWindow?.print()
+      
+      // Remove iframe after printing
+      setTimeout(() => {
+        document.body.removeChild(iframe)
+      }, 1000)
+      
+    } catch (error) {
+      console.error('❌ Error printing receipt (non-intrusive):', error)
+    }
+  }
+
+  // 📋 Recent Orders Management Functions
   const printReceipt = (order: any) => {
     const printWindow = window.open('', '_blank')
     if (!printWindow) return
@@ -1270,9 +1330,10 @@ export default function POSEnhanced() {
 
         // Handle receipt options
         if (paymentData.receiptOptions.print) {
-          // Auto-print receipt
+          // Auto-print receipt without opening new tab/window
           setTimeout(() => {
-            printEnhancedReceipt(createdOrder, paymentData)
+            // Instead of opening a new window, create a hidden iframe for printing
+            printReceiptToHiddenFrame(createdOrder, paymentData)
           }, 1000)
         }
 

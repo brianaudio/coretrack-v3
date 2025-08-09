@@ -320,13 +320,12 @@ export default function RootLayout({
                     const { getFirestore, collection, getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js');
                     
                     const firebaseConfig = {
-                      apiKey: "AIzaSyBEPcIJG0QjYAE_wR6WKRNjvdoggU8_96A",
-                      authDomain: "inventory-system-latest.firebaseapp.com",
-                      projectId: "inventory-system-latest",
-                      storageBucket: "inventory-system-latest.firebasestorage.app",
-                      messagingSenderId: "1079006808397",
-                      appId: "1:1079006808397:web:7db82ac8fe2c4a87c96e3b",
-                      measurementId: "G-FQCGZKMHPE"
+                      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+                      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+                      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+                      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+                      messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+                      appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
                     };
                     
                     const app = initializeApp(firebaseConfig);

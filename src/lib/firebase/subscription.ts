@@ -152,13 +152,20 @@ export const resetMonthlyUsage = async (tenantId: string): Promise<void> => {
 export const isSubscriptionActive = (subscription: TenantSubscription | null): boolean => {
   if (!subscription) return false;
   
-  const now = new Date();
-  const endDate = subscription.endDate.toDate();
+  // Check basic status first
+  if (subscription.status !== 'active' && subscription.status !== 'trial') {
+    return false;
+  }
   
-  return (
-    subscription.status === 'active' || 
-    subscription.status === 'trial'
-  ) && endDate > now;
+  // If there's an endDate, check it
+  if (subscription.endDate) {
+    const now = new Date();
+    const endDate = subscription.endDate.toDate();
+    return endDate > now;
+  }
+  
+  // If no endDate but status is active/trial, consider it active
+  return true;
 };
 
 // Check if subscription is in trial

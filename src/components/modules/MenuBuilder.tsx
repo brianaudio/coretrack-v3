@@ -173,8 +173,8 @@ export default function MenuBuilder() {
 
       const newMenuItemId = await addMenuItem(itemData)
       
-      // Get the created menu item
-      const updatedItems = await getMenuItems(profile.tenantId)
+      // Refresh menu items to include the newly created item
+      const updatedItems = await getMenuItems(profile.tenantId, locationId)
       const createdItem = updatedItems.find(item => item.id === newMenuItemId)
       
       if (createdItem) {

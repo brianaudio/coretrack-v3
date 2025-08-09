@@ -12,6 +12,59 @@ interface LandingPageProps {
 export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
   const [isVisible, setIsVisible] = useState(false)
   const [currentFeature, setCurrentFeature] = useState(0)
+  
+  // ROI Calculator State
+  const [roiData, setRoiData] = useState({
+    monthlyRevenue: 500000,
+    locations: '1',
+    staffCount: '16-30',
+    wastePercentage: '21-30'
+  })
+
+  // Calculate ROI based on inputs
+  const calculateROI = () => {
+    const revenue = roiData.monthlyRevenue
+    const locationMultiplier = {
+      '1': 1,
+      '2-5': 2.5,
+      '6-15': 8,
+      '16+': 20
+    }[roiData.locations] || 1
+
+    const wasteReduction = {
+      '5-10': 0.05,
+      '11-20': 0.15,
+      '21-30': 0.25,
+      '31+': 0.35
+    }[roiData.wastePercentage] || 0.25
+
+    const staffEfficiency = {
+      '5-15': 5000,
+      '16-30': 8000,
+      '31-50': 12000,
+      '51+': 20000
+    }[roiData.staffCount] || 8000
+
+    const wasteReductionSavings = (revenue * wasteReduction * 0.6) * locationMultiplier
+    const theftPrevention = 12000 * locationMultiplier
+    const laborEfficiency = staffEfficiency * locationMultiplier
+    const coretrackCost = 199 * locationMultiplier
+
+    const totalSavings = wasteReductionSavings + theftPrevention + laborEfficiency - coretrackCost
+    const roi = ((totalSavings * 12) / (coretrackCost * 12)) * 100
+
+    return {
+      monthlySavings: Math.round(totalSavings),
+      annualSavings: Math.round(totalSavings * 12),
+      roi: Math.round(roi),
+      wasteReductionSavings: Math.round(wasteReductionSavings),
+      theftPrevention: Math.round(theftPrevention),
+      laborEfficiency: Math.round(laborEfficiency),
+      coretrackCost: Math.round(coretrackCost)
+    }
+  }
+
+  const roiResults = calculateROI()
 
   useEffect(() => {
     trackPageView()
@@ -261,75 +314,161 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
         </div>
       </section>
 
-      {/* CEO Story - Apple Style */}
-<section className="py-32 bg-gradient-to-b from-gray-900 to-black relative overflow-hidden">
+      {/* CEO Story - Sleek & Concise */}
+<section className="py-20 bg-gradient-to-b from-gray-900 to-black relative overflow-hidden">
   {/* Background Elements */}
-  <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-purple-600/10"></div>
-  <div className="absolute top-20 left-20 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl"></div>
-  <div className="absolute bottom-20 right-20 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl"></div>
+  <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 to-purple-600/5"></div>
   
-  <div className="max-w-6xl mx-auto px-6 relative z-10">
-    <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-16 border border-white/20 shadow-2xl">
-      <div className="max-w-4xl mx-auto text-center">
-        {/* Avatar with Glow Effect */}
-        <div className="relative mb-12">
-          <div className="w-24 h-24 mx-auto bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-2xl relative">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full blur-lg opacity-50 animate-pulse-slow"></div>
-            <span className="text-4xl relative z-10">👨‍💼</span>
-          </div>
+  <div className="max-w-4xl mx-auto px-6 relative z-10">
+    <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-8 border border-white/10 shadow-2xl">
+      <div className="text-center">
+        {/* Compact Avatar */}
+        <div className="w-16 h-16 mx-auto bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-6 relative">
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full blur-lg opacity-30"></div>
+          <span className="text-2xl relative z-10">👨‍💼</span>
         </div>
         
-        {/* Catchy Hook */}
-        <div className="mb-8">
-          <h3 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent mb-4">
-            From Nurse to Tech Entrepreneur
-          </h3>
-          <p className="text-blue-400 text-lg font-medium">The Story Behind CoreTrack</p>
-        </div>
-        
-        {/* Main Quote with Better Typography */}
-        <blockquote className="text-xl md:text-2xl font-light text-gray-200 mb-12 leading-relaxed space-y-6">
-          <p className="animate-float">
-            "I was a nurse who dared to dream beyond the hospital walls, starting with an online bike business 
-            that grew into a physical store by 2021, which naturally led me into the food industry in 2023 
-            where I opened my first restaurant, followed by a second one that changed everything."
+        {/* Condensed Story */}
+        <blockquote className="text-lg text-gray-200 mb-6 leading-relaxed">
+          <p className="mb-4">
+            "From nurse to restaurant owner, I experienced firsthand the chaos of managing inventory with spreadsheets. 
+            Staff errors cost thousands, theft went undetected, and passion wasn't enough."
           </p>
-          
-          <p className="text-red-400 font-medium animate-float" style={{animationDelay: '0.5s'}}>
-            "Managing two food businesses revealed the harsh reality that passion alone wasn't enough—inventory 
-            was disappearing overnight, costs were spiraling beyond control, and simple staff errors were 
-            costing me thousands while I scrambled with outdated systems and endless spreadsheets."
-          </p>
-          
-          <p className="text-2xl md:text-3xl font-semibold text-white animate-float" style={{animationDelay: '1s'}}>
-            "While everyone talks about AI being the future of restaurant management, 
-            <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-              they're already behind—AI is happening right now.
-            </span>"
-          </p>
-          
-          <p className="text-xl text-green-400 font-medium animate-float" style={{animationDelay: '1.5s'}}>
-            "CoreTrack isn't just proof that the future is here, it's the solution born from real pain, 
-            real problems, and real experience in the trenches of food business management."
+          <p className="text-xl text-white font-semibold">
+            "CoreTrack was born from real pain, solving real problems with 
+            <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent"> AI that works today</span>."
           </p>
         </blockquote>
         
-        {/* Enhanced Attribution */}
-        <div className="border-t border-gradient-to-r from-transparent via-white/20 to-transparent pt-8">
-          <div className="flex items-center justify-center space-x-4 mb-4">
-            <div className="w-12 h-px bg-gradient-to-r from-transparent to-blue-500"></div>
-            <cite className="text-xl font-semibold text-white">Brian D. Basa</cite>
-            <div className="w-12 h-px bg-gradient-to-l from-transparent to-purple-500"></div>
-          </div>
-          <p className="text-gray-400 text-sm">Founder & CEO • Nurse Turned Tech Innovator</p>
-          <p className="text-blue-400 text-xs mt-2 font-medium">
-            "Solving real problems with real experience"
-          </p>
+        {/* Minimal Attribution */}
+        <div className="border-t border-white/10 pt-6">
+          <cite className="text-lg font-semibold text-white">Brian D. Basa</cite>
+          <p className="text-gray-400 text-sm mt-1">Founder & CEO • Nurse Turned Tech Innovator</p>
         </div>
       </div>
     </div>
   </div>
 </section>
+
+      {/* Demo Section */}
+      <section className="py-32 bg-gradient-to-b from-gray-900 to-black relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-purple-600/10 to-blue-600/10"></div>
+        <div className="max-w-6xl mx-auto px-6 relative z-10">
+          <div className="text-center mb-20">
+            <h2 className="text-5xl font-bold mb-6">
+              <span className="bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                See CoreTrack in action
+              </span>
+            </h2>
+            <p className="text-xl text-gray-400">Experience the power of AI-driven inventory management</p>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* Interactive Demo */}
+            <div className="space-y-8">
+              <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10">
+                <h3 className="text-2xl font-semibold text-white mb-6 flex items-center">
+                  <span className="text-3xl mr-3">📱</span>
+                  Live Dashboard Preview
+                </h3>
+                <div className="bg-black rounded-xl p-6 border border-white/10">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-gray-400 text-sm">Real-time Inventory Status</span>
+                    <span className="text-green-400 text-sm">● Live</span>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-white">Chicken Breast</span>
+                      <span className="text-red-400">Low Stock (12 kg)</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-white">Rice (Jasmine)</span>
+                      <span className="text-green-400">Good (45 kg)</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-white">Cooking Oil</span>
+                      <span className="text-yellow-400">Moderate (8L)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10">
+                <h3 className="text-2xl font-semibold text-white mb-6 flex items-center">
+                  <span className="text-3xl mr-3">🤖</span>
+                  AI Insights
+                </h3>
+                <div className="space-y-4">
+                  <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+                    <p className="text-blue-300 text-sm">💡 Suggestion: Order chicken breast now. Based on sales trends, you'll run out in 2 days.</p>
+                  </div>
+                  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+                    <p className="text-yellow-300 text-sm">⚠️ Alert: Lettuce waste increased 15% this week. Check storage conditions.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Feature Highlights */}
+            <div className="space-y-8">
+              {[
+                {
+                  icon: '🔍',
+                  title: 'Smart Discrepancy Detection',
+                  description: 'AI identifies unusual inventory movements and potential theft automatically',
+                  color: 'from-red-500 to-pink-600'
+                },
+                {
+                  icon: '📊',
+                  title: 'Predictive Analytics',
+                  description: 'Forecast demand and optimize ordering with machine learning algorithms',
+                  color: 'from-blue-500 to-cyan-600'
+                },
+                {
+                  icon: '📱',
+                  title: 'Mobile-First Design',
+                  description: 'Designed for iPad and mobile devices - manage anywhere, anytime',
+                  color: 'from-green-500 to-emerald-600'
+                },
+                {
+                  icon: '⚡',
+                  title: 'Real-Time Sync',
+                  description: 'All locations stay synchronized instantly with cloud-based architecture',
+                  color: 'from-purple-500 to-violet-600'
+                }
+              ].map((feature, index) => (
+                <div key={index} className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 hover:border-white/20 transition-all duration-300 group">
+                  <div className="flex items-start space-x-4">
+                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center text-2xl group-hover:scale-110 transition-transform duration-300`}>
+                      {feature.icon}
+                    </div>
+                    <div>
+                      <h4 className="text-xl font-semibold text-white mb-2">{feature.title}</h4>
+                      <p className="text-gray-400 leading-relaxed">{feature.description}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* CTA Button */}
+          <div className="text-center mt-16">
+            <button
+              onClick={() => handleGetStarted('Demo Section', 'Try Interactive Demo')}
+              className="bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white px-10 py-4 rounded-full text-lg font-semibold transition-all duration-200 shadow-2xl hover:shadow-purple-500/25 hover:scale-105 mr-4"
+            >
+              Try Interactive Demo
+            </button>
+            <button
+              onClick={() => handleGetStarted('Demo Section', 'Schedule Live Demo')}
+              className="bg-white/10 backdrop-blur-sm border border-white/20 hover:border-white/40 text-white px-10 py-4 rounded-full text-lg font-semibold transition-all duration-200 hover:bg-white/20"
+            >
+              Schedule Live Demo
+            </button>
+          </div>
+        </div>
+      </section>
 
       {/* Pricing - Apple Style */}
       <section className="py-32 bg-gradient-to-b from-black to-gray-900">
@@ -352,6 +491,34 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
                 <span className="text-gray-400 text-lg">/month</span>
               </div>
               <p className="text-gray-400 mb-8">Perfect for small cafés and food stalls</p>
+              
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-center text-gray-300">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
+                  Basic Inventory Management
+                </li>
+                <li className="flex items-center text-gray-300">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
+                  Point of Sale (POS)
+                </li>
+                <li className="flex items-center text-gray-300">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
+                  Menu Builder
+                </li>
+                <li className="flex items-center text-gray-300">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
+                  1 User • 1 Location
+                </li>
+                <li className="flex items-center text-gray-300">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
+                  Up to 20 Products
+                </li>
+                <li className="flex items-center text-gray-300">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
+                  Email Support
+                </li>
+              </ul>
+              
               <button
                 onClick={() => handleGetStarted('Pricing', 'Start Free Trial', 'starter')}
                 className="w-full bg-white/10 hover:bg-white/20 text-white py-3 rounded-2xl font-semibold transition-all duration-200"
@@ -373,6 +540,38 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
                 <span className="text-gray-400 text-lg">/month</span>
               </div>
               <p className="text-gray-400 mb-8">For growing restaurants and chains</p>
+              
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-center text-gray-300">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
+                  Everything in Starter plus:
+                </li>
+                <li className="flex items-center text-gray-300">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
+                  Purchase Orders & Expenses
+                </li>
+                <li className="flex items-center text-gray-300">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
+                  Advanced Analytics & Reports
+                </li>
+                <li className="flex items-center text-gray-300">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
+                  Multi-user Access (6 users)
+                </li>
+                <li className="flex items-center text-gray-300">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
+                  Barcode Scanning & Low Stock Alerts
+                </li>
+                <li className="flex items-center text-gray-300">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
+                  2,500 Products • 2 Locations
+                </li>
+                <li className="flex items-center text-gray-300">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
+                  Priority Support
+                </li>
+              </ul>
+              
               <button
                 onClick={() => handleGetStarted('Pricing', 'Start Free Trial', 'professional')}
                 className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white py-3 rounded-2xl font-semibold transition-all duration-200 shadow-lg"
@@ -389,12 +588,275 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
                 <span className="text-gray-400 text-lg">/month</span>
               </div>
               <p className="text-gray-400 mb-8">Complete suite for large operations</p>
+              
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-center text-gray-300">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
+                  Everything in Professional plus:
+                </li>
+                <li className="flex items-center text-gray-300">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
+                  Custom Reports & API Access
+                </li>
+                <li className="flex items-center text-gray-300">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
+                  Accounting & E-commerce Integrations
+                </li>
+                <li className="flex items-center text-gray-300">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
+                  Automatic Reordering
+                </li>
+                <li className="flex items-center text-gray-300">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
+                  Unlimited Everything
+                </li>
+                <li className="flex items-center text-gray-300">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-3"></span>
+                  Phone Support & Dedicated Manager
+                </li>
+              </ul>
+              
               <button
                 onClick={() => handleGetStarted('Pricing', 'Start Free Trial', 'enterprise')}
                 className="w-full bg-white/10 hover:bg-white/20 text-white py-3 rounded-2xl font-semibold transition-all duration-200"
               >
                 Get started
               </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ROI Calculator Section */}
+      <section className="py-32 bg-gradient-to-b from-gray-900 to-black relative">
+        <div className="absolute inset-0 bg-gradient-to-r from-green-600/5 to-yellow-600/5"></div>
+        <div className="max-w-6xl mx-auto px-6 relative z-10">
+          <div className="text-center mb-20">
+            <h2 className="text-5xl font-bold mb-6">
+              <span className="bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                Calculate your potential savings
+              </span>
+            </h2>
+            <p className="text-xl text-gray-400">See how much CoreTrack can save your restaurant</p>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-12">
+            {/* Calculator Inputs */}
+            <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-8 border border-white/10">
+              <h3 className="text-2xl font-semibold text-white mb-8 flex items-center">
+                <span className="text-3xl mr-3">🧮</span>
+                Restaurant Details
+              </h3>
+              
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-gray-300 mb-3 font-medium">Monthly Revenue</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">₱</span>
+                    <input
+                      type="number"
+                      value={roiData.monthlyRevenue}
+                      onChange={(e) => setRoiData({...roiData, monthlyRevenue: parseInt(e.target.value) || 0})}
+                      placeholder="500,000"
+                      className="w-full bg-black/50 border border-white/20 rounded-xl pl-8 pr-4 py-3 text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-gray-300 mb-3 font-medium">Number of Locations</label>
+                  <select 
+                    value={roiData.locations}
+                    onChange={(e) => setRoiData({...roiData, locations: e.target.value})}
+                    className="w-full bg-black/50 border border-white/20 rounded-xl px-4 py-3 text-white focus:border-blue-500 focus:outline-none transition-colors"
+                  >
+                    <option value="1">1 Location</option>
+                    <option value="2-5">2-5 Locations</option>
+                    <option value="6-15">6-15 Locations</option>
+                    <option value="16+">16+ Locations</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-gray-300 mb-3 font-medium">Staff Count</label>
+                  <select 
+                    value={roiData.staffCount}
+                    onChange={(e) => setRoiData({...roiData, staffCount: e.target.value})}
+                    className="w-full bg-black/50 border border-white/20 rounded-xl px-4 py-3 text-white focus:border-blue-500 focus:outline-none transition-colors"
+                  >
+                    <option value="5-15">5-15 Staff</option>
+                    <option value="16-30">16-30 Staff</option>
+                    <option value="31-50">31-50 Staff</option>
+                    <option value="51+">51+ Staff</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-gray-300 mb-3 font-medium">Current Waste %</label>
+                  <select 
+                    value={roiData.wastePercentage}
+                    onChange={(e) => setRoiData({...roiData, wastePercentage: e.target.value})}
+                    className="w-full bg-black/50 border border-white/20 rounded-xl px-4 py-3 text-white focus:border-blue-500 focus:outline-none transition-colors"
+                  >
+                    <option value="5-10">5-10% (Excellent)</option>
+                    <option value="11-20">11-20% (Good)</option>
+                    <option value="21-30">21-30% (Average)</option>
+                    <option value="31+">31%+ (Needs Improvement)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Results Display */}
+            <div className="space-y-6">
+              <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 backdrop-blur-sm rounded-3xl p-8 border border-green-500/20">
+                <h3 className="text-2xl font-semibold text-white mb-8 flex items-center">
+                  <span className="text-3xl mr-3">💰</span>
+                  Your Potential Savings
+                </h3>
+                
+                <div className="space-y-6">
+                  <div className="bg-black/30 rounded-2xl p-6">
+                    <div className="text-center">
+                      <div className="text-4xl font-bold text-green-400 mb-2">₱{roiResults.monthlySavings.toLocaleString()}</div>
+                      <div className="text-gray-300">Monthly Savings</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-black/30 rounded-xl p-4 text-center">
+                      <div className="text-2xl font-bold text-blue-400">₱{roiResults.annualSavings.toLocaleString()}</div>
+                      <div className="text-gray-400 text-sm">Annual Savings</div>
+                    </div>
+                    <div className="bg-black/30 rounded-xl p-4 text-center">
+                      <div className="text-2xl font-bold text-purple-400">{roiResults.roi.toLocaleString()}%</div>
+                      <div className="text-gray-400 text-sm">ROI</div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center py-2 border-b border-white/10">
+                      <span className="text-gray-300">Waste Reduction</span>
+                      <span className="text-green-400 font-semibold">₱{roiResults.wasteReductionSavings.toLocaleString()}/mo</span>
+                    </div>
+                    <div className="flex justify-between items-center py-2 border-b border-white/10">
+                      <span className="text-gray-300">Theft Prevention</span>
+                      <span className="text-green-400 font-semibold">₱{roiResults.theftPrevention.toLocaleString()}/mo</span>
+                    </div>
+                    <div className="flex justify-between items-center py-2 border-b border-white/10">
+                      <span className="text-gray-300">Labor Efficiency</span>
+                      <span className="text-green-400 font-semibold">₱{roiResults.laborEfficiency.toLocaleString()}/mo</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-3">
+                      <span className="text-white font-semibold">CoreTrack Cost</span>
+                      <span className="text-red-400 font-semibold">-₱{roiResults.coretrackCost.toLocaleString()}/mo</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+                <h4 className="text-lg font-semibold text-white mb-4">Based on Industry Averages:</h4>
+                <div className="space-y-2 text-sm text-gray-300">
+                  <p>• 15-45% reduction in food waste</p>
+                  <p>• 80% reduction in inventory theft</p>
+                  <p>• 30% improvement in operational efficiency</p>
+                  <p>• 25% faster inventory management</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => handleGetStarted('ROI Calculator', 'Start Saving Today')}
+                className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-8 py-4 rounded-2xl text-lg font-semibold transition-all duration-200 shadow-2xl hover:shadow-green-500/25 hover:scale-105"
+              >
+                Start Saving Today
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Security & Compliance Section */}
+      <section className="py-32 bg-gradient-to-b from-black to-gray-900 relative">
+        <div className="absolute inset-0 bg-gradient-to-r from-gray-600/5 to-slate-600/5"></div>
+        <div className="max-w-6xl mx-auto px-6 relative z-10">
+          <div className="text-center mb-20">
+            <h2 className="text-5xl font-bold mb-6">
+              <span className="bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                Enterprise-grade security
+              </span>
+            </h2>
+            <p className="text-xl text-gray-400">Your data is protected by industry-leading security measures</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8 mb-16">
+            {[
+              {
+                icon: '🔐',
+                title: 'Bank-Level Encryption',
+                description: 'AES-256 encryption for data at rest and TLS 1.3 for data in transit',
+                features: ['End-to-end encryption', '256-bit SSL certificates', 'Zero-knowledge architecture']
+              },
+              {
+                icon: '☁️',
+                title: 'Google Cloud Infrastructure',
+                description: 'Built on Google\'s secure, reliable, and scalable cloud platform',
+                features: ['99.99% uptime SLA', 'Auto-scaling infrastructure', 'Global CDN delivery']
+              },
+              {
+                icon: '📋',
+                title: 'Compliance Ready',
+                description: 'Meets international standards for data protection and privacy',
+                features: ['GDPR compliant', 'SOC 2 Type II', 'ISO 27001 standards']
+              }
+            ].map((security, index) => (
+              <div key={index} className="bg-white/5 backdrop-blur-sm rounded-3xl p-8 border border-white/10 hover:border-white/20 transition-all duration-300">
+                <div className="text-5xl mb-6 text-center">{security.icon}</div>
+                <h3 className="text-2xl font-semibold text-white mb-4 text-center">{security.title}</h3>
+                <p className="text-gray-400 mb-6 text-center leading-relaxed">{security.description}</p>
+                <ul className="space-y-2">
+                  {security.features.map((feature, featureIndex) => (
+                    <li key={featureIndex} className="flex items-center text-gray-300">
+                      <span className="text-green-400 mr-3">✓</span>
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+
+          {/* Additional Security Features */}
+          <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-8 border border-white/10">
+            <h3 className="text-2xl font-semibold text-white mb-8 text-center">Additional Security Features</h3>
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[
+                { icon: '🔒', title: 'Multi-Factor Authentication', desc: 'SMS and app-based 2FA' },
+                { icon: '👥', title: 'Role-Based Access', desc: 'Granular permission controls' },
+                { icon: '📊', title: 'Audit Logging', desc: 'Complete activity tracking' },
+                { icon: '🛡️', title: 'Data Backup', desc: 'Automated daily backups' },
+                { icon: '🔍', title: 'Fraud Detection', desc: 'AI-powered anomaly detection' },
+                { icon: '📱', title: 'Device Management', desc: 'Remote device access control' },
+                { icon: '⚡', title: 'Real-time Monitoring', desc: '24/7 security monitoring' },
+                { icon: '🌐', title: 'VPN Support', desc: 'Secure remote access' }
+              ].map((feature, index) => (
+                <div key={index} className="text-center">
+                  <div className="text-3xl mb-3">{feature.icon}</div>
+                  <h4 className="text-white font-semibold mb-2">{feature.title}</h4>
+                  <p className="text-gray-400 text-sm">{feature.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Trust Badges */}
+          <div className="text-center mt-16">
+            <p className="text-gray-400 mb-8">Trusted by leading organizations worldwide</p>
+            <div className="flex justify-center items-center space-x-8 opacity-50">
+              <div className="text-2xl font-bold text-white">GOOGLE CLOUD</div>
+              <div className="text-2xl font-bold text-white">Firebase</div>
+              <div className="text-2xl font-bold text-white">SSL SECURE</div>
+              <div className="text-2xl font-bold text-white">ISO 27001</div>
             </div>
           </div>
         </div>

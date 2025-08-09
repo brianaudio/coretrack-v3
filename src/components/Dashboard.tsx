@@ -31,8 +31,6 @@ import ConnectionStatus from './ui/ConnectionStatus'
 import FloatingCalculator from './ui/FloatingCalculator'
 // import TestCalculator from './ui/TestCalculator'
 import { BranchProvider } from '../lib/context/BranchContext'
-import SubscriptionDebugger from './SubscriptionDebugger'
-import QuickSubscriptionFixer from './QuickSubscriptionFixer'
 
 export type ModuleType = 'dashboard' | 'inventory' | 'pos' | 'purchase-orders' | 'menu-builder' | 'expenses' | 'team-management' | 'location-management' | 'settings' | 'discrepancy-monitoring' | 'business-reports'
 
@@ -206,8 +204,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         
         <DevTools />
         <FloatingCalculator />
-        <SubscriptionDebugger />
-        <QuickSubscriptionFixer />
         {/* <TestCalculator /> */}
       </div>
     </BranchProvider>

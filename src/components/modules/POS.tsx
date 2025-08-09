@@ -900,10 +900,8 @@ ${order.status === 'voided' ? `\nVOID REASON: ${order.voidReason || 'N/A'}` : ''
                   </div>
                 ) : filteredItems.length === 0 ? (
                   <div className="text-center py-20">
-                    <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <div className="text-5xl animate-pulse">
-                        <span role="img" aria-label="restaurant icon">🍽️</span>
-                      </div>
+                    <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-5xl animate-pulse">
+                      <span role="img" aria-label="restaurant icon">🍽️</span>
                     </div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">No Menu Items</h3>
                     <p className="text-gray-500">Add items in Menu Builder to start selling</p>

@@ -200,18 +200,12 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
             Beautiful, powerful, and surprisingly simple.
           </p>
 
-          <div className={`flex flex-col sm:flex-row gap-6 justify-center transition-all duration-1000 delay-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+          <div className={`flex justify-center transition-all duration-1000 delay-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
             <button
               onClick={() => handleGetStarted('Hero')}
               className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-10 py-4 rounded-full text-lg font-semibold transition-all duration-200 shadow-2xl hover:shadow-blue-500/25 hover:scale-105"
             >
               Start free trial
-            </button>
-            <button
-              onClick={() => handleSignIn('Hero')}
-              className="border border-white/20 hover:border-white/40 text-white px-10 py-4 rounded-full text-lg font-semibold transition-all duration-200 backdrop-blur-sm hover:bg-white/5"
-            >
-              Watch demo
             </button>
           </div>
         </div>
@@ -450,22 +444,6 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
                 </div>
               ))}
             </div>
-          </div>
-
-          {/* CTA Button */}
-          <div className="text-center mt-16">
-            <button
-              onClick={() => handleGetStarted('Demo Section', 'Try Interactive Demo')}
-              className="bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white px-10 py-4 rounded-full text-lg font-semibold transition-all duration-200 shadow-2xl hover:shadow-purple-500/25 hover:scale-105 mr-4"
-            >
-              Try Interactive Demo
-            </button>
-            <button
-              onClick={() => handleGetStarted('Demo Section', 'Schedule Live Demo')}
-              className="bg-white/10 backdrop-blur-sm border border-white/20 hover:border-white/40 text-white px-10 py-4 rounded-full text-lg font-semibold transition-all duration-200 hover:bg-white/20"
-            >
-              Schedule Live Demo
-            </button>
           </div>
         </div>
       </section>

@@ -4,6 +4,7 @@ import { ModuleType } from './Dashboard'
 import { useAuth } from '../lib/context/AuthContext'
 import { useShift } from '../lib/context/ShiftContext'
 import { useShiftReset } from '../lib/hooks/useShiftReset'
+import { handleLogoutWithShiftEnd } from '../lib/utils/logoutUtils'
 import BranchSelector from './BranchSelector'
 import NotificationCenter from './NotificationCenter'
 
@@ -82,9 +83,6 @@ export default function Header({ activeModule, onSidebarToggle, onLogout }: Head
     
     if (confirm(`Are you sure you want to ${action}?`)) {
       try {
-        // Use our enhanced logout utility that automatically handles shift cleanup
-        const { handleLogoutWithShiftEnd } = await import('../lib/utils/logoutUtils')
-        
         // If user can end shift, try to end it with the enterprise reset system first
         if (isShiftActive && canEndShift) {
           try {

@@ -1,8 +1,8 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { useAuth } from '../../hooks/useAuth'
-import { useBranch } from '../../hooks/useBranch'
+import { useAuth } from '../../lib/context/AuthContext'
+import { useBranch } from '../../lib/context/BranchContext'
 
 const MenuBuilderClean: React.FC = () => {
   const { user, profile } = useAuth()

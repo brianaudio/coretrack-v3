@@ -44,46 +44,46 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
 
   const features = [
     {
-      icon: '📊',
-      title: 'Real-Time Analytics',
-      description: 'Beautiful dashboards with live sales tracking and performance insights',
-      gradient: 'from-blue-500 to-purple-600',
-      details: ['Live sales tracking', 'Performance metrics', 'Custom reports']
+      icon: '�️',
+      title: 'Discrepancy Reporting',
+      description: 'AI-powered detection of inventory discrepancies with automated investigation workflows',
+      gradient: 'from-red-500 to-rose-600',
+      details: ['Auto discrepancy detection', 'Real-time alerts', 'Investigation dashboard', 'Variance analysis']
     },
     {
-      icon: '📦',
-      title: 'Smart Inventory',
-      description: 'AI-powered inventory with automatic low-stock alerts and forecasting',
+      icon: '�',
+      title: 'Automated Business Reports',
+      description: 'Daily, weekly, and monthly reports automatically generated and delivered to your inbox',
       gradient: 'from-green-500 to-teal-600',
-      details: ['Auto low-stock alerts', 'Demand forecasting', 'Batch tracking']
+      details: ['Automated scheduling', 'Custom report builder', 'Email delivery', 'Executive summaries']
     },
     {
-      icon: '💰',
-      title: 'Seamless POS',
-      description: 'Lightning-fast iPad-optimized checkout with offline capabilities',
-      gradient: 'from-orange-500 to-red-600',
-      details: ['Offline mode', 'Split payments', 'Quick order taking']
-    },
-    {
-      icon: '🔍',
-      title: 'Shrinkage Reports',
-      description: 'Track inventory loss with detailed analytics and prevention insights',
+      icon: '�',
+      title: 'Advanced Shrinkage Analytics',
+      description: 'Advanced analytics to identify shrinkage patterns and minimize inventory losses',
       gradient: 'from-purple-500 to-pink-600',
-      details: ['Loss tracking', 'Theft prevention', 'Cost analysis']
+      details: ['Pattern recognition', 'Loss categorization', 'Theft alerts', 'Cost impact analysis']
     },
     {
-      icon: '🚚',
-      title: 'Purchase Orders',
-      description: 'Streamlined supplier management with automated ordering workflows',
+      icon: '🍽️',
+      title: 'AI Recipe Optimization',
+      description: 'Intelligent cost analysis and portion recommendations to maximize profitability',
+      gradient: 'from-yellow-500 to-orange-600',
+      details: ['Cost optimization', 'Portion analysis', 'Profit maximization', 'Ingredient substitution']
+    },
+    {
+      icon: '🎯',
+      title: 'Predictive Ordering',
+      description: 'AI-driven purchase recommendations based on sales patterns and seasonal trends',
       gradient: 'from-indigo-500 to-blue-600',
-      details: ['Supplier management', 'Auto reordering', 'Cost tracking']
+      details: ['Sales pattern analysis', 'Seasonal adjustments', 'Auto-ordering suggestions', 'Supplier optimization']
     },
     {
-      icon: '👥',
-      title: 'Multi-Location',
-      description: 'Manage multiple branches with centralized control and reporting',
-      gradient: 'from-teal-500 to-green-600',
-      details: ['Branch management', 'Central reporting', 'Staff permissions']
+      icon: '🤖',
+      title: 'AI Business Intelligence',
+      description: 'Advanced machine learning algorithms that learn your business patterns and optimize operations',
+      gradient: 'from-cyan-500 to-blue-600',
+      details: ['Machine learning insights', 'Operational optimization', 'Predictive analytics', 'Smart recommendations']
     }
   ]
 
@@ -262,23 +262,74 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
       </section>
 
       {/* CEO Story - Apple Style */}
-      <section className="py-32 bg-gradient-to-b from-gray-900 to-black">
-        <div className="max-w-4xl mx-auto px-6 text-center">
-          <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-12 border border-white/10">
-            <div className="w-24 h-24 mx-auto bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-8 shadow-2xl">
-              <span className="text-4xl">�‍💼</span>
-            </div>
-            <blockquote className="text-3xl font-light text-gray-200 mb-8 leading-relaxed">
-              "After managing multiple restaurants, I realized the biggest challenge wasn't the food—it was the operations. 
-              CoreTrack was born from that frustration."
-            </blockquote>
-            <div className="border-t border-white/10 pt-8">
-              <cite className="text-xl font-semibold text-white">Brian D. Basa</cite>
-              <p className="text-gray-400 mt-2">Founder & CEO, CoreTrack</p>
-            </div>
+<section className="py-32 bg-gradient-to-b from-gray-900 to-black relative overflow-hidden">
+  {/* Background Elements */}
+  <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-purple-600/10"></div>
+  <div className="absolute top-20 left-20 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl"></div>
+  <div className="absolute bottom-20 right-20 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl"></div>
+  
+  <div className="max-w-6xl mx-auto px-6 relative z-10">
+    <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-16 border border-white/20 shadow-2xl">
+      <div className="max-w-4xl mx-auto text-center">
+        {/* Avatar with Glow Effect */}
+        <div className="relative mb-12">
+          <div className="w-24 h-24 mx-auto bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-2xl relative">
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full blur-lg opacity-50 animate-pulse-slow"></div>
+            <span className="text-4xl relative z-10">👨‍💼</span>
           </div>
         </div>
-      </section>
+        
+        {/* Catchy Hook */}
+        <div className="mb-8">
+          <h3 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent mb-4">
+            From Nurse to Tech Entrepreneur
+          </h3>
+          <p className="text-blue-400 text-lg font-medium">The Story Behind CoreTrack</p>
+        </div>
+        
+        {/* Main Quote with Better Typography */}
+        <blockquote className="text-xl md:text-2xl font-light text-gray-200 mb-12 leading-relaxed space-y-6">
+          <p className="animate-float">
+            "I was a nurse who dared to dream beyond the hospital walls, starting with an online bike business 
+            that grew into a physical store by 2021, which naturally led me into the food industry in 2023 
+            where I opened my first restaurant, followed by a second one that changed everything."
+          </p>
+          
+          <p className="text-red-400 font-medium animate-float" style={{animationDelay: '0.5s'}}>
+            "Managing two food businesses revealed the harsh reality that passion alone wasn't enough—inventory 
+            was disappearing overnight, costs were spiraling beyond control, and simple staff errors were 
+            costing me thousands while I scrambled with outdated systems and endless spreadsheets."
+          </p>
+          
+          <p className="text-2xl md:text-3xl font-semibold text-white animate-float" style={{animationDelay: '1s'}}>
+            "While everyone talks about AI being the future of restaurant management, 
+            <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+              they're already behind—AI is happening right now.
+            </span>"
+          </p>
+          
+          <p className="text-xl text-green-400 font-medium animate-float" style={{animationDelay: '1.5s'}}>
+            "CoreTrack isn't just proof that the future is here, it's the solution born from real pain, 
+            real problems, and real experience in the trenches of food business management."
+          </p>
+        </blockquote>
+        
+        {/* Enhanced Attribution */}
+        <div className="border-t border-gradient-to-r from-transparent via-white/20 to-transparent pt-8">
+          <div className="flex items-center justify-center space-x-4 mb-4">
+            <div className="w-12 h-px bg-gradient-to-r from-transparent to-blue-500"></div>
+            <cite className="text-xl font-semibold text-white">Brian D. Basa</cite>
+            <div className="w-12 h-px bg-gradient-to-l from-transparent to-purple-500"></div>
+          </div>
+          <p className="text-gray-400 text-sm">Founder & CEO • Nurse Turned Tech Innovator</p>
+          <p className="text-blue-400 text-xs mt-2 font-medium">
+            "Solving real problems with real experience"
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
       {/* Pricing - Apple Style */}
       <section className="py-32 bg-gradient-to-b from-black to-gray-900">
@@ -397,6 +448,43 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
           </div>
         </div>
       </footer>
+
+      {/* Custom CSS for animations */}
+      <style jsx>{`
+        @keyframes gradient-x {
+          0%, 100% {
+            transform: translateX(0%);
+          }
+          50% {
+            transform: translateX(-100%);
+          }
+        }
+        @keyframes float {
+          0%, 100% {
+            transform: translateY(0px);
+          }
+          50% {
+            transform: translateY(-10px);
+          }
+        }
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.7;
+          }
+        }
+        .animate-gradient-x {
+          animation: gradient-x 3s ease infinite;
+        }
+        .animate-float {
+          animation: float 3s ease-in-out infinite;
+        }
+        .animate-pulse-slow {
+          animation: pulse 2s ease-in-out infinite;
+        }
+      `}</style>
     </div>
   )
 }

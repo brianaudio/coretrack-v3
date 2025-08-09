@@ -2,6 +2,8 @@
 
 import { auth } from '../firebase'
 import { signOut as firebaseSignOut } from 'firebase/auth'
+import { endActiveShiftsAtLocation } from '../firebase/shiftManagement'
+import { getBranchLocationId } from '../utils/branchUtils'
 
 /**
  * Utility function to sign out and automatically end shift at current branch only
@@ -10,8 +12,6 @@ import { signOut as firebaseSignOut } from 'firebase/auth'
 export async function signOutWithShiftEnd(): Promise<void> {
   try {
     // Try to get the current shift and end it at the current branch only
-    const { endActiveShiftsAtLocation } = await import('../firebase/shiftManagement')
-    const { getBranchLocationId } = await import('../utils/branchUtils')
     const currentUser = auth.currentUser
     
     if (currentUser?.uid) {
@@ -46,9 +46,9 @@ export async function signOutWithShiftEnd(): Promise<void> {
         console.warn('⚠️ Could not end shift at current branch before sign out:', shiftError)
       }
     }
-  } catch (importError) {
-    // If shift utilities import fails, continue with signout
-    console.warn('⚠️ Could not import shift utilities for cleanup:', importError)
+  } catch (error) {
+    // If shift utilities fail, continue with signout
+    console.warn('⚠️ Could not handle shift cleanup:', error)
   }
 
   // Always sign out from Firebase

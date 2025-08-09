@@ -45,14 +45,21 @@ export const createInitialSubscription = async (
   const trialEndDate = new Date();
   trialEndDate.setDate(trialEndDate.getDate() + trialDays);
 
+  // For Enterprise/Professional, start as active. For Starter, use trial.
+  const isActivePlan = tier === 'enterprise' || tier === 'professional';
+  const subscriptionStatus = isActivePlan ? 'active' : 'trial';
+  
+  // For active plans, set end date to 1 year. For trial, use trial period.
+  const endDate = isActivePlan ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) : trialEndDate;
+
   const subscription: Omit<TenantSubscription, 'id'> = {
     tenantId,
     planId: plan.id,
     tier,
-    status: 'trial',
-    billingCycle: 'monthly',
+    status: subscriptionStatus,
+    billingCycle: isActivePlan ? 'yearly' : 'monthly',
     startDate: now,
-    endDate: Timestamp.fromDate(trialEndDate),
+    endDate: Timestamp.fromDate(endDate),
     trialEndDate: Timestamp.fromDate(trialEndDate),
     currentUsage: {
       users: 1, // The owner

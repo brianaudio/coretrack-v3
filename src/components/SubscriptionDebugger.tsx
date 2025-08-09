@@ -7,6 +7,13 @@ export default function SubscriptionDebugger() {
   const { subscription, features, limits, loading, isActive } = useSubscription();
   const { profile } = useAuth();
 
+  console.log('🔍 SubscriptionDebugger DEBUG:', {
+    loading,
+    subscription,
+    features,
+    profile: profile?.email
+  });
+
   if (loading) return <div className="p-4 bg-yellow-100 rounded">🔄 Loading subscription...</div>;
 
   return (

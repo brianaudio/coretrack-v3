@@ -326,7 +326,15 @@ export default function EnterpriseMenuBuilder() {
           priority: 1
         },
         schedule: {
-          dailySchedule: newTemplate.schedule,
+          dailySchedule: {
+            monday: { ...newTemplate.schedule.monday, enabled: newTemplate.schedule.monday.available },
+            tuesday: { ...newTemplate.schedule.tuesday, enabled: newTemplate.schedule.tuesday.available },
+            wednesday: { ...newTemplate.schedule.wednesday, enabled: newTemplate.schedule.wednesday.available },
+            thursday: { ...newTemplate.schedule.thursday, enabled: newTemplate.schedule.thursday.available },
+            friday: { ...newTemplate.schedule.friday, enabled: newTemplate.schedule.friday.available },
+            saturday: { ...newTemplate.schedule.saturday, enabled: newTemplate.schedule.saturday.available },
+            sunday: { ...newTemplate.schedule.sunday, enabled: newTemplate.schedule.sunday.available }
+          },
           autoActivation: true
         }
       }
@@ -364,7 +372,12 @@ export default function EnterpriseMenuBuilder() {
       
       if (enhancedItem.ingredients.length > 0) {
         const advancedPricing = calculateAdvancedPricing(enhancedItem)
-        enhancedItem.pricing = { ...enhancedItem.pricing, ...advancedPricing }
+        if (advancedPricing) {
+          enhancedItem.pricing = { 
+            ...enhancedItem.pricing,
+            ...advancedPricing
+          } as any
+        }
       }
       
       await addMenuItem(enhancedItem, nutritionDatabase)

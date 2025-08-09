@@ -31,8 +31,15 @@ export default function LoginPage() {
   // Show loading while auth is initializing
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50 flex items-center justify-center py-12 sm:px-6 lg:px-8">
+        <div className="sm:mx-auto sm:w-full sm:max-w-lg">
+          <div className="bg-white py-10 px-6 shadow-2xl rounded-3xl border border-gray-100/80 backdrop-blur-sm sm:px-12 flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600 mx-auto mb-4"></div>
+              <p className="text-slate-600 font-medium">Loading CoreTrack...</p>
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
@@ -43,9 +50,9 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-lg">
+        <div className="bg-white py-10 px-6 shadow-2xl rounded-3xl border border-gray-100/80 backdrop-blur-sm sm:px-12">
           <Login onLogin={handleLogin} />
         </div>
       </div>

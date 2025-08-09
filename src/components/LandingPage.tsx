@@ -44,21 +44,21 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
 
   const features = [
     {
-      icon: '�️',
+      icon: '🕵️',
       title: 'Discrepancy Reporting',
       description: 'AI-powered detection of inventory discrepancies with automated investigation workflows',
       gradient: 'from-red-500 to-rose-600',
       details: ['Auto discrepancy detection', 'Real-time alerts', 'Investigation dashboard', 'Variance analysis']
     },
     {
-      icon: '�',
+      icon: '📚',
       title: 'Automated Business Reports',
       description: 'Daily, weekly, and monthly reports automatically generated and delivered to your inbox',
       gradient: 'from-green-500 to-teal-600',
       details: ['Automated scheduling', 'Custom report builder', 'Email delivery', 'Executive summaries']
     },
     {
-      icon: '�',
+      icon: '🔍',
       title: 'Advanced Shrinkage Analytics',
       description: 'Advanced analytics to identify shrinkage patterns and minimize inventory losses',
       gradient: 'from-purple-500 to-pink-600',

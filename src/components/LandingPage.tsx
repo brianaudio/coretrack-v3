@@ -153,6 +153,44 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
               </span>
             </div>
             <div className="flex items-center space-x-8">
+              <div className="relative group">
+                <button className="text-gray-300 hover:text-white text-sm font-medium transition-colors duration-200">
+                  Contact the developer
+                </button>
+                {/* Dropdown menu */}
+                <div className="absolute top-full left-0 mt-2 w-80 bg-black/90 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50">
+                  <div className="p-4">
+                    <a
+                      href="mailto:coretrackbusinesssolution@gmail.com?subject=CoreTrack Inquiry"
+                      onClick={() => trackButtonClick('Navigation', 'Contact Developer Email')}
+                      className="flex items-center space-x-4 p-3 hover:bg-white/10 rounded-xl transition-all duration-200 group/item"
+                    >
+                      <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl shadow-lg group-hover/item:scale-110 transition-transform duration-200 flex-shrink-0">
+                        <CoreTrackLogo size="sm" showShadow={false} className="text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-white group-hover/item:text-blue-200 transition-colors">Email</div>
+                        <div className="text-xs text-gray-400 group-hover/item:text-gray-300 transition-colors truncate">coretrackbusinesssolution@gmail.com</div>
+                      </div>
+                    </a>
+                    <a
+                      href="tel:+639619941111"
+                      onClick={() => trackButtonClick('Navigation', 'Contact Developer Phone')}
+                      className="flex items-center space-x-4 p-3 hover:bg-white/10 rounded-xl transition-all duration-200 group/item"
+                    >
+                      <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl shadow-lg group-hover/item:scale-110 transition-transform duration-200 flex-shrink-0">
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-white group-hover/item:text-green-200 transition-colors">Call/Text</div>
+                        <div className="text-xs text-gray-400 group-hover/item:text-gray-300 transition-colors">+63 961 994 1111</div>
+                      </div>
+                    </a>
+                  </div>
+                </div>
+              </div>
               <button
                 onClick={() => handleSignIn('Navigation')}
                 className="text-gray-300 hover:text-white text-sm font-medium transition-colors duration-200"

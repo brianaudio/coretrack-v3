@@ -1,0 +1,32 @@
+VERCEL ENVIRONMENT VARIABLES FOR CORETRACK
+===========================================
+
+Copy each Key and Value exactly as shown below:
+
+1. Key: NEXT_PUBLIC_FIREBASE_API_KEY
+   Value: AIzaSyC4xvVR-nqhLNg5mM2tFMtPgFbmomqiEZw
+
+2. Key: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+   Value: coretrack-inventory.firebaseapp.com
+
+3. Key: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+   Value: coretrack-inventory
+
+4. Key: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+   Value: coretrack-inventory.firebasestorage.app
+
+5. Key: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+   Value: 930028194991
+
+6. Key: NEXT_PUBLIC_FIREBASE_APP_ID
+   Value: 1:930028194991:web:9736a0b2471cbf98ced85a
+
+INSTRUCTIONS:
+- In Vercel dashboard, go to Settings > Environment Variables
+- For each variable above, click "Add" 
+- Copy the Key exactly as shown
+- Copy the Value exactly as shown
+- Set Environment to "Production"
+- Click Save
+
+After adding all 6 variables, go to Deployments tab and click "Redeploy"

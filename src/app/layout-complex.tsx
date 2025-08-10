@@ -11,7 +11,6 @@ import { UserProvider } from '../lib/rbac/UserContext'
 import { ToastProvider } from '../components/ui/Toast'
 import ErrorBoundary from '../components/ErrorBoundary'
 import DataInitializer from '../components/DataInitializer'
-import TrialExpirationHandler from '../components/TrialExpirationHandler'
 
 export const metadata: Metadata = {
   title: 'CoreTrack - Business Inventory Management',
@@ -591,9 +590,7 @@ export default function RootLayout({
                       <UserPermissionsProvider>
                         <MenuPOSSyncProvider>
                           <ToastProvider>
-                            <TrialExpirationHandler>
-                              {children}
-                            </TrialExpirationHandler>
+                            {children}
                           </ToastProvider>
                         </MenuPOSSyncProvider>
                       </UserPermissionsProvider>

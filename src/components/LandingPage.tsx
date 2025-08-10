@@ -130,8 +130,15 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
   }
 
   const handleSignIn = (location: string = 'Navigation') => {
+    console.log('🔘 Sign In button clicked!', location)
+    console.log('🔘 onSignIn function:', typeof onSignIn)
     trackButtonClick(location, 'Sign In')
-    onSignIn()
+    try {
+      onSignIn()
+      console.log('✅ onSignIn() called successfully')
+    } catch (error) {
+      console.error('❌ Error calling onSignIn():', error)
+    }
   }
 
   const features = [
@@ -216,8 +223,14 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
                 </div>
               </div>
               <button
-                onClick={() => handleSignIn('Navigation')}
-                className="text-gray-300 hover:text-white text-sm font-medium transition-colors duration-200"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  console.log('🚀 Direct Sign In button clicked!')
+                  handleSignIn('Navigation')
+                }}
+                className="text-gray-300 hover:text-white text-sm font-medium transition-colors duration-200 cursor-pointer hover:bg-white/10 px-3 py-2 rounded-lg"
+                type="button"
               >
                 Sign in
               </button>

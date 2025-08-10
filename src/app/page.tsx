@@ -144,7 +144,10 @@ export default function Home() {
               }
             }}
             onSignIn={() => {
+              console.log('🔄 onSignIn called - switching to login mode')
+              console.log('📍 Current mode:', mode)
               setMode('login')
+              console.log('✅ Mode should now be: login')
             }}
           />
         )

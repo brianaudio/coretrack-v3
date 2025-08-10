@@ -1,0 +1,5 @@
+# Netlify Build Force Update
+
+This file forces Netlify to completely re-clone the repository to ensure all files are properly synchronized.
+
+Generated at: 2025-08-10T06:35:00Z

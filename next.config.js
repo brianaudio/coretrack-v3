@@ -9,9 +9,11 @@ const withPWA = require('next-pwa')({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
   eslint: {
     ignoreDuringBuilds: true, // Temporarily disable ESLint during builds
+  },
+  experimental: {
+    esmExternals: true,
   },
 }
 

@@ -10,6 +10,7 @@ export type ModuleFeatureMap = {
   'purchase-orders': 'purchaseOrders'
   'menu-builder': 'menuBuilder'
   'dashboard': 'basicAnalytics' // Dashboard shows basic analytics
+  'capital-intelligence': 'advancedAnalytics' // Capital Intelligence requires advanced analytics
   'expenses': 'expenses'
   'team-management': 'teamManagement'
   'location-management': 'multiUser' // Requires multi-user feature
@@ -24,6 +25,7 @@ export const MODULE_FEATURE_MAPPING: ModuleFeatureMap = {
   'purchase-orders': 'purchaseOrders',
   'menu-builder': 'menuBuilder',
   'dashboard': 'basicAnalytics',
+  'capital-intelligence': 'advancedAnalytics',
   'expenses': 'expenses',
   'team-management': 'teamManagement',
   'location-management': 'multiUser',
@@ -67,7 +69,7 @@ export const getAccessibleModules = (
   
   const allModules: (keyof ModuleFeatureMap)[] = [
     'pos', 'inventory', 'purchase-orders', 'menu-builder', 
-    'dashboard', 'expenses', 'team-management', 'location-management',
+    'dashboard', 'capital-intelligence', 'expenses', 'team-management', 'location-management',
     'settings', 'discrepancy-monitoring', 'business-reports'
   ]
   

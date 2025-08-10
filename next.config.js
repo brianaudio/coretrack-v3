@@ -2,7 +2,7 @@ const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
   skipWaiting: true,
-  disable: true, // Disable PWA temporarily to fix build issues
+  disable: false, // Enable PWA for installation functionality
   sw: 'sw.js',
   fallbacks: {
     document: '/offline.html'

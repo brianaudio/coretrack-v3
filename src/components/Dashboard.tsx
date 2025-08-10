@@ -22,6 +22,7 @@ import FirebaseDebugger from './FirebaseDebugger'
 import ShiftStatusBar from './ShiftManagement/ShiftStatusBar'
 import InventoryDiscrepancy from './modules/InventoryDiscrepancy'
 import BusinessReports from './modules/BusinessReports'
+import CapitalIntelligence from './modules/CapitalIntelligence'
 import { useAuth } from '../lib/context/AuthContext' // Use AuthContext instead of UserContext
 import { useUser } from '../lib/rbac/UserContext' // Add UserContext for coordinated loading
 import { useSubscription } from '../lib/context/SubscriptionContext' // Add subscription context
@@ -32,7 +33,7 @@ import FloatingCalculator from './ui/FloatingCalculator'
 // import TestCalculator from './ui/TestCalculator'
 import { BranchProvider } from '../lib/context/BranchContext'
 
-export type ModuleType = 'dashboard' | 'inventory' | 'pos' | 'purchase-orders' | 'menu-builder' | 'expenses' | 'team-management' | 'location-management' | 'settings' | 'discrepancy-monitoring' | 'business-reports'
+export type ModuleType = 'dashboard' | 'inventory' | 'pos' | 'purchase-orders' | 'menu-builder' | 'expenses' | 'team-management' | 'location-management' | 'settings' | 'discrepancy-monitoring' | 'business-reports' | 'capital-intelligence'
 
 interface DashboardProps {
   onLogout?: () => void
@@ -143,6 +144,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         return <InventoryDiscrepancy />
       case 'business-reports':
         return <BusinessReports />
+      case 'capital-intelligence':
+        return <CapitalIntelligence />
       case 'settings':
         return <SettingsPage />
       default:

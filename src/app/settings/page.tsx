@@ -9,19 +9,23 @@ import SecurityAuditPanel from '@/components/security/SecurityAuditPanel'
 import { getAllCountries, getCountryByName, formatCurrency, getPopularCountries, getCountryByCode } from '@/lib/payments/globalCurrencies'
 import { getPaymentMethodsByCountry, getPopularPaymentMethods, getPaymentMethodsByBusinessType, calculateProcessingFee, PaymentMethod } from '@/lib/payments/globalPaymentMethods'
 import { getTaxRulesByCountry, getTaxRulesByBusinessType, getComplianceRequirements, getRecommendedTaxConfiguration, TaxRule, ComplianceRequirement } from '@/lib/payments/globalTaxCompliance'
+import { doc, updateDoc } from 'firebase/firestore'
+import { db } from '../../lib/firebase'
 
 // POS & Payments Settings Component
 function POSPaymentsTab({ paymentSettings, setPaymentSettings }: {
   paymentSettings: any
   setPaymentSettings: (settings: any) => void
 }) {
+  const { tenant } = useAuth()
+  
   // Get all countries from global database
   const allCountries = getAllCountries()
   const popularCountries = getPopularCountries()
   
   // Get current country data
   const currentCountry = getCountryByName(paymentSettings.country)
-  const currentCountryCode = currentCountry?.code || 'US'
+  const currentCountryCode = currentCountry?.code || 'PH'
   
   // Get payment methods for current country
   const availablePaymentMethods = getPaymentMethodsByCountry(currentCountryCode)
@@ -33,6 +37,32 @@ function POSPaymentsTab({ paymentSettings, setPaymentSettings }: {
   const businessTypeTaxRules = getTaxRulesByBusinessType(currentCountryCode, paymentSettings.businessType || 'restaurant')
   const complianceRequirements = getComplianceRequirements(currentCountryCode, paymentSettings.businessType || 'restaurant')
   const recommendedTaxConfig = getRecommendedTaxConfiguration(currentCountryCode, paymentSettings.businessType || 'restaurant')
+
+  // Save payment settings to Firebase
+  const handleSavePaymentSettings = async () => {
+    if (!tenant?.id) {
+      alert('Unable to save: No tenant information found')
+      return
+    }
+
+    try {
+      const tenantRef = doc(db, 'tenants', tenant.id)
+      await updateDoc(tenantRef, {
+        'settings.currency': paymentSettings.currency,
+        'settings.country': paymentSettings.country,
+        'settings.businessType': paymentSettings.businessType,
+        'settings.paymentMethods': paymentSettings.enabledPaymentMethods,
+        'settings.tax': paymentSettings.taxSettings,
+        'settings.receipts': paymentSettings.receiptSettings,
+        updatedAt: new Date()
+      })
+
+      alert('Payment settings saved successfully! 🎉')
+    } catch (error) {
+      console.error('Error saving payment settings:', error)
+      alert('Failed to save payment settings. Please try again.')
+    }
+  }
 
   const handleCountryChange = (countryName: string) => {
     const countryData = getCountryByName(countryName)
@@ -535,10 +565,7 @@ function POSPaymentsTab({ paymentSettings, setPaymentSettings }: {
       {/* Save Button */}
       <div className="flex justify-end">
         <button
-          onClick={() => {
-            // Save settings logic here
-            alert('Payment settings saved successfully!')
-          }}
+          onClick={handleSavePaymentSettings}
           className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -556,11 +583,11 @@ export default function SettingsPage() {
   // Note: BranchContext will be available when used within Dashboard component
   const [activeTab, setActiveTab] = useState('billing')
   
-  // POS & Payment Settings State - Initialize with tenant data
+  // POS & Payment Settings State - Use Philippine Peso and real tenant data where available
   const [paymentSettings, setPaymentSettings] = useState({
-    country: 'Philippines', // Could be from tenant.settings if available
-    currency: tenant?.settings?.currency || 'USD',
-    currencySymbol: tenant?.settings?.currency === 'USD' ? '$' : (tenant?.settings?.currency === 'PHP' ? '₱' : '$'),
+    country: 'Philippines',
+    currency: tenant?.settings?.currency || 'PHP',
+    currencySymbol: '₱',
     businessType: tenant?.type || 'restaurant',
     enabledPaymentMethods: {
       cash: true,
@@ -574,7 +601,7 @@ export default function SettingsPage() {
       shopee_pay: false
     },
     taxSettings: {
-      enableTax: false, // Disabled by default - user can toggle
+      enableTax: false,
       enabledTaxRules: [],
       pricesIncludeTax: false,
       complianceSettings: {
@@ -584,7 +611,7 @@ export default function SettingsPage() {
       }
     },
     receiptSettings: {
-      businessName: 'Your Business Name',
+      businessName: tenant?.name || '',
       businessAddress: '',
       taxId: '',
       showTaxBreakdown: true,
@@ -714,6 +741,37 @@ export default function SettingsPage() {
 // Business Profile Tab
 function BusinessProfileTab() {
   const { tenant, profile } = useAuth() // Get tenant and profile data
+  const [businessData, setBusinessData] = useState({
+    name: tenant?.name || '',
+    email: profile?.email || '',
+    phone: '',
+    taxId: '',
+    description: ''
+  })
+
+  const handleSaveBusinessProfile = async () => {
+    if (!tenant?.id) {
+      alert('Unable to save: No tenant information found')
+      return
+    }
+
+    try {
+      const tenantRef = doc(db, 'tenants', tenant.id)
+      await updateDoc(tenantRef, {
+        name: businessData.name,
+        email: businessData.email,
+        phone: businessData.phone,
+        taxId: businessData.taxId,
+        description: businessData.description,
+        updatedAt: new Date()
+      })
+
+      alert('Business profile updated successfully! 🎉')
+    } catch (error) {
+      console.error('Error saving business profile:', error)
+      alert('Failed to save business profile. Please try again.')
+    }
+  }
   
   return (
     <div className="space-y-8">
@@ -834,7 +892,10 @@ function BusinessProfileTab() {
           <button className="px-6 py-3 border border-surface-300 text-surface-700 rounded-xl hover:bg-surface-50 transition-colors font-medium">
             Reset Changes
           </button>
-          <button className="px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm">
+          <button 
+            onClick={handleSaveBusinessProfile}
+            className="px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm"
+          >
             Save Changes
           </button>
         </div>

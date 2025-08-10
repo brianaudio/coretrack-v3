@@ -9,6 +9,7 @@ export type ModulePermission =
   | 'purchase-orders'
   | 'menu-builder'
   | 'dashboard'
+  | 'capital-intelligence'
   | 'expenses'
   | 'team-management'
   | 'location-management'
@@ -26,6 +27,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, ModulePermission[]> = {
     'purchase-orders', 
     'menu-builder',
     'dashboard',
+    'capital-intelligence',
     'expenses',
     'team-management',
     'location-management',
@@ -39,6 +41,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, ModulePermission[]> = {
     'purchase-orders', 
     'menu-builder',
     'dashboard',
+    'capital-intelligence',
     'expenses',
     'team-management',
     'location-management',

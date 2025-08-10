@@ -21,6 +21,7 @@ const moduleNames: Record<ModuleType, string> = {
   'purchase-orders': 'Purchase Orders',
   'expenses': 'Expenses',
   'menu-builder': 'Menu Builder',
+  'capital-intelligence': 'Capital Intelligence',
   'team-management': 'Team Management',
   'location-management': 'Location Management',
   'business-reports': 'Business Reports',

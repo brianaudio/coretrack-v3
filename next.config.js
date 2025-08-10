@@ -2,11 +2,8 @@ const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
   skipWaiting: true,
-  disable: false, // Enable PWA for installation functionality
+  disable: process.env.NODE_ENV === 'development', // Enable PWA for production
   sw: 'sw.js',
-  fallbacks: {
-    document: '/offline.html'
-  },
   runtimeCaching: [
     {
       urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,

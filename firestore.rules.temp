@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // TEMPORARY: Relaxed rules for production testing
+    // TODO: Restore strict rules after testing
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

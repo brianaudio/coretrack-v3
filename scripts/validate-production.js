@@ -8,6 +8,18 @@
 const path = require('path');
 const fs = require('fs');
 
+// Load environment variables from .env.production.local
+const envPath = path.join(__dirname, '..', '.env.production.local');
+if (fs.existsSync(envPath)) {
+  const envFile = fs.readFileSync(envPath, 'utf8');
+  envFile.split('\n').forEach(line => {
+    const [key, ...values] = line.split('=');
+    if (key && !line.startsWith('#') && values.length > 0) {
+      process.env[key.trim()] = values.join('=').trim();
+    }
+  });
+}
+
 console.log('🔒 CoreTrack Production Security Validation');
 console.log('==========================================');
 

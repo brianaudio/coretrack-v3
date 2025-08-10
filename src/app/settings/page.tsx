@@ -556,8 +556,6 @@ export default function SettingsPage() {
   // Note: BranchContext will be available when used within Dashboard component
   const [activeTab, setActiveTab] = useState('billing')
   
-  console.log('Current active tab:', activeTab)
-  
   // POS & Payment Settings State - Initialize with tenant data
   const [paymentSettings, setPaymentSettings] = useState({
     country: 'Philippines', // Could be from tenant.settings if available
@@ -630,7 +628,6 @@ export default function SettingsPage() {
                 <button
                   key={tab.id}
                   onClick={() => {
-                    console.log('Tab clicked:', tab.id)
                     setActiveTab(tab.id)
                   }}
                   className={`group w-full flex items-center space-x-3 px-4 py-3.5 rounded-xl text-left transition-all duration-200 cursor-pointer ${
@@ -917,12 +914,10 @@ function IntegrationTab() {
       // Disconnect the integration
       setConnectedIntegrations(prev => prev.filter(name => name !== integrationName));
       // You could add a toast notification here
-      console.log(`Disconnected from ${integrationName}`);
     } else {
       // Connect the integration
       setConnectedIntegrations(prev => [...prev, integrationName]);
       // You could add a toast notification here  
-      console.log(`Connected to ${integrationName}`);
     }
   };
 

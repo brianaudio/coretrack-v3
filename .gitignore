@@ -15,6 +15,18 @@ build/
 .env*
 !.env.example
 
+# Archive/cleanup directories
+.archive/
+
+# Backup files
+*.backup*
+*~
+.bak
+
+# Debug/test outputs
+debug-output.txt
+test-results.json
+
 # IDE/Editor
 .vscode/settings.json
 .idea/

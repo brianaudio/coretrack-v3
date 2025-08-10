@@ -552,18 +552,18 @@ function POSPaymentsTab({ paymentSettings, setPaymentSettings }: {
 }
 
 export default function SettingsPage() {
-  const { profile } = useAuth()
+  const { profile, tenant } = useAuth()
   // Note: BranchContext will be available when used within Dashboard component
   const [activeTab, setActiveTab] = useState('billing')
   
   console.log('Current active tab:', activeTab)
   
-  // POS & Payment Settings State
+  // POS & Payment Settings State - Initialize with tenant data
   const [paymentSettings, setPaymentSettings] = useState({
-    country: 'Philippines',
-    currency: 'PHP',
-    currencySymbol: '₱',
-    businessType: 'restaurant',
+    country: 'Philippines', // Could be from tenant.settings if available
+    currency: tenant?.settings?.currency || 'USD',
+    currencySymbol: tenant?.settings?.currency === 'USD' ? '$' : (tenant?.settings?.currency === 'PHP' ? '₱' : '$'),
+    businessType: tenant?.type || 'restaurant',
     enabledPaymentMethods: {
       cash: true,
       credit_card: true,
@@ -716,6 +716,8 @@ export default function SettingsPage() {
 
 // Business Profile Tab
 function BusinessProfileTab() {
+  const { tenant, profile } = useAuth() // Get tenant and profile data
+  
   return (
     <div className="space-y-8">
       {/* Header Section */}
@@ -754,7 +756,7 @@ function BusinessProfileTab() {
               </label>
               <input
                 type="text"
-                defaultValue=""
+                defaultValue={tenant?.name || ""}
                 className="w-full px-4 py-3 border border-surface-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors text-surface-900 placeholder-surface-400"
                 placeholder="Enter your business name"
               />
@@ -763,7 +765,10 @@ function BusinessProfileTab() {
               <label className="block text-sm font-medium text-surface-700 mb-2">
                 Business Type <span className="text-red-500">*</span>
               </label>
-              <select className="w-full px-4 py-3 border border-surface-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors text-surface-900">
+              <select 
+                className="w-full px-4 py-3 border border-surface-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors text-surface-900"
+                defaultValue={tenant?.type || "restaurant"}
+              >
                 <option>Restaurant</option>
                 <option>Retail Store</option>
                 <option>Coffee Shop</option>
@@ -801,7 +806,7 @@ function BusinessProfileTab() {
               </label>
               <input
                 type="email"
-                defaultValue=""
+                defaultValue={profile?.email || ""}
                 className="w-full px-4 py-3 border border-surface-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors text-surface-900 placeholder-surface-400"
                 placeholder="business@example.com"
               />

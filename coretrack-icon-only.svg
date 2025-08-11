@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <!-- Core/Center circle representing the "Core" -->
+  <circle cx="12" cy="12" r="3" fill="#2563eb"/>
+  
+  <!-- Tracking lines/paths radiating outward -->
+  <g stroke="#2563eb" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5">
+    <path d="M12 1v6M12 17v6"/>
+    <path d="M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24"/>
+    <path d="M1 12h6M17 12h6"/>
+    <path d="M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24"/>
+  </g>
+  
+  <!-- Small dots at the end of tracking lines -->
+  <g fill="#2563eb">
+    <circle cx="12" cy="3" r="1"/>
+    <circle cx="12" cy="21" r="1"/>
+    <circle cx="21" cy="12" r="1"/>
+    <circle cx="3" cy="12" r="1"/>
+  </g>
+</svg>

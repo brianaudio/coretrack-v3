@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6"/>
+      <stop offset="50%" style="stop-color:#2563eb"/>
+      <stop offset="100%" style="stop-color:#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background with rounded corners -->
+  <rect width="1200" height="630" rx="60" fill="url(#bg)"/>
+  
+  <!-- Logo positioned left-center -->
+  <g transform="translate(200, 315)">
+    <!-- Core/Center circle representing the "Core" -->
+    <circle cx="0" cy="0" r="40" fill="white"/>
+    
+    <!-- Tracking lines/paths radiating outward -->
+    <g stroke="white" stroke-linecap="round" stroke-linejoin="round" stroke-width="8">
+      <path d="M0 -80v40M0 40v40"/>
+      <path d="M-56.57 -56.57l28.28 28.28M28.28 28.28l28.28 28.28"/>
+      <path d="M-80 0h40M40 0h40"/>
+      <path d="M-56.57 56.57l28.28-28.28M28.28 -28.28l28.28-28.28"/>
+    </g>
+    
+    <!-- Small dots at the end of tracking lines -->
+    <g fill="white">
+      <circle cx="0" cy="-60" r="8"/>
+      <circle cx="0" cy="60" r="8"/>
+      <circle cx="60" cy="0" r="8"/>
+      <circle cx="-60" cy="0" r="8"/>
+    </g>
+  </g>
+  
+  <!-- CoreTrack Text -->
+  <text x="350" y="345" fill="white" font-family="Arial, sans-serif" font-size="72" font-weight="bold">CoreTrack</text>
+  <text x="350" y="395" fill="rgba(255,255,255,0.8)" font-family="Arial, sans-serif" font-size="32">Business Inventory Management</text>
+</svg>

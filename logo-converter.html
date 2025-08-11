@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CoreTrack Logo Converter</title>
+</head>
+<body>
+    <h1>CoreTrack Logo PNG Generator</h1>
+    <p>Use this tool to convert the SVG logos to PNG format for Facebook</p>
+    
+    <!-- Facebook Profile Logo (512x512) -->
+    <div>
+        <h3>Facebook Profile Logo (512x512)</h3>
+        <svg id="profile-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+            <defs>
+                <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#3b82f6"/>
+                    <stop offset="50%" style="stop-color:#2563eb"/>
+                    <stop offset="100%" style="stop-color:#1d4ed8"/>
+                </linearGradient>
+            </defs>
+            <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+            <circle cx="256" cy="256" r="64" fill="white"/>
+            <g stroke="white" stroke-linecap="round" stroke-linejoin="round" stroke-width="16">
+                <path d="M256 64v96M256 352v96"/>
+                <path d="M124.16 124.16l67.84 67.84M320 320l67.84 67.84"/>
+                <path d="M64 256h96M352 256h96"/>
+                <path d="M124.16 387.84l67.84-67.84M320 192l67.84-67.84"/>
+            </g>
+            <g fill="white">
+                <circle cx="256" cy="96" r="16"/>
+                <circle cx="256" cy="416" r="16"/>
+                <circle cx="416" cy="256" r="16"/>
+                <circle cx="96" cy="256" r="16"/>
+            </g>
+        </svg>
+        <br>
+        <button onclick="downloadPNG('profile-logo', 'coretrack-facebook-profile-512x512.png')">Download PNG</button>
+    </div>
+
+    <!-- Facebook Cover Logo (1200x630) -->
+    <div style="margin-top: 20px;">
+        <h3>Facebook Cover Logo (1200x630)</h3>
+        <svg id="cover-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="600" height="315" fill="none">
+            <defs>
+                <linearGradient id="bg2" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#3b82f6"/>
+                    <stop offset="50%" style="stop-color:#2563eb"/>
+                    <stop offset="100%" style="stop-color:#1d4ed8"/>
+                </linearGradient>
+            </defs>
+            <rect width="1200" height="630" rx="60" fill="url(#bg2)"/>
+            <g transform="translate(200, 315)">
+                <circle cx="0" cy="0" r="40" fill="white"/>
+                <g stroke="white" stroke-linecap="round" stroke-linejoin="round" stroke-width="8">
+                    <path d="M0 -80v40M0 40v40"/>
+                    <path d="M-56.57 -56.57l28.28 28.28M28.28 28.28l28.28 28.28"/>
+                    <path d="M-80 0h40M40 0h40"/>
+                    <path d="M-56.57 56.57l28.28-28.28M28.28 -28.28l28.28-28.28"/>
+                </g>
+                <g fill="white">
+                    <circle cx="0" cy="-60" r="8"/>
+                    <circle cx="0" cy="60" r="8"/>
+                    <circle cx="60" cy="0" r="8"/>
+                    <circle cx="-60" cy="0" r="8"/>
+                </g>
+            </g>
+            <text x="350" y="345" fill="white" font-family="Arial, sans-serif" font-size="72" font-weight="bold">CoreTrack</text>
+            <text x="350" y="395" fill="rgba(255,255,255,0.8)" font-family="Arial, sans-serif" font-size="32">Business Inventory Management</text>
+        </svg>
+        <br>
+        <button onclick="downloadPNG('cover-logo', 'coretrack-facebook-cover-1200x630.png')">Download PNG</button>
+    </div>
+
+    <script>
+        function downloadPNG(svgId, filename) {
+            const svg = document.getElementById(svgId);
+            const svgData = new XMLSerializer().serializeToString(svg);
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            
+            // Set canvas size based on SVG viewBox
+            const viewBox = svg.getAttribute('viewBox').split(' ');
+            canvas.width = parseInt(viewBox[2]);
+            canvas.height = parseInt(viewBox[3]);
+            
+            img.onload = function() {
+                ctx.drawImage(img, 0, 0);
+                
+                // Create download link
+                const link = document.createElement('a');
+                link.download = filename;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            };
+            
+            img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+        }
+    </script>
+</body>
+</html>

@@ -35,6 +35,135 @@ import {
   getAffectedMenuItems
 } from '../../lib/firebase/integration'
 
+// Category to Icon mapping for seamless selection
+const CATEGORY_ICON_MAP: Record<string, string[]> = {
+  'Coffee': ['☕', '�', '🤎', '🍵', '�🥤', '🫖', '🧋', '☕', '�', '�', '�', '☕'],
+  'Tea': ['🫖', '🍵', '🧋', '🍃', '🌿', '🟫', '☕', '🍯', '�', '🥛', '🌱', '🍶'],
+  'Cold Drinks': ['🥤', '🧃', '🥛', '🍹', '🧊', '💧', '🫗', '🍻', '🥤', '🍸', '🥃', '🍺'],
+  'Desserts': ['🧁', '🍰', '🎂', '🍪', '🍩', '🍮', '🍫', '🍬', '🍭', '🧁', '🍰', '🎂'],
+  'Appetizers': ['🍟', '🥨', '🧀', '🥜', '🍿', '🥖', '🫓', '🥙', '🫒', '🥯', '🧅', '🥖'],
+  'Main Course': ['🍔', '🍕', '🍝', '🍜', '🍛', '🥗', '🌮', '🥩', '🍖', '🍗', '🥘', '🍲'],
+  'Breakfast': ['🍳', '🥞', '🧇', '🥓', '🥖', '🍞', '🥐', '☕', '🧈', '🥯', '🍯', '🥛'],
+  'Salads': ['🥗', '🥬', '🍃', '🫒', '🥒', '🍅', '🫑', '🥕', '🥦', '🌶️', '🧄', '🧅'],
+  'Sandwiches': ['🥪', '🍔', '🌭', '🥙', '🫓', '🥖', '🍞', '🧀', '🥯', '🌯', '🥪', '🍔'],
+  'Pizza': ['🍕', '🫓', '🧀', '🍅', '🫒', '🌿', '🍄', '🥓', '🍕', '🌶️', '🧄', '🥩'],
+  'Pasta': ['🍝', '🍜', '🧀', '🍅', '🌿', '🥄', '🫒', '🧄', '🍝', '🍲', '🥘', '🌶️'],
+  'Burgers': ['🍔', '🍟', '🥓', '🧀', '🍅', '🥬', '🥒', '🧅', '🍔', '🌭', '🥪', '🥩'],
+  'Sides': ['🍟', '🥨', '🧀', '🥖', '🍿', '🫓', '🥜', '🧅', '🥯', '🫒', '🌶️', '🥕'],
+  'Beverages': ['🥤', '☕', '🧋', '🍹', '🧃', '🥛', '🫖', '💧', '🍶', '🍸', '🥃', '🍻'],
+  'Alcohol': ['🍻', '🍷', '🥂', '🍸', '🍺', '🥃', '🍾', '🍹', '🍻', '🍷', '🥂', '🍸'],
+  'Smoothies': ['🥤', '🍓', '🍌', '🥭', '🫐', '🍑', '🥝', '🧊', '🍇', '🍊', '🍍', '🥥'],
+  'Bakery': ['🥐', '🥖', '🍞', '🧁', '🍪', '🥯', '🫓', '🍩', '🥧', '🧈', '🍯', '🥐'],
+  'Soups': ['🍜', '🥣', '🫕', '🥄', '🧄', '🥕', '🧅', '🌿', '🍲', '🥘', '🍜', '🥣'],
+  'Default': ['🍽️', '🥘', '🍴', '🥄', '🍶', '🫖', '🥪', '🍱', '🍽️', '🥘', '🍴', '🥄']
+}
+
+// Comprehensive food emoji collection for free icon selection
+const ALL_FOOD_EMOJIS = [
+  // Fruits
+  '🍎', '🍏', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🫒', '🥑',
+  
+  // Vegetables
+  '🥕', '🌽', '🌶️', '🫑', '🥒', '🥬', '🥦', '🍆', '🥔', '🧄', '🧅', '🍄', '🥜', '🌰', '🫘',
+  
+  // Grains & Bread
+  '🍞', '🥖', '🥨', '🥯', '🥐', '🧈', '🫓', '🥪', '🌯', '🌮', '🥙',
+  
+  // Proteins & Meat
+  '🥩', '🍖', '🍗', '🥓', '🍳', '🧀', '🥚',
+  
+  // Seafood
+  '🍤', '🦐', '🦀', '🐟', '🐠', '🍣', '🍱', '🥟',
+  
+  // Prepared Foods
+  '🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🥙', '🧆', '🥘', '🍲', '🥗', '🍝', '🍜', '🍛', '🍱', '🍘', '🍙', '🍚', '🥮',
+  
+  // Desserts & Sweets
+  '🧁', '🍰', '🎂', '🍪', '🍩', '🍫', '🍬', '🍭', '🍮', '🥧', '🧊', '🍨', '🍧',
+  
+  // Beverages
+  '☕', '🫖', '🍵', '🧋', '🥤', '🧃', '🥛', '🍼', '🫗', '🍺', '🍻', '🍷', '🥂', '🍸', '🍹', '🍾', '🥃', '🧉',
+  
+  // Utensils & Dining
+  '🍽️', '🥄', '🥢', '🍴', '🔪', '🏺', '🍶', '🥣', '🥡', '🧂', '🍯'
+]
+
+// Helper function to get default icon (just return the first food emoji)
+const getDefaultIcon = (): string => {
+  return ALL_FOOD_EMOJIS[0] // Returns 🍎
+}
+
+// Seamless Icon Selector Component
+interface CategoryIconSelectorProps {
+  category: string
+  selectedIcon: string
+  onIconChange: (icon: string) => void
+}
+
+function CategoryIconSelector({ category, selectedIcon, onIconChange }: CategoryIconSelectorProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  
+  // Auto-select default icon when no icon is selected
+  useEffect(() => {
+    if (!selectedIcon) {
+      onIconChange(getDefaultIcon())
+    }
+  }, [selectedIcon, onIconChange])
+
+  const handleIconSelect = (icon: string) => {
+    onIconChange(icon)
+    setIsOpen(false)
+  }
+
+  return (
+    <div className="relative">
+      <div className="flex items-center bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+        <div className="flex items-center gap-4 w-full">
+          <div className="flex items-center bg-slate-50 rounded-xl p-3 min-w-[80px] justify-center">
+            <div className="text-3xl">{selectedIcon || getDefaultIcon()}</div>
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-semibold text-slate-700 mb-1">Menu Item Icon</div>
+            <button
+              type="button"
+              onClick={() => setIsOpen(!isOpen)}
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 transition-colors"
+            >
+              Choose from {ALL_FOOD_EMOJIS.length} Food Emojis
+              <svg className={`w-4 h-4 transform transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      {/* Icon Selection Panel */}
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-200 p-6 z-20 min-w-[600px]">
+          <div className="text-sm text-slate-600 mb-4 font-medium">Choose any food emoji for your menu item:</div>
+          <div className="grid grid-cols-8 gap-3 max-h-80 overflow-y-auto">
+            {ALL_FOOD_EMOJIS.map((icon, index) => (
+              <button
+                key={index}
+                type="button"
+                onClick={() => handleIconSelect(icon)}
+                className={`p-3 text-3xl rounded-lg transition-all hover:bg-blue-50 hover:scale-110 ${
+                  selectedIcon === icon 
+                    ? 'bg-blue-100 ring-2 ring-blue-500 shadow-sm' 
+                    : 'bg-slate-50 hover:bg-blue-50 hover:shadow-sm'
+                }`}
+              >
+                {icon}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function MenuBuilder() {
   const { profile } = useAuth()
   const { selectedBranch } = useBranch()
@@ -83,6 +212,14 @@ export default function MenuBuilder() {
     emoji: '',
     ingredients: [] as MenuIngredient[]
   })
+
+  // Auto-update emoji when category changes
+  useEffect(() => {
+    if (newItem.category && !newItem.emoji) {
+      const defaultIcon = getDefaultIcon()
+      setNewItem(prev => ({ ...prev, emoji: defaultIcon }))
+    }
+  }, [newItem.category])
 
   // Load menu items and categories
   useEffect(() => {
@@ -215,6 +352,7 @@ export default function MenuBuilder() {
         name: editingItem.name,
         description: editingItem.description,
         price: editingItem.price,
+        emoji: editingItem.emoji, // Include emoji in updates
         status: editingItem.status,
         ingredients: editingItem.ingredients
       })
@@ -257,6 +395,52 @@ export default function MenuBuilder() {
     } catch (error) {
       console.error('Error deleting menu item:', error)
       alert('Error deleting menu item. Please try again.')
+    }
+  }
+
+  // Manual emoji sync function
+  const handleManualEmojiSync = async () => {
+    if (!profile?.tenantId || !selectedBranch) return
+
+    try {
+      const locationId = getBranchLocationId(selectedBranch.id)
+      console.log('🎨 Starting manual emoji sync...')
+      
+      let synced = 0
+      
+      for (const item of menuItems) {
+        if (item.emoji) {
+          try {
+            // Import Firebase functions
+            const { doc, setDoc } = await import('firebase/firestore')
+            const { db } = await import('../../lib/firebase/config')
+            const { serverTimestamp } = await import('firebase/firestore')
+            
+            // Sync to POS collection
+            await setDoc(
+              doc(db, 'pos', `${profile.tenantId}_${locationId}`, 'menuItems', item.id!),
+              {
+                ...item,
+                emoji: item.emoji,
+                lastUpdated: serverTimestamp()
+              },
+              { merge: true }
+            )
+            
+            console.log(`✅ Synced "${item.name}" with emoji "${item.emoji}"`)
+            synced++
+          } catch (error) {
+            console.error(`❌ Failed to sync "${item.name}":`, error)
+          }
+        }
+      }
+      
+      console.log(`🎉 Manual emoji sync complete! Synced ${synced} items`)
+      alert(`Emoji sync complete! Synced ${synced} items to POS.`)
+      
+    } catch (error) {
+      console.error('❌ Manual emoji sync failed:', error)
+      alert('Emoji sync failed. Please try again.')
     }
   }
 
@@ -982,6 +1166,16 @@ export default function MenuBuilder() {
                   Bulk Operations
                 </button>
                 <button
+                  onClick={handleManualEmojiSync}
+                  className="flex items-center gap-2 px-4 py-2 text-sm border border-orange-300 text-orange-700 rounded-lg hover:bg-orange-50 transition-colors font-medium"
+                  title="Sync emoji changes to POS system"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Sync Emojis
+                </button>
+                <button
                   onClick={() => setShowCreateModal(true)}
                   className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
                 >
@@ -1510,34 +1704,17 @@ export default function MenuBuilder() {
                       </h3>
                       
                       <div className="space-y-4">
-                        <div className="grid grid-cols-3 gap-4">
-                          <div className="col-span-2">
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">
-                              Product Name*
-                            </label>
-                            <input
-                              type="text"
-                              value={newItem.name}
-                              onChange={(e) => setNewItem(prev => ({ ...prev, name: e.target.value }))}
-                              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
-                              placeholder="Enter product name"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">
-                              Icon
-                            </label>
-                            <div className="relative">
-                              <input
-                                type="text"
-                                value={newItem.emoji}
-                                onChange={(e) => setNewItem(prev => ({ ...prev, emoji: e.target.value }))}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-2xl"
-                                placeholder="🍔"
-                                maxLength={2}
-                              />
-                            </div>
-                          </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            Product Name*
+                          </label>
+                          <input
+                            type="text"
+                            value={newItem.name}
+                            onChange={(e) => setNewItem(prev => ({ ...prev, name: e.target.value }))}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
+                            placeholder="Enter product name"
+                          />
                         </div>
 
                         <div>
@@ -1581,6 +1758,17 @@ export default function MenuBuilder() {
                             placeholder="Describe your product..."
                           />
                         </div>
+
+                        {/* Category-based Icon Selector */}
+                        {newItem.category && (
+                          <div>
+                            <CategoryIconSelector
+                              category={newItem.category}
+                              selectedIcon={newItem.emoji}
+                              onIconChange={(icon) => setNewItem(prev => ({ ...prev, emoji: icon }))}
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -1912,7 +2100,7 @@ export default function MenuBuilder() {
               <div className="space-y-4">
                 <h4 className="font-medium text-gray-900 border-b pb-2">Basic Information</h4>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Name
@@ -1922,20 +2110,6 @@ export default function MenuBuilder() {
                       value={editingItem.name}
                       onChange={(e) => setEditingItem(prev => prev ? { ...prev, name: e.target.value } : null)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Emoji
-                    </label>
-                    <input
-                      type="text"
-                      value={editingItem.emoji || ''}
-                      onChange={(e) => setEditingItem(prev => prev ? { ...prev, emoji: e.target.value } : null)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-2xl"
-                      placeholder="🍔"
-                      maxLength={2}
                     />
                   </div>
                 </div>
@@ -1951,6 +2125,17 @@ export default function MenuBuilder() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
+
+                {/* Category-based Icon Selector for Edit */}
+                {editingItem.category && (
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <CategoryIconSelector
+                      category={editingItem.category}
+                      selectedIcon={editingItem.emoji || ''}
+                      onIconChange={(icon) => setEditingItem(prev => prev ? { ...prev, emoji: icon } : null)}
+                    />
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>

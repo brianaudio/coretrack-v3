@@ -3,6 +3,107 @@
 import React, { useState, useEffect } from 'react'
 import { MenuItem, CreateMenuItem, InventoryItem } from '@/lib/types/menu'
 
+// Category to Icon mapping for seamless selection
+const CATEGORY_ICON_MAP: Record<string, string[]> = {
+  'Coffee': ['☕', '🥤', '🫖', '🧋', '☕', '🫘', '🤎', '🍵'],
+  'Tea': ['🫖', '🍵', '🧋', '🍃', '🌿', '🫖', '🟫', '☕'],
+  'Cold Drinks': ['🥤', '🧃', '🥛', '🍹', '🧊', '💧', '🫗', '🍻'],
+  'Desserts': ['🧁', '🍰', '🎂', '🍪', '🍩', '🍮', '🍫', '🍬'],
+  'Appetizers': ['🍟', '🥨', '🧀', '🥜', '🍿', '🥖', '🫓', '🥙'],
+  'Main Course': ['🍔', '🍕', '🍝', '🍜', '🍛', '🥗', '🌮', '🥩'],
+  'Breakfast': ['🍳', '🥞', '🧇', '🥓', '🥖', '🍞', '🥐', '☕'],
+  'Salads': ['🥗', '🥬', '🍃', '🫒', '🥒', '🍅', '🫑', '🥕'],
+  'Sandwiches': ['🥪', '🍔', '🌭', '🥙', '🫓', '🥖', '🍞', '🧀'],
+  'Pizza': ['🍕', '🫓', '🧀', '🍅', '🫒', '🌿', '🍄', '🥓'],
+  'Pasta': ['🍝', '🍜', '🧀', '🍅', '🌿', '🥄', '🫒', '🧄'],
+  'Burgers': ['🍔', '🍟', '🥓', '🧀', '🍅', '🥬', '🥒', '🧅'],
+  'Sides': ['🍟', '🥨', '🧀', '🥖', '🍿', '🫓', '🥜', '🧅'],
+  'Beverages': ['🥤', '☕', '🧋', '🍹', '🧃', '🥛', '🫖', '💧'],
+  'Alcohol': ['🍻', '🍷', '🥂', '🍸', '🍺', '🥃', '🍾', '🍹'],
+  'Smoothies': ['🥤', '🍓', '🍌', '🥭', '🫐', '🍑', '🥝', '🧊'],
+  'Bakery': ['🥐', '🥖', '🍞', '🧁', '🍪', '🥯', '🫓', '🍩'],
+  'Soups': ['🍜', '🥣', '🫕', '🥄', '🧄', '🥕', '🧅', '🌿'],
+  'Default': ['🍽️', '🥘', '🍴', '🥄', '🍶', '🫖', '🥪', '🍱']
+}
+
+// Helper function to get default icon for category
+const getDefaultIconForCategory = (category: string): string => {
+  const icons = CATEGORY_ICON_MAP[category] || CATEGORY_ICON_MAP['Default']
+  return icons[0] // Return first icon as default
+}
+
+// Seamless Icon Selector Component
+interface CategoryIconSelectorProps {
+  category: string
+  selectedIcon: string
+  onIconChange: (icon: string) => void
+}
+
+function CategoryIconSelector({ category, selectedIcon, onIconChange }: CategoryIconSelectorProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const availableIcons = CATEGORY_ICON_MAP[category] || CATEGORY_ICON_MAP['Default']
+  
+  // Auto-select default icon when category changes
+  React.useEffect(() => {
+    if (category && !selectedIcon) {
+      onIconChange(getDefaultIconForCategory(category))
+    }
+  }, [category, selectedIcon, onIconChange])
+
+  const handleIconSelect = (icon: string) => {
+    onIconChange(icon)
+    setIsOpen(false)
+  }
+
+  return (
+    <div className="relative">
+      <div className="flex items-center bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+        <div className="flex items-center gap-4 w-full">
+          <div className="flex items-center bg-slate-50 rounded-xl p-3 min-w-[80px] justify-center">
+            <div className="text-3xl">{selectedIcon || getDefaultIconForCategory(category)}</div>
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-semibold text-slate-700 mb-1">Category Icon</div>
+            <button
+              type="button"
+              onClick={() => setIsOpen(!isOpen)}
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 transition-colors"
+            >
+              Change Icon
+              <svg className={`w-4 h-4 transform transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      {/* Icon Selection Panel */}
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-200 p-4 z-20 min-w-[320px]">
+          <div className="text-sm text-slate-600 mb-3 font-medium">Choose icon for {category}:</div>
+          <div className="grid grid-cols-8 gap-2">
+            {availableIcons.map((icon, index) => (
+              <button
+                key={index}
+                type="button"
+                onClick={() => handleIconSelect(icon)}
+                className={`p-2 text-2xl rounded-lg transition-all hover:bg-blue-50 ${
+                  selectedIcon === icon 
+                    ? 'bg-blue-100 ring-2 ring-blue-500 shadow-sm' 
+                    : 'bg-slate-50 hover:bg-blue-50 hover:shadow-sm'
+                }`}
+              >
+                {icon}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface CreateMenuItemModalProps {
   isOpen: boolean
   onClose: () => void
@@ -46,6 +147,7 @@ const CreateMenuItemModal: React.FC<CreateMenuItemModalProps> = ({
     unit: string
   }>>([])
 
+  const [selectedCategoryIcon, setSelectedCategoryIcon] = useState<string>('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showIngredientSelector, setShowIngredientSelector] = useState(false)
   const [ingredientSearchTerm, setIngredientSearchTerm] = useState('')
@@ -97,6 +199,7 @@ const CreateMenuItemModal: React.FC<CreateMenuItemModalProps> = ({
         ingredients: []
       })
       setSelectedIngredients([])
+      setSelectedCategoryIcon('')
       setActiveSection('basic')
       setIsSubmitting(false)
     } else {
@@ -119,6 +222,7 @@ const CreateMenuItemModal: React.FC<CreateMenuItemModalProps> = ({
 
       await onSubmit({
         ...formData,
+        emoji: selectedCategoryIcon || getDefaultIconForCategory(formData.category), // Use selected or default icon
         ingredients: selectedIngredients,
         cost,
         profitMargin,
@@ -388,43 +492,18 @@ const CreateMenuItemModal: React.FC<CreateMenuItemModalProps> = ({
 
                         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                           <label className="block text-sm font-semibold text-slate-700 mb-3">
-                            Emoji (Optional)
-                          </label>
-                          <div className="flex items-center gap-4">
-                            <input
-                              type="text"
-                              value={formData.emoji || ''}
-                              onChange={(e) => setFormData({ ...formData, emoji: e.target.value })}
-                              className="w-20 px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-center text-2xl"
-                              placeholder="🍕"
-                              maxLength={2}
-                            />
-                            <div className="flex-1">
-                              <div className="grid grid-cols-6 gap-2">
-                                {['🍕', '🍔', '🍟', '🥤', '☕', '🍰', '🥗', '🍜', '🍗', '🌮', '🥙', '🍣'].map(emoji => (
-                                  <button
-                                    key={emoji}
-                                    type="button"
-                                    onClick={() => setFormData({ ...formData, emoji })}
-                                    className="text-xl p-2 hover:bg-primary-50 rounded-lg border border-slate-200 hover:border-primary-300 transition-colors bg-white shadow-sm hover:shadow-md"
-                                    title={`Set emoji to ${emoji}`}
-                                  >
-                                    {emoji}
-                                  </button>
-                                ))}
-                              </div>
-                              <p className="text-xs text-slate-500 mt-2">Choose an emoji to represent this menu item</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                          <label className="block text-sm font-semibold text-slate-700 mb-3">
                             Category *
                           </label>
                           <select
                             value={formData.category}
-                            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                            onChange={(e) => {
+                              const newCategory = e.target.value
+                              setFormData({ ...formData, category: newCategory })
+                              // Auto-select default icon for the new category
+                              if (newCategory) {
+                                setSelectedCategoryIcon(getDefaultIconForCategory(newCategory))
+                              }
+                            }}
                             className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-lg"
                             required
                           >
@@ -436,6 +515,15 @@ const CreateMenuItemModal: React.FC<CreateMenuItemModalProps> = ({
                             ))}
                           </select>
                         </div>
+
+                        {/* Category Icon Selector - Only show if category is selected */}
+                        {formData.category && (
+                          <CategoryIconSelector
+                            category={formData.category}
+                            selectedIcon={selectedCategoryIcon}
+                            onIconChange={setSelectedCategoryIcon}
+                          />
+                        )}
 
                         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                           <label className="block text-sm font-semibold text-slate-700 mb-3">

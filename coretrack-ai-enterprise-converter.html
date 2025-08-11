@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CoreTrack AI Enterprise Logo Converter</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000000;
+            color: #ffffff;
+            margin: 0;
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            font-size: 44px;
+            font-weight: 300;
+            letter-spacing: -1px;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #a1a1a6;
+            font-size: 16px;
+            font-weight: 300;
+            margin-bottom: 60px;
+        }
+        
+        .logo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+        
+        .logo-card {
+            background: #1a1a1a;
+            border: 1px solid #333333;
+            border-radius: 20px;
+            padding: 30px;
+        }
+        
+        .logo-card h3 {
+            color: #007AFF;
+            font-size: 20px;
+            font-weight: 400;
+            margin-bottom: 12px;
+        }
+        
+        .logo-preview {
+            background: #0a0a0a;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 200px;
+        }
+        
+        .logo-preview svg {
+            max-width: 100%;
+            height: auto;
+        }
+        
+        .download-btn {
+            background: linear-gradient(135deg, #007AFF 0%, #5856D6 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+        
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 122, 255, 0.3);
+        }
+        
+        .specs {
+            color: #6d6d70;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        
+        .enterprise-badge {
+            display: inline-block;
+            background: rgba(0, 122, 255, 0.08);
+            color: #007AFF;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 400;
+            letter-spacing: 1px;
+            margin-top: 15px;
+            border: 1px solid rgba(0, 122, 255, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CoreTrack AI</h1>
+        <p class="subtitle">Enterprise Logo Suite - Apple-Inspired Design</p>
+        
+        <div class="logo-grid">
+            <!-- Horizontal Enterprise Logo -->
+            <div class="logo-card">
+                <h3>Enterprise Horizontal Logo</h3>
+                <div class="specs">1400x800px • Perfect for presentations & web headers</div>
+                <div class="logo-preview" style="background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);">
+                    <svg id="horizontal-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 800" width="350" height="200" fill="none">
+                        <defs>
+                            <linearGradient id="modernBg" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#000000"/>
+                                <stop offset="100%" style="stop-color:#1a1a1a"/>
+                            </linearGradient>
+                            <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#007AFF"/>
+                                <stop offset="50%" style="stop-color:#5856D6"/>
+                                <stop offset="100%" style="stop-color:#AF52DE"/>
+                            </linearGradient>
+                            <linearGradient id="textGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style="stop-color:#ffffff"/>
+                                <stop offset="100%" style="stop-color:#e5e5e7"/>
+                            </linearGradient>
+                        </defs>
+                        <rect width="1400" height="800" fill="url(#modernBg)"/>
+                        <g transform="translate(120, 400)">
+                            <!-- Minimalist geometric design -->
+                            <circle cx="0" cy="0" r="16" fill="url(#logoGradient)"/>
+                            
+                            <!-- Clean connection lines - perfectly balanced -->
+                            <g stroke="url(#logoGradient)" stroke-linecap="round" stroke-width="2" opacity="0.8">
+                                <path d="M0 -32v12"/>
+                                <path d="M0 20v12"/>
+                                <path d="M-32 0h12"/>
+                                <path d="M20 0h12"/>
+                            </g>
+                            
+                            <!-- Minimal connection points -->
+                            <g fill="url(#logoGradient)" opacity="0.9">
+                                <circle cx="0" cy="-24" r="2"/>
+                                <circle cx="0" cy="24" r="2"/>
+                                <circle cx="24" cy="0" r="2"/>
+                                <circle cx="-24" cy="0" r="2"/>
+                            </g>
+                        </g>
+                        <g transform="translate(280, 400)">
+                            <text x="0" y="-50" fill="url(#textGradient)" font-family="system-ui, sans-serif" font-size="68" font-weight="300" letter-spacing="-1px">CoreTrack</text>
+                            <text x="0" y="-5" fill="#007AFF" font-family="system-ui, sans-serif" font-size="24" font-weight="400" letter-spacing="2px">AI</text>
+                            <text x="0" y="25" fill="#a1a1a6" font-family="system-ui, sans-serif" font-size="20" font-weight="300">Business Management System</text>
+                        </g>
+                    </svg>
+                </div>
+                <button class="download-btn" onclick="downloadPNG('horizontal-logo', 'CoreTrack-AI-Enterprise-Horizontal-1400x800.png', 1400, 800)">
+                    Download PNG
+                </button>
+                <div class="enterprise-badge">ENTERPRISE READY</div>
+            </div>
+
+            <!-- Square Enterprise Logo -->
+            <div class="logo-card">
+                <h3>Square Profile Logo</h3>
+                <div class="specs">800x800px • Perfect for social media profiles</div>
+                <div class="logo-preview" style="background: linear-gradient(135deg, #000000 0%, #1c1c1e 100%);">
+                    <svg id="square-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="200" height="200" fill="none">
+                        <defs>
+                            <linearGradient id="bg2" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#000000"/>
+                                <stop offset="100%" style="stop-color:#1c1c1e"/>
+                            </linearGradient>
+                            <linearGradient id="logoGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#007AFF"/>
+                                <stop offset="50%" style="stop-color:#5856D6"/>
+                                <stop offset="100%" style="stop-color:#AF52DE"/>
+                            </linearGradient>
+                        </defs>
+                        <rect width="800" height="800" fill="url(#bg2)"/>
+                        <g transform="translate(400, 280)">
+                            <!-- Clean, minimal logo -->
+                            <circle cx="0" cy="0" r="20" fill="url(#logoGrad2)"/>
+                            
+                            <!-- Simplified connection lines -->
+                            <g stroke="url(#logoGrad2)" stroke-linecap="round" stroke-width="2.5" opacity="0.8">
+                                <path d="M0 -40v15"/>
+                                <path d="M0 25v15"/>
+                                <path d="M-40 0h15"/>
+                                <path d="M25 0h15"/>
+                            </g>
+                            
+                            <!-- Clean connection points -->
+                            <g fill="url(#logoGrad2)" opacity="0.9">
+                                <circle cx="0" cy="-30" r="2.5"/>
+                                <circle cx="0" cy="30" r="2.5"/>
+                                <circle cx="30" cy="0" r="2.5"/>
+                                <circle cx="-30" cy="0" r="2.5"/>
+                            </g>
+                        </g>
+                        <g transform="translate(400, 420)">
+                            <text x="0" y="0" fill="#ffffff" font-family="system-ui, sans-serif" font-size="48" font-weight="300" text-anchor="middle" letter-spacing="-0.5px">CoreTrack</text>
+                            <text x="0" y="30" fill="#007AFF" font-family="system-ui, sans-serif" font-size="18" font-weight="400" text-anchor="middle" letter-spacing="1.5px">AI</text>
+                            <text x="0" y="55" fill="#a1a1a6" font-family="system-ui, sans-serif" font-size="14" font-weight="300" text-anchor="middle">Business Management System</text>
+                        </g>
+                    </svg>
+                </div>
+                <button class="download-btn" onclick="downloadPNG('square-logo', 'CoreTrack-AI-Enterprise-Square-800x800.png', 800, 800)">
+                    Download PNG
+                </button>
+                <div class="enterprise-badge">SOCIAL MEDIA READY</div>
+            </div>
+
+            <!-- Facebook Cover -->
+            <div class="logo-card">
+                <h3>Facebook Cover Photo</h3>
+                <div class="specs">1200x630px • Optimized for Facebook pages</div>
+                <div class="logo-preview" style="background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);">
+                    <svg id="cover-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="300" height="157" fill="none">
+                        <defs>
+                            <linearGradient id="darkBg3" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#000000"/>
+                                <stop offset="100%" style="stop-color:#1a1a1a"/>
+                            </linearGradient>
+                            <linearGradient id="premiumGrad3" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#007AFF"/>
+                                <stop offset="50%" style="stop-color:#5856D6"/>
+                                <stop offset="100%" style="stop-color:#AF52DE"/>
+                            </linearGradient>
+                        </defs>
+                        <rect width="1200" height="630" fill="url(#darkBg3)"/>
+                        <g transform="translate(200, 315)">
+                            <!-- Ultra-minimal logo -->
+                            <circle cx="0" cy="0" r="14" fill="url(#premiumGrad3)"/>
+                            
+                            <!-- Clean, balanced lines -->
+                            <g stroke="url(#premiumGrad3)" stroke-linecap="round" stroke-width="2" opacity="0.8">
+                                <path d="M0 -28v10"/>
+                                <path d="M0 18v10"/>
+                                <path d="M-28 0h10"/>
+                                <path d="M18 0h10"/>
+                            </g>
+                            
+                            <!-- Subtle connection points -->
+                            <g fill="url(#premiumGrad3)" opacity="0.9">
+                                <circle cx="0" cy="-22" r="2"/>
+                                <circle cx="0" cy="22" r="2"/>
+                                <circle cx="22" cy="0" r="2"/>
+                                <circle cx="-22" cy="0" r="2"/>
+                            </g>
+                        </g>
+                        <g transform="translate(350, 315)">
+                            <text x="0" y="-35" fill="#ffffff" font-family="system-ui, sans-serif" font-size="56" font-weight="300" letter-spacing="-1px">CoreTrack</text>
+                            <text x="0" y="0" fill="#007AFF" font-family="system-ui, sans-serif" font-size="20" font-weight="400" letter-spacing="2px">AI</text>
+                            <text x="0" y="25" fill="#a1a1a6" font-family="system-ui, sans-serif" font-size="16" font-weight="300">Business Management System</text>
+                        </g>
+                    </svg>
+                </div>
+                <button class="download-btn" onclick="downloadPNG('cover-logo', 'CoreTrack-AI-Facebook-Cover-1200x630.png', 1200, 630)">
+                    Download PNG
+                </button>
+                <div class="enterprise-badge">FACEBOOK OPTIMIZED</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function downloadPNG(svgId, filename, width, height) {
+            const svg = document.getElementById(svgId);
+            const svgData = new XMLSerializer().serializeToString(svg);
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            
+            // Set high-resolution canvas
+            const scale = 2; // Retina quality
+            canvas.width = width * scale;
+            canvas.height = height * scale;
+            ctx.scale(scale, scale);
+            
+            img.onload = function() {
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // Create download link
+                const link = document.createElement('a');
+                link.download = filename;
+                link.href = canvas.toDataURL('image/png', 1.0); // Highest quality
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+            
+            img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+        }
+    </script>
+</body>
+</html>

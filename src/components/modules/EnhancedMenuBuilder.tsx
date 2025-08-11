@@ -609,19 +609,55 @@ const EnhancedMenuBuilder: React.FC<EnhancedMenuBuilderProps> = ({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-surface-900">Menu Builder</h2>
-          <p className="text-surface-600 text-sm">
-            Manage your restaurant menu items, recipes, and pricing
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-lg">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-surface-900">Menu Builder</h2>
+          </div>
+          <p className="text-surface-600 text-sm ml-13">
+            Create, manage and organize your restaurant menu items with real-time inventory tracking
           </p>
         </div>
         
         <div className="flex items-center gap-3">
+          {/* Save Menu Button */}
+          <button
+            onClick={handleSaveMenu}
+            disabled={isSavingMenu || menuItems.length === 0}
+            className={`px-4 py-2 border rounded-lg transition-colors font-medium flex items-center gap-2 ${
+              isSavingMenu || menuItems.length === 0
+                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+            }`}
+          >
+            {isSavingMenu ? (
+              <>
+                <div className="animate-spin w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full"></div>
+                Saving...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                Export Menu
+              </>
+            )}
+          </button>
+
           <button
             onClick={() => setShowCategoryModal(true)}
-            className="px-4 py-2 text-surface-600 hover:text-surface-900 border border-surface-300 rounded-lg hover:bg-surface-50 transition-colors font-medium"
+            className="px-4 py-2 text-surface-600 hover:text-surface-900 border border-surface-300 rounded-lg hover:bg-surface-50 transition-colors font-medium flex items-center gap-2"
           >
-            + Category
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            Category
           </button>
+          
           <button
             onClick={handleImportMenu}
             disabled={isImportingMenu}
@@ -641,15 +677,19 @@ const EnhancedMenuBuilder: React.FC<EnhancedMenuBuilderProps> = ({
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
                 </svg>
-                Import Menu
+                Import
               </>
             )}
           </button>
+          
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-all duration-200 font-medium flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
           >
-            + Add Item
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add Item
           </button>
         </div>
       </div>

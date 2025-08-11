@@ -413,7 +413,7 @@ export default function MenuBuilder() {
           try {
             // Import Firebase functions
             const { doc, setDoc } = await import('firebase/firestore')
-            const { db } = await import('../../lib/firebase/config')
+            const { db } = await import('../../lib/firebase')
             const { serverTimestamp } = await import('firebase/firestore')
             
             // Sync to POS collection

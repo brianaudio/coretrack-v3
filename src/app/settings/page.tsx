@@ -595,7 +595,6 @@ export default function SettingsPage() {
       gcash: true,
       maya: true,
       paypal: false,
-      stripe: false,
       paymongo: false,
       grab_pay: false,
       shopee_pay: false
@@ -967,7 +966,7 @@ function NotificationsTab() {
 // Integration Tab
 function IntegrationTab() {
   const [connectedIntegrations, setConnectedIntegrations] = useState<string[]>([
-    'GrabFood', 'Stripe', 'Gmail', 'Zapier'
+    'GrabFood', 'Gmail', 'Zapier'
   ]);
 
   const handleIntegrationToggle = (integrationName: string, currentStatus: string) => {
@@ -1097,14 +1096,6 @@ function IntegrationTab() {
               status: 'available',
               category: 'E-commerce',
               features: ['Inventory sync', 'Order management', 'Product catalog']
-            },
-            { 
-              name: 'Stripe', 
-              description: 'Process international payments securely', 
-              icon: '�', 
-              status: 'connected',
-              category: 'Payments',
-              features: ['International cards', 'Subscription billing', 'Financial reporting']
             },
             { 
               name: 'Gmail', 

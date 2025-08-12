@@ -990,59 +990,181 @@ export default function EnhancedTeamManagement() {
 
         {/* Shift Management Tab */}
         {activeTab === 'reset' && (
-          <div className="p-6 space-y-6">
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Shift & Data Management</h3>
-              <p className="text-sm text-gray-600">
-                Manage shift transitions and daily data resets. Data is automatically archived and reset at 3AM daily, 
-                or you can manually trigger resets when ending shifts.
-              </p>
-            </div>
-
-            {/* Manual Shift Reset */}
-            <div className="bg-white rounded-xl border border-gray-200">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h4 className="text-lg font-medium text-gray-900">Manual Shift Reset</h4>
-                    <p className="text-sm text-gray-600">End current shift and reset daily operational data</p>
-                  </div>
-                  <div className="text-2xl">🔄</div>
+          <div className="p-8 space-y-10">
+            {/* Professional Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+              <div>
+                <h3 className="text-3xl font-bold text-surface-900">Shift Management</h3>
+                <p className="text-surface-600 mt-2 text-lg">Professional shift operations and team accountability</p>
+              </div>
+              <div className="flex items-center space-x-4">
+                <div className="bg-primary-50 rounded-lg px-6 py-3 border border-primary-200">
+                  <div className="text-sm font-medium text-primary-700">Team Size</div>
+                  <div className="text-2xl font-bold text-primary-900">{teamMembers.length}</div>
                 </div>
-                <ShiftResetManager />
+                <div className="bg-green-50 rounded-lg px-6 py-3 border border-green-200">
+                  <div className="text-sm font-medium text-green-700">Active</div>
+                  <div className="text-2xl font-bold text-green-900">{teamMembers.filter(m => m.status === 'active').length}</div>
+                </div>
               </div>
             </div>
 
-            {/* Automatic Reset Schedule */}
-            <div className="bg-white rounded-xl border border-gray-200">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-4">
+            {/* Professional Shift Overview Cards - Enhanced Visibility */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+              {/* Active Shifts Card - Enlarged */}
+              <div className="relative overflow-hidden bg-gradient-to-br from-green-500 to-green-600 rounded-2xl shadow-2xl p-12 text-white transform hover:scale-105 transition-all duration-300">
+                <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="text-lg font-medium text-gray-900">Automatic Reset Schedule</h4>
-                    <p className="text-sm text-gray-600">Configure automatic daily data resets</p>
+                    <p className="text-green-100 text-lg font-bold uppercase tracking-wide">Active Shifts</p>
+                    <p className="text-6xl font-black mt-4">0</p>
+                    <p className="text-green-200 text-base mt-4 font-semibold">Currently running</p>
                   </div>
-                  <div className="text-2xl">⏰</div>
+                  <div className="bg-white/25 rounded-full p-6">
+                    <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
                 </div>
-                <HybridResetManager />
-              </div>
-            </div>
-
-            {/* Information Panel */}
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-              <div className="flex items-start">
-                <div className="flex-shrink-0">
-                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <div className="absolute -top-6 -right-6 opacity-15">
+                  <svg className="w-32 h-32" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <div className="ml-3">
-                  <h4 className="text-sm font-medium text-blue-900 mb-1">How Shift Reset Works</h4>
-                  <div className="text-sm text-blue-800 space-y-1">
-                    <p>• <strong>Archives Data:</strong> All sales, expenses, and transactions are safely archived</p>
-                    <p>• <strong>Resets Collections:</strong> Clears daily operational data for fresh start</p>
-                    <p>• <strong>Updates Analytics:</strong> Refreshes all dashboard components automatically</p>
-                    <p>• <strong>Preserves Inventory:</strong> Stock levels are maintained and updated</p>
-                    <p>• <strong>Creates Reports:</strong> Generates comprehensive shift summaries</p>
+              </div>
+
+              {/* Team Members Card - Enlarged */}
+              <div className="relative overflow-hidden bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl shadow-2xl p-12 text-white transform hover:scale-105 transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-primary-100 text-lg font-bold uppercase tracking-wide">Team Members</p>
+                    <p className="text-6xl font-black mt-4">{teamMembers.length}</p>
+                    <p className="text-primary-200 text-base mt-4 font-semibold">Available staff</p>
+                  </div>
+                  <div className="bg-white/25 rounded-full p-6">
+                    <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="absolute -top-6 -right-6 opacity-15">
+                  <svg className="w-32 h-32" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 715 0z" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Productivity Card - Enlarged */}
+              <div className="relative overflow-hidden bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl shadow-2xl p-12 text-white transform hover:scale-105 transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-purple-100 text-lg font-bold uppercase tracking-wide">Productivity</p>
+                    <p className="text-6xl font-black mt-4">98%</p>
+                    <p className="text-purple-200 text-base mt-4 font-semibold">Team efficiency</p>
+                  </div>
+                  <div className="bg-white/25 rounded-full p-6">
+                    <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="absolute -top-6 -right-6 opacity-15">
+                  <svg className="w-32 h-32" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            {/* Shift Operations - Full Width Hero Style */}
+            <div className="max-w-6xl mx-auto space-y-12">
+              {/* Shift Close-Out - Prominent Design */}
+              <div className="bg-white rounded-2xl border-2 border-amber-300 shadow-2xl overflow-hidden transform hover:scale-[1.02] transition-all duration-300">
+                <div className="bg-gradient-to-r from-amber-50 to-amber-100 px-8 py-6 border-b border-surface-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-3xl font-bold text-surface-900 flex items-center">
+                        <span className="w-4 h-4 bg-red-500 rounded-full mr-4 animate-pulse"></span>
+                        Manual Shift Close-Out
+                      </h4>
+                      <p className="text-lg text-surface-700 mt-2 font-semibold">End current shift and archive daily data safely</p>
+                    </div>
+                    <div className="text-8xl animate-bounce">🔄</div>
+                  </div>
+                </div>
+                <div className="p-10">
+                  <ShiftResetManager />
+                </div>
+              </div>
+
+              {/* Daily Automation - Enhanced */}
+              <div className="bg-white rounded-2xl border-2 border-green-300 shadow-2xl overflow-hidden transform hover:scale-[1.02] transition-all duration-300">
+                <div className="bg-gradient-to-r from-green-50 to-green-100 px-8 py-6 border-b border-surface-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-3xl font-bold text-surface-900 flex items-center">
+                        <span className="w-4 h-4 bg-green-500 rounded-full mr-4 animate-pulse"></span>
+                        Automatic Reset Schedule
+                      </h4>
+                      <p className="text-lg text-surface-700 mt-2 font-semibold">Configure automatic daily data resets and shift automation</p>
+                    </div>
+                    <div className="text-8xl animate-pulse">⏰</div>
+                  </div>
+                </div>
+                <div className="p-10">
+                  <HybridResetManager />
+                </div>
+              </div>
+            </div>
+
+            {/* Professional Information Panel */}
+            <div className="bg-gradient-to-r from-primary-50 to-primary-100 border border-primary-200 rounded-xl p-8">
+              <div className="flex items-start space-x-6">
+                <div className="flex-shrink-0">
+                  <div className="bg-primary-500 rounded-full p-3">
+                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-xl font-semibold text-primary-900 mb-4">Enterprise Shift Management Features</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-primary-800">
+                    <div className="space-y-3">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-2 h-2 bg-primary-500 rounded-full"></div>
+                        <span><strong>Data Archival:</strong> Safe backup of all shift data</span>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <div className="w-2 h-2 bg-primary-500 rounded-full"></div>
+                        <span><strong>Auto Reset:</strong> Scheduled daily operations</span>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <div className="w-2 h-2 bg-primary-500 rounded-full"></div>
+                        <span><strong>Team Analytics:</strong> Performance tracking</span>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-2 h-2 bg-primary-500 rounded-full"></div>
+                        <span><strong>Role Management:</strong> Access control</span>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <div className="w-2 h-2 bg-primary-500 rounded-full"></div>
+                        <span><strong>Real-time Updates:</strong> Live dashboard</span>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <div className="w-2 h-2 bg-primary-500 rounded-full"></div>
+                        <span><strong>Comprehensive Reports:</strong> Detailed insights</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-6 pt-6 border-t border-primary-300">
+                    <div className="text-center">
+                      <span className="text-sm font-medium text-primary-700">
+                        Professional shift management integrated within Team Management
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>

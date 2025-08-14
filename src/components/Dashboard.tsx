@@ -30,6 +30,7 @@ import { hasPermission, getAllowedModules, ModulePermission } from '../lib/rbac/
 import { hasModuleAccess, getAccessibleModules } from '../lib/rbac/subscriptionPermissions'
 import ConnectionStatus from './ui/ConnectionStatus'
 import FloatingCalculator from './ui/FloatingCalculator'
+import { HelpMenu, ContextualHints } from './ui/ux-enhancements'
 // import TestCalculator from './ui/TestCalculator'
 import { BranchProvider } from '../lib/context/BranchContext'
 
@@ -199,6 +200,12 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           <main className="flex-1 overflow-auto bg-surface-50 main-scroll">
             <div className="p-6 pb-8 min-h-full">
               {renderModule()}
+              
+              {/* Contextual Hints for First-Time Users */}
+              <ContextualHints 
+                page={activeModule === 'inventory' ? 'inventory' : 
+                      activeModule === 'pos' ? 'pos' : 'inventory'} 
+              />
             </div>
             {/* Professional Footer */}
             <ProfessionalFooter />

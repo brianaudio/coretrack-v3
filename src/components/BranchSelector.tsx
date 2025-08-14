@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useBranch } from '../lib/context/BranchContext'
 import { useAuth } from '../lib/context/AuthContext'
-import { deleteLocation } from '../lib/firebase/locationManagement'
+import { deleteLocation, createLocation } from '../lib/firebase/locationManagement'
 import { deleteBranchByLocationId } from '../lib/firebase/branches'
 import { doc, updateDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
@@ -13,6 +13,13 @@ export default function BranchSelector() {
   const { profile } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [newBranchData, setNewBranchData] = useState({
+    name: '',
+    address: '',
+    city: '',
+    phone: ''
+  })
   const dropdownRef = useRef<HTMLDivElement>(null)
   const [localSelectedBranch, setLocalSelectedBranch] = useState(selectedBranch)
 
@@ -50,6 +57,83 @@ export default function BranchSelector() {
     } catch (error) {
       console.error('Error deleting branch:', error);
       alert('Error deleting branch. Please try again.');
+    }
+  };
+
+  // Handle adding new branch
+  const handleAddBranch = async () => {
+    if (!newBranchData.name.trim()) {
+      alert('Branch name is required');
+      return;
+    }
+
+    if (!profile?.tenantId) {
+      alert('No tenant ID found');
+      return;
+    }
+
+    try {
+      // Create location data
+      const locationData = {
+        name: newBranchData.name.trim(),
+        type: 'branch' as const,
+        tenantId: profile.tenantId,
+        address: {
+          street: newBranchData.address.trim() || '',
+          city: newBranchData.city.trim() || '',
+          state: '',
+          zipCode: '',
+          country: ''
+        },
+        contact: {
+          phone: newBranchData.phone.trim() || undefined,
+          email: undefined,
+          manager: undefined
+        },
+        status: 'active' as const,
+        settings: {
+          timezone: 'Asia/Manila',
+          currency: 'PHP',
+          businessHours: {
+            monday: { open: '08:00', close: '20:00' },
+            tuesday: { open: '08:00', close: '20:00' },
+            wednesday: { open: '08:00', close: '20:00' },
+            thursday: { open: '08:00', close: '20:00' },
+            friday: { open: '08:00', close: '20:00' },
+            saturday: { open: '08:00', close: '20:00' },
+            sunday: { open: '08:00', close: '20:00' }
+          },
+          features: {
+            pos: true,
+            inventory: true,
+            analytics: true,
+            reports: true,
+            expenses: true
+          }
+        }
+      };
+
+      // Create the location
+      const newLocationId = await createLocation(locationData);
+      
+      // Reset form and close modal
+      setNewBranchData({
+        name: '',
+        address: '',
+        city: '',
+        phone: ''
+      });
+      setShowAddModal(false);
+      
+      // Refresh branches to show the new one
+      await refreshBranches();
+      
+      console.log(`✅ Branch "${newBranchData.name}" created successfully`);
+      alert(`Branch "${newBranchData.name}" created successfully!`);
+      
+    } catch (error) {
+      console.error('Error creating branch:', error);
+      alert('Error creating branch. Please try again.');
     }
   };
 
@@ -370,11 +454,94 @@ export default function BranchSelector() {
           {/* Footer */}
           <div className="px-4 py-3 bg-surface-50 border-t border-surface-200">
             <button 
-              onClick={() => alert('Add New Branch functionality coming soon!')}
+              onClick={() => setShowAddModal(true)}
               className="text-xs text-primary-600 hover:text-primary-700 font-medium"
             >
               + Add New Branch
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Add New Branch Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div className="px-6 py-4 border-b border-surface-200">
+              <h2 className="text-lg font-semibold text-surface-900">Add New Branch</h2>
+            </div>
+            
+            <div className="px-6 py-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-surface-700 mb-1">
+                  Branch Name *
+                </label>
+                <input
+                  type="text"
+                  value={newBranchData.name}
+                  onChange={(e) => setNewBranchData(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full px-3 py-2 border border-surface-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  placeholder="Enter branch name"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-surface-700 mb-1">
+                  Address
+                </label>
+                <input
+                  type="text"
+                  value={newBranchData.address}
+                  onChange={(e) => setNewBranchData(prev => ({ ...prev, address: e.target.value }))}
+                  className="w-full px-3 py-2 border border-surface-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  placeholder="Enter address"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-surface-700 mb-1">
+                  City
+                </label>
+                <input
+                  type="text"
+                  value={newBranchData.city}
+                  onChange={(e) => setNewBranchData(prev => ({ ...prev, city: e.target.value }))}
+                  className="w-full px-3 py-2 border border-surface-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  placeholder="Enter city"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-surface-700 mb-1">
+                  Phone
+                </label>
+                <input
+                  type="text"
+                  value={newBranchData.phone}
+                  onChange={(e) => setNewBranchData(prev => ({ ...prev, phone: e.target.value }))}
+                  className="w-full px-3 py-2 border border-surface-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  placeholder="Enter phone number"
+                />
+              </div>
+            </div>
+            
+            <div className="px-6 py-4 border-t border-surface-200 flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowAddModal(false);
+                  setNewBranchData({ name: '', address: '', city: '', phone: '' });
+                }}
+                className="px-4 py-2 text-sm font-medium text-surface-700 bg-surface-100 rounded-md hover:bg-surface-200 focus:outline-none focus:ring-2 focus:ring-surface-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddBranch}
+                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                Create Branch
+              </button>
+            </div>
           </div>
         </div>
       )}

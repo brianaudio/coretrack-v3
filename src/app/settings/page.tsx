@@ -6,6 +6,8 @@ import { useSubscription } from '../../lib/context/SubscriptionContext'
 import { SUBSCRIPTION_PLANS } from '../../lib/types/subscription'
 import { useBranch } from '../../lib/context/BranchContext'
 import SecurityAuditPanel from '@/components/security/SecurityAuditPanel'
+import TrialExpirationBanner from '@/components/subscription/TrialExpirationBanner'
+import SubscriptionPlans from '@/components/subscription/SubscriptionPlans'
 import { getAllCountries, getCountryByName, formatCurrency, getPopularCountries, getCountryByCode } from '@/lib/payments/globalCurrencies'
 import { getPaymentMethodsByCountry, getPopularPaymentMethods, getPaymentMethodsByBusinessType, calculateProcessingFee, PaymentMethod } from '@/lib/payments/globalPaymentMethods'
 import { getTaxRulesByCountry, getTaxRulesByBusinessType, getComplianceRequirements, getRecommendedTaxConfiguration, TaxRule, ComplianceRequirement } from '@/lib/payments/globalTaxCompliance'
@@ -1512,70 +1514,62 @@ function BillingTab() {
   const { subscription, features, limits, isActive, isTrial, trialDaysRemaining, loading } = useSubscription()
   
   // Check if user has billing access (owner/admin only)
-  // In a typical business, only owners should see billing details
   const hasBillingAccess = profile?.role === 'owner'
   
   if (!hasBillingAccess) {
     return (
-      <div className="space-y-8">
-        {/* Restricted Access Message */}
-        <div className="pb-5 border-b border-surface-200">
-          <h2 className="text-3xl font-bold text-surface-900">Billing & Subscription</h2>
-          <p className="mt-2 text-surface-600 max-w-2xl">
-            View your current subscription plan and usage information.
-          </p>
-        </div>
-
-        {/* Limited View for Non-Owners */}
-        <div className="max-w-4xl mx-auto">
-          <div className="card p-8 text-center">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className="min-h-screen bg-gray-50">
+        {/* Trial Banner */}
+        <TrialExpirationBanner />
+        
+        <div className="max-w-4xl mx-auto px-4 py-12">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 text-center">
+            <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-surface-900 mb-2">Access Restricted</h3>
-            <p className="text-surface-600 mb-6">
-              Only business owners can access billing and subscription management. 
-              Contact your business owner for subscription-related changes.
+            <h3 className="text-2xl font-semibold text-gray-900 mb-4">Billing Access Restricted</h3>
+            <p className="text-gray-600 mb-8 max-w-md mx-auto">
+              Only business owners can access billing and subscription management. Contact your business owner for subscription changes.
             </p>
             
-            {/* Show basic plan info only */}
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200 max-w-md mx-auto">
-              <div className="flex items-center justify-center space-x-3 mb-3">
+            {/* Basic Plan Status */}
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-8 rounded-xl border border-blue-200 max-w-sm mx-auto mb-8">
+              <div className="text-center">
                 {loading ? (
-                  <span className="text-lg font-bold text-blue-900">Loading...</span>
-                ) : subscription ? (
+                  <div className="animate-pulse">
+                    <div className="h-6 bg-gray-200 rounded mb-2 w-24 mx-auto"></div>
+                    <div className="h-4 bg-gray-200 rounded w-16 mx-auto"></div>
+                  </div>
+                ) : (
                   <>
-                    <span className="text-lg font-bold text-blue-900 capitalize">{subscription.tier}</span>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    <div className="text-xl font-bold text-blue-900 mb-2">
+                      {subscription?.tier ? subscription.tier.charAt(0).toUpperCase() + subscription.tier.slice(1) : 'No Plan'}
+                    </div>
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
                       isActive 
                         ? isTrial 
                           ? 'bg-yellow-100 text-yellow-800' 
                           : 'bg-green-100 text-green-800'
                         : 'bg-red-100 text-red-800'
                     }`}>
-                      {isTrial ? `Trial (${trialDaysRemaining}d)` : subscription.status}
+                      {isTrial ? `Trial (${trialDaysRemaining}d left)` : subscription?.status || 'Inactive'}
                     </span>
                   </>
-                ) : (
-                  <span className="text-lg font-bold text-gray-600">No Plan</span>
                 )}
-              </div>
-              <div className="text-sm text-blue-700">
-                {loading ? 'Loading subscription information...' : 'Contact owner for plan changes'}
               </div>
             </div>
             
-            <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
               <div className="flex items-start space-x-3">
-                <svg className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h-6 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <div className="text-left">
-                  <p className="text-sm text-yellow-900 font-medium">Need to upgrade or change plans?</p>
-                  <p className="text-sm text-yellow-800 mt-1">
-                    Ask your business owner to access billing settings or contact support for assistance.
+                  <p className="text-sm text-amber-900 font-medium mb-1">Need to change your plan?</p>
+                  <p className="text-sm text-amber-800">
+                    Contact your business owner to upgrade, downgrade, or manage billing settings.
                   </p>
                 </div>
               </div>
@@ -1587,370 +1581,186 @@ function BillingTab() {
   }
 
   return (
-    <div className="space-y-8">
-      {/* Header Section - Full Access */}
-      <div className="pb-5 border-b border-surface-200">
-        <h2 className="text-3xl font-bold text-surface-900">Billing & Subscription</h2>
-        <p className="mt-2 text-surface-600 max-w-2xl">
-          Manage your subscription plan, billing information, and payment history.
-        </p>
-        <div className="mt-4 flex items-center space-x-3">
-          <div className="flex items-center space-x-2 text-sm text-green-600">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span>Business Owner Access</span>
-          </div>
+    <div className="min-h-screen bg-white">
+      {/* Trial Banner */}
+      <TrialExpirationBanner />
+      
+      <div className="max-w-6xl mx-auto px-6 py-16">
+        {/* Apple-style Header */}
+        <div className="text-center mb-20">
+          <h1 className="text-5xl font-semibold text-gray-900 mb-6 tracking-tight leading-tight">
+            Choose your plan
+          </h1>
+          <p className="text-xl text-gray-600 leading-relaxed max-w-2xl mx-auto font-light">
+            Get the tools you need to grow your business. Every plan includes our core features with increasing capabilities.
+          </p>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-        {/* Current Plan - Takes 2 columns */}
-        <div className="xl:col-span-2 space-y-6">
-          {/* Current Plan Card */}
-          <div className="card p-8">{loading ? (
+        {/* Current Plan Overview - Apple Card Style */}
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 mb-20 overflow-hidden">
+          <div className="p-12">
+            {loading ? (
               <div className="animate-pulse">
-                <div className="flex items-center justify-between mb-8">
-                  <div>
-                    <div className="h-6 bg-gray-200 rounded w-48 mb-2"></div>
-                    <div className="h-4 bg-gray-200 rounded w-32"></div>
+                <div className="flex justify-between items-start mb-8">
+                  <div className="space-y-3">
+                    <div className="h-7 bg-gray-200 rounded-lg w-48"></div>
+                    <div className="h-5 bg-gray-200 rounded-lg w-32"></div>
                   </div>
-                  <div className="text-right">
-                    <div className="h-8 bg-gray-200 rounded w-20 mb-1"></div>
-                    <div className="h-4 bg-gray-200 rounded w-16"></div>
+                  <div className="text-right space-y-3">
+                    <div className="h-9 bg-gray-200 rounded-lg w-24"></div>
+                    <div className="h-4 bg-gray-200 rounded-lg w-20"></div>
                   </div>
                 </div>
               </div>
             ) : (
               <>
-                <div className="flex items-center justify-between mb-8">
+                <div className="flex justify-between items-start mb-10">
                   <div>
-                    <h3 className="text-xl font-semibold text-surface-900 mb-2">Current Subscription</h3>
-                    <div className="flex items-center space-x-4">
-                      {subscription ? (
-                        <>
-                          <span className="text-2xl font-bold text-primary-600 capitalize">{subscription.tier}</span>
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                            isActive 
-                              ? isTrial 
-                                ? 'bg-yellow-100 text-yellow-800' 
-                                : 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {isTrial ? `Trial (${trialDaysRemaining} days left)` : subscription.status}
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-2xl font-bold text-gray-600">No Active Plan</span>
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
-                            Inactive
-                          </span>
-                        </>
-                      )}
+                    <div className="flex items-center space-x-4 mb-3">
+                      <h2 className="text-3xl font-semibold text-gray-900 tracking-tight">
+                        {subscription?.tier ? subscription.tier.charAt(0).toUpperCase() + subscription.tier.slice(1) : 'No active plan'}
+                      </h2>
+                      <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium ${
+                        isActive 
+                          ? isTrial 
+                            ? 'bg-orange-50 text-orange-600 border border-orange-200' 
+                            : 'bg-green-50 text-green-600 border border-green-200'
+                          : 'bg-red-50 text-red-600 border border-red-200'
+                      }`}>
+                        {isTrial ? `${trialDaysRemaining} days left` : subscription?.status || 'Inactive'}
+                      </span>
                     </div>
+                    {subscription?.endDate && (
+                      <p className="text-gray-500 font-light">
+                        Next billing on {new Date(subscription.endDate.seconds * 1000).toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        })}
+                      </p>
+                    )}
                   </div>
                   <div className="text-right">
-                    {subscription ? (
-                      <>
-                        <div className="text-3xl font-bold text-surface-900">
-                          ₱{subscription.billingCycle === 'monthly' 
-                            ? SUBSCRIPTION_PLANS.find(p => p.id === subscription.planId)?.monthlyPrice || '--'
-                            : SUBSCRIPTION_PLANS.find(p => p.id === subscription.planId)?.yearlyPrice || '--'
-                          }
-                        </div>
-                        <div className="text-sm text-surface-600">per {subscription.billingCycle === 'monthly' ? 'month' : 'year'}</div>
-                        <div className="text-xs text-surface-500 mt-1">
-                          Next billing: {subscription.endDate ? new Date(subscription.endDate.seconds * 1000).toLocaleDateString() : '--'}
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="text-3xl font-bold text-surface-900">--</div>
-                        <div className="text-sm text-surface-600">No plan</div>
-                        <div className="text-xs text-surface-500 mt-1">Next billing: --</div>
-                      </>
-                    )}
+                    <div className="text-4xl font-semibold text-gray-900 tracking-tight">
+                      {subscription ? (
+                        `₱${subscription.billingCycle === 'monthly' 
+                          ? SUBSCRIPTION_PLANS.find(p => p.id === subscription.planId)?.monthlyPrice || '0'
+                          : SUBSCRIPTION_PLANS.find(p => p.id === subscription.planId)?.yearlyPrice || '0'
+                        }`
+                      ) : '₱0'}
+                    </div>
+                    <div className="text-gray-500 font-light mt-1">
+                      per {subscription?.billingCycle || 'month'}
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                  <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
-                    <div className="text-2xl font-bold text-blue-600">
+                {/* Usage Overview - Apple Grid Style */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-10">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                    </div>
+                    <div className="text-2xl font-semibold text-gray-900 mb-1">
                       {subscription?.currentUsage?.locations || 0}
                     </div>
-                    <div className="text-sm text-blue-700 font-medium">Active Branches</div>
-                    <div className="text-xs text-blue-600">
-                      {limits?.maxLocations === -1 ? 'Unlimited' : `of ${limits?.maxLocations || 0} max`}
+                    <div className="text-sm text-gray-500 font-light">Locations</div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {limits?.maxLocations === -1 ? 'Unlimited' : `of ${limits?.maxLocations || 0}`}
                     </div>
                   </div>
-                  <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border border-green-200">
-                    <div className="text-2xl font-bold text-green-600">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                    </div>
+                    <div className="text-2xl font-semibold text-gray-900 mb-1">
                       {subscription?.currentUsage?.users || 0}
                     </div>
-                    <div className="text-sm text-green-700 font-medium">Team Members</div>
-                    <div className="text-xs text-green-600">
-                      {limits?.maxUsers === -1 ? 'Unlimited' : `of ${limits?.maxUsers || 0} max`}
+                    <div className="text-sm text-gray-500 font-light">Team members</div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {limits?.maxUsers === -1 ? 'Unlimited' : `of ${limits?.maxUsers || 0}`}
                     </div>
                   </div>
-                  <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200">
-                    <div className="text-2xl font-bold text-purple-600">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-purple-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-8 h-8 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    </div>
+                    <div className="text-2xl font-semibold text-gray-900 mb-1">
                       {subscription?.currentUsage?.apiCallsThisMonth || 0}
                     </div>
-                    <div className="text-sm text-purple-700 font-medium">API Calls</div>
-                    <div className="text-xs text-purple-600">This month</div>
+                    <div className="text-sm text-gray-500 font-light">API calls</div>
+                    <div className="text-xs text-gray-400 mt-1">This month</div>
                   </div>
-                  <div className="text-center p-4 bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl border border-orange-200">
-                    <div className="text-2xl font-bold text-orange-600">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-orange-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-8 h-8 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                      </svg>
+                    </div>
+                    <div className="text-2xl font-semibold text-gray-900 mb-1">
                       {subscription?.currentUsage?.storageUsed || 0}GB
                     </div>
-                    <div className="text-sm text-orange-700 font-medium">Storage Used</div>
-                    <div className="text-xs text-orange-600">
+                    <div className="text-sm text-gray-500 font-light">Storage used</div>
+                    <div className="text-xs text-gray-400 mt-1">
                       {limits?.storageLimit === -1 ? 'Unlimited' : `of ${limits?.storageLimit || 0}GB`}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
+                {/* Action Buttons - Apple Button Style */}
+                <div className="flex space-x-4">
                   <button 
                     onClick={() => window.location.href = '/subscription'}
-                    className="flex-1 px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm"
+                    className="flex-1 bg-blue-500 text-white px-8 py-4 rounded-2xl hover:bg-blue-600 transition-all duration-200 font-medium text-lg"
                   >
-                    Manage Plan
+                    Change plan
                   </button>
-                  <button className="flex-1 px-6 py-3 border border-surface-300 text-surface-700 rounded-xl hover:bg-surface-50 transition-colors font-medium">
-                    View Usage Details
+                  <button className="flex-1 border border-gray-200 text-gray-900 px-8 py-4 rounded-2xl hover:bg-gray-50 transition-all duration-200 font-medium text-lg">
+                    View usage details
                   </button>
                 </div>
               </>
             )}
           </div>
-          {/* Billing History */}
-          <div className="card overflow-hidden">
-            <div className="px-8 py-6 border-b border-surface-200">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-semibold text-surface-900">Billing History</h3>
-                <div className="flex items-center space-x-3">
-                  <select className="px-3 py-2 text-sm border border-surface-300 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white">
-                    <option>Last 12 months</option>
-                    <option>This year</option>
-                    <option>All time</option>
-                  </select>
-                  <button className="px-4 py-2 text-sm text-primary-600 hover:text-primary-700 font-medium border border-primary-200 rounded-lg hover:bg-primary-50 transition-colors">
-                    Export All
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full">
-                <thead className="bg-surface-50">
-                  <tr>
-                    <th className="px-8 py-4 text-left text-sm font-semibold text-surface-700">Date</th>
-                    <th className="px-8 py-4 text-left text-sm font-semibold text-surface-700">Description</th>
-                    <th className="px-8 py-4 text-left text-sm font-semibold text-surface-700">Amount</th>
-                    <th className="px-8 py-4 text-left text-sm font-semibold text-surface-700">Status</th>
-                    <th className="px-8 py-4 text-left text-sm font-semibold text-surface-700">Invoice</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-surface-100">
-                  <tr className="hover:bg-surface-25 transition-colors">
-                    <td className="px-8 py-8 text-center text-surface-500" colSpan={5}>
-                      <div className="flex flex-col items-center justify-center space-y-3">
-                        <svg className="w-12 h-12 text-surface-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <div className="text-sm font-medium text-surface-600">No billing history available</div>
-                        <div className="text-xs text-surface-500">Billing information will appear here once available</div>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
         </div>
 
-        {/* Sidebar - Takes 1 column */}
-        <div className="space-y-6">
-          {/* Billing Address */}
-          <div className="card p-6">
-            <h3 className="text-lg font-semibold text-surface-900 mb-4">Billing Address</h3>
-            <div className="text-sm text-surface-600 space-y-1">
-              <div className="font-medium text-surface-900">--</div>
-              <div>--</div>
-              <div>--</div>
-              <div>--</div>
-            </div>
-            <button className="w-full mt-4 px-4 py-2 text-sm border border-surface-300 text-surface-700 rounded-xl hover:bg-surface-50 transition-colors">
-              Update Address
-            </button>
+        {/* Available Plans - Apple Card Grid */}
+        <div className="mb-20">
+          <div className="text-center mb-16">
+            <h3 className="text-4xl font-semibold text-gray-900 tracking-tight mb-4">
+              Choose the perfect plan
+            </h3>
+            <p className="text-xl text-gray-500 font-light max-w-2xl mx-auto leading-relaxed">
+              Upgrade or downgrade at any time. All plans include core features with different usage limits.
+            </p>
           </div>
-          {/* Payment Method */}
-          <div className="card p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-surface-900">Payment Method</h3>
-              <button className="text-sm text-primary-600 hover:text-primary-700 font-medium">
-                Update
+          <SubscriptionPlans />
+        </div>
+
+        {/* Billing History - Apple List Style */}
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-8 border-b border-gray-100">
+            <div className="flex items-center justify-between">
+              <h3 className="text-2xl font-semibold text-gray-900 tracking-tight">Transaction history</h3>
+              <button className="text-blue-500 font-medium hover:text-blue-600 transition-colors">
+                Export
               </button>
             </div>
-            <div className="flex items-center space-x-4 p-4 bg-surface-50 rounded-xl border border-surface-200">
-              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <div className="font-semibold text-surface-900">No payment method</div>
-                <div className="text-sm text-surface-600">Add a payment method</div>
-              </div>
-              <div className="text-sm text-gray-500 font-medium">
-                --
-              </div>
-            </div>
           </div>
-
-          {/* Next Billing */}
-          <div className="card p-6">
-            <h3 className="text-lg font-semibold text-surface-900 mb-4">Next Billing</h3>
-            <div className="text-center mb-4">
-              <div className="text-2xl font-bold text-surface-900">
-                {subscription && subscription.endDate ? 
-                  new Date(subscription.endDate.seconds * 1000).toLocaleDateString() : 
-                  '--'
-                }
-              </div>
-              <div className="text-sm text-surface-600 mt-1">
-                {subscription ? `${subscription.billingCycle} billing` : 'No billing scheduled'}
-              </div>
+          <div className="p-12 text-center">
+            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
             </div>
-            <div className="bg-surface-100 rounded-full h-2 mb-2">
-              <div className="bg-primary-500 h-2 rounded-full" style={{ 
-                width: subscription && isTrial ? `${(1 - trialDaysRemaining / 14) * 100}%` : '0%' 
-              }}></div>
-            </div>
-            <div className="text-center text-xs text-surface-500">
-              {isTrial ? `${trialDaysRemaining} days left in trial` : 'Active subscription'}
-            </div>
-          </div>
-
-          {/* Usage Stats */}
-          <div className="card p-6">
-            <h3 className="text-lg font-semibold text-surface-900 mb-4">Current Usage</h3>
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-surface-600">Branches</span>
-                  <span className="font-medium">
-                    {subscription?.currentUsage?.locations || 0} / {limits?.maxLocations === -1 ? '∞' : limits?.maxLocations || 0}
-                  </span>
-                </div>
-                <div className="bg-surface-100 rounded-full h-2">
-                  <div className="bg-blue-500 h-2 rounded-full" style={{ 
-                    width: limits?.maxLocations === -1 ? '0%' : 
-                      `${Math.min(((subscription?.currentUsage?.locations || 0) / (limits?.maxLocations || 1)) * 100, 100)}%` 
-                  }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-surface-600">Users</span>
-                  <span className="font-medium">
-                    {subscription?.currentUsage?.users || 0} / {limits?.maxUsers === -1 ? '∞' : limits?.maxUsers || 0}
-                  </span>
-                </div>
-                <div className="bg-surface-100 rounded-full h-2">
-                  <div className="bg-green-500 h-2 rounded-full" style={{ 
-                    width: limits?.maxUsers === -1 ? '0%' : 
-                      `${Math.min(((subscription?.currentUsage?.users || 0) / (limits?.maxUsers || 1)) * 100, 100)}%` 
-                  }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-surface-600">API Calls</span>
-                  <span className="font-medium">
-                    {subscription?.currentUsage?.apiCallsThisMonth || 0} / {limits?.apiCallsPerMonth === -1 ? '∞' : limits?.apiCallsPerMonth || 0}
-                  </span>
-                </div>
-                <div className="bg-surface-100 rounded-full h-2">
-                  <div className="bg-purple-500 h-2 rounded-full" style={{ 
-                    width: limits?.apiCallsPerMonth === -1 ? '0%' : 
-                      `${Math.min(((subscription?.currentUsage?.apiCallsThisMonth || 0) / (limits?.apiCallsPerMonth || 1)) * 100, 100)}%` 
-                  }}></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Tax Information */}
-          <div className="card p-6">
-            <h3 className="text-lg font-semibold text-surface-900 mb-4">Tax Information</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-surface-600">VAT Registered</span>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                  --
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-surface-600">TIN</span>
-                <span className="text-sm font-medium text-surface-900">--</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-surface-600">BIR RDO</span>
-                <span className="text-sm font-medium text-surface-900">--</span>
-              </div>
-            </div>
-            <button className="w-full mt-4 px-4 py-2 text-sm border border-surface-300 text-surface-700 rounded-xl hover:bg-surface-50 transition-colors">
-              Update Tax Info
-            </button>
-          </div>
-
-          {/* Payment Preferences */}
-          <div className="card p-6">
-            <h3 className="text-lg font-semibold text-surface-900 mb-4">Payment Preferences</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-medium text-surface-900">Auto-pay</div>
-                  <div className="text-xs text-surface-600">Automatically pay invoices</div>
-                </div>
-                <label className="flex items-center">
-                  <input type="checkbox" defaultChecked className="rounded text-primary-600 focus:ring-primary-500" />
-                </label>
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-medium text-surface-900">Email receipts</div>
-                  <div className="text-xs text-surface-600">Send receipts via email</div>
-                </div>
-                <label className="flex items-center">
-                  <input type="checkbox" defaultChecked className="rounded text-primary-600 focus:ring-primary-500" />
-                </label>
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-medium text-surface-900">Payment reminders</div>
-                  <div className="text-xs text-surface-600">3 days before due date</div>
-                </div>
-                <label className="flex items-center">
-                  <input type="checkbox" defaultChecked className="rounded text-primary-600 focus:ring-primary-500" />
-                </label>
-              </div>
-            </div>
-          </div>
-
-          {/* Support */}
-          <div className="card p-6 bg-blue-50 border-blue-200">
-            <h3 className="text-lg font-semibold text-blue-900 mb-2">Need Help?</h3>
-            <p className="text-sm text-blue-800 mb-4">
-              Contact our billing support team for assistance with your account.
-            </p>
-            <button className="w-full px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors text-sm font-medium">
-              Contact Support
-            </button>
+            <h4 className="text-xl font-semibold text-gray-900 mb-3 tracking-tight">No transactions yet</h4>
+            <p className="text-gray-500 font-light leading-relaxed">Your billing history will appear here once you start your subscription</p>
           </div>
         </div>
       </div>

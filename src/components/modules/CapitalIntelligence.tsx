@@ -2,11 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
+import { db } from '../../lib/firebase'
+import { collection, getDocs, query, orderBy, limit, DocumentData } from 'firebase/firestore'
 
 // Capital Intelligence Dashboard Component
 export default function CapitalIntelligence() {
   const { profile, tenant } = useAuth()
   const [activeTab, setActiveTab] = useState('overview')
+  const [loading, setLoading] = useState(false)
   const [alertThresholds, setAlertThresholds] = useState({
     highICR: 75,
     slowRecovery: 30,
@@ -14,7 +17,24 @@ export default function CapitalIntelligence() {
   })
 
   // Real data integration - replace with Firebase data
-  const [capitalData, setCapitalData] = useState({
+  const [capitalData, setCapitalData] = useState<{
+    currentICR: number
+    capitalRecoveryTime: number
+    purchaseToSalesVelocity: number
+    totalInventoryValue: number
+    totalCapitalDeployed: number
+    recentPurchases: Array<{
+      name: string
+      amount: number
+      date: Date
+    }>
+    recommendations: Array<{
+      title: string
+      message: string
+      priority: string
+      action: string
+    }>
+  }>({
     currentICR: 0,
     capitalRecoveryTime: 0,
     purchaseToSalesVelocity: 0,
@@ -24,24 +44,106 @@ export default function CapitalIntelligence() {
     recommendations: []
   })
 
-  // Load real data from Firebase (placeholder - integrate with your actual data structure)
+  // Load real data from Firebase
   useEffect(() => {
-    // TODO: Replace with actual Firebase data fetching
-    // For now, showing empty state or loading from tenant data
-    if (tenant?.id) {
-      // Calculate real metrics from Firebase data
-      const calculatedMetrics = {
-        currentICR: 0, // Calculate from inventory/sales ratio
-        capitalRecoveryTime: 0, // Calculate from average daily sales
-        purchaseToSalesVelocity: 0, // Calculate from purchases vs sales
-        totalInventoryValue: 0, // Sum from inventory collection
-        totalCapitalDeployed: 0, // Sum from purchase orders
-        recentPurchases: [], // Fetch from purchase orders collection
-        recommendations: [] // Generate based on actual data patterns
+    const loadCapitalData = async () => {
+      if (!tenant?.id || !profile?.tenantId) return
+      
+      setLoading(true)
+      try {
+        // Fetch real data from Firebase collections
+        const tenantId = profile.tenantId
+        
+        // Get inventory data
+        const inventoryRef = collection(db, `tenants/${tenantId}/inventory`)
+        const inventorySnapshot = await getDocs(inventoryRef)
+        const inventoryItems = inventorySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[]
+        
+        // Get recent orders for sales data
+        const ordersRef = collection(db, `tenants/${tenantId}/orders`)
+        const recentOrdersQuery = query(ordersRef, orderBy('createdAt', 'desc'), limit(100))
+        const ordersSnapshot = await getDocs(recentOrdersQuery)
+        const recentOrders = ordersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[]
+        
+        // Get purchase orders
+        const purchaseOrdersRef = collection(db, `tenants/${tenantId}/purchaseOrders`)
+        const purchaseSnapshot = await getDocs(purchaseOrdersRef)
+        const purchases = purchaseSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[]
+        
+        // Calculate real metrics
+        const totalInventoryValue = inventoryItems.reduce((sum, item) => {
+          const value = (item.currentStock || 0) * (item.costPerUnit || 0)
+          return sum + (isNaN(value) ? 0 : value)
+        }, 0)
+        
+        const totalCapitalDeployed = purchases.reduce((sum, purchase) => {
+          return sum + (purchase.totalAmount || 0)
+        }, 0)
+        
+        // Calculate daily sales average (last 30 days)
+        const thirtyDaysAgo = new Date()
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+        
+        const recentSales = recentOrders.filter(order => {
+          const orderDate = order.createdAt?.toDate ? order.createdAt.toDate() : new Date(order.createdAt)
+          return orderDate >= thirtyDaysAgo
+        })
+        
+        const totalRecentSales = recentSales.reduce((sum, order) => sum + (order.total || 0), 0)
+        const avgDailySales = recentSales.length > 0 ? totalRecentSales / Math.min(30, recentSales.length) : 0
+        
+        // Calculate ICR (Inventory to Capital Ratio)
+        const currentICR = totalCapitalDeployed > 0 ? totalInventoryValue / totalCapitalDeployed : 0
+        
+        // Calculate capital recovery time (days to sell current inventory)
+        const capitalRecoveryTime = avgDailySales > 0 ? totalInventoryValue / avgDailySales : 0
+        
+        // Generate recommendations based on real data
+        const recommendations = []
+        if (currentICR > 0.8) {
+          recommendations.push({
+            id: 'high-inventory-levels',
+            title: 'High Inventory Levels',
+            message: 'Consider reducing inventory levels to improve cash flow',
+            priority: 'high',
+            action: 'Review slow-moving items'
+          })
+        }
+        if (capitalRecoveryTime > 60) {
+          recommendations.push({
+            id: 'slow-capital-recovery',
+            title: 'Slow Capital Recovery',
+            message: `Current inventory will take ${Math.round(capitalRecoveryTime)} days to sell`,
+            priority: 'medium',
+            action: 'Focus on faster-moving products'
+          })
+        }
+        
+        const calculatedMetrics = {
+          currentICR: Math.round(currentICR * 100) / 100,
+          capitalRecoveryTime: Math.round(capitalRecoveryTime * 10) / 10,
+          purchaseToSalesVelocity: avgDailySales,
+          totalInventoryValue: Math.round(totalInventoryValue),
+          totalCapitalDeployed: Math.round(totalCapitalDeployed),
+          recentPurchases: purchases.slice(0, 5).map((p, index) => ({
+            id: p.id || `purchase-${index}`,
+            name: p.supplierName || 'Unknown Supplier',
+            amount: p.totalAmount || 0,
+            date: p.createdAt?.toDate ? p.createdAt.toDate() : new Date(p.createdAt || Date.now())
+          })),
+          recommendations
+        }
+        
+        setCapitalData(calculatedMetrics)
+      } catch (error) {
+        console.error('Error loading capital intelligence data:', error)
+      } finally {
+        setLoading(false)
       }
-      setCapitalData(calculatedMetrics)
     }
-  }, [tenant?.id])
+    
+    loadCapitalData()
+  }, [tenant?.id, profile?.tenantId])
 
   const tabs = [
     { id: 'overview', label: 'Capital Overview', icon: '📊' },
@@ -177,8 +279,8 @@ export default function CapitalIntelligence() {
                   purchase.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
                 }`}></div>
                 <div>
-                  <p className="font-medium text-gray-900">{purchase.item}</p>
-                  <p className="text-sm text-gray-600">{purchase.date}</p>
+                  <p className="font-medium text-gray-900">{purchase.name}</p>
+                  <p className="text-sm text-gray-600">{purchase.date.toLocaleDateString()}</p>
                 </div>
               </div>
               <div className="text-right">
@@ -199,8 +301,8 @@ export default function CapitalIntelligence() {
       <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Wins</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {capitalData.recommendations.slice(0, 3).map((rec: any, index: number) => (
-            <div key={index} className={`p-4 rounded-lg border-2 ${
+          {capitalData.recommendations.slice(0, 3).map((rec: any) => (
+            <div key={rec.id || rec.title} className={`p-4 rounded-lg border-2 ${
               rec.priority === 'high' ? 'border-red-200 bg-red-50' :
               rec.priority === 'medium' ? 'border-yellow-200 bg-yellow-50' :
               'border-green-200 bg-green-50'
@@ -295,8 +397,8 @@ export default function CapitalIntelligence() {
       <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">AI-Powered Capital Optimization</h3>
         <div className="space-y-4">
-          {capitalData.recommendations.map((rec: any, index: number) => (
-            <div key={index} className="p-6 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors">
+          {capitalData.recommendations.map((rec: any) => (
+            <div key={rec.id || rec.title} className="p-6 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center space-x-3">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center ${

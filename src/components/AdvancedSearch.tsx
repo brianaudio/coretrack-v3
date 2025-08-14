@@ -164,6 +164,7 @@ export default function AdvancedSearch({
             onChange={(e) => setSearchTerm(e.target.value)}
             className={`input-field pl-10 pr-12 ${isMobile ? 'text-base' : 'text-sm'}`}
             placeholder={placeholder}
+            data-tour="search-bar"
           />
           {(searchTerm || activeFilterCount > 0) && (
             <button

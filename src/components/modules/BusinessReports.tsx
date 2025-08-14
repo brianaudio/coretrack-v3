@@ -27,6 +27,8 @@ export default function BusinessReports() {
   const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'custom'>('today')
   const [customStartDate, setCustomStartDate] = useState('')
   const [customEndDate, setCustomEndDate] = useState('')
+  const [showDebugMode, setShowDebugMode] = useState(false)
+  const [resetDate, setResetDate] = useState('')
 
   // Initialize custom dates with reasonable defaults
   useEffect(() => {
@@ -42,79 +44,42 @@ export default function BusinessReports() {
     }
   }, [customStartDate, customEndDate])
 
-  // Report Categories - Simplified
-  const reportCategories = [
-    {
-      title: 'Financial Reports',
-      icon: '💰',
-      reports: [
-        { id: 'daily_sales', name: 'Daily Sales Summary', desc: 'Complete sales breakdown with payment methods' },
-        { id: 'profit_loss', name: 'Profit & Loss Statement', desc: 'Revenue vs expenses analysis' },
-        { id: 'payment_methods', name: 'Payment Methods Analysis', desc: 'Breakdown by cash, cards, digital payments' }
-      ]
-    },
-    {
-      title: 'Operational Reports',
-      icon: '📊',
-      reports: [
-        { id: 'inventory_summary', name: 'Inventory Summary', desc: 'Current stock levels and valuations' },
-        { id: 'menu_performance', name: 'Menu Performance', desc: 'Best/worst performing menu items' },
-        { id: 'executive_summary', name: 'Executive Summary', desc: 'High-level business overview' }
-      ]
-    },
-    {
-      title: 'Purchase Order Reports',
-      icon: '📦',
-      reports: [
-        { id: 'purchase_summary', name: 'Purchase Order Summary', desc: 'Total spending and order analysis' },
-        { id: 'supplier_analysis', name: 'Supplier Analysis', desc: 'Spending breakdown by suppliers' },
-        { id: 'cost_tracking', name: 'Cost Tracking Report', desc: 'Track inventory costs and price changes' }
-      ]
-    }
+  // Simplified Report Options
+  const reportOptions = [
+    { id: 'daily_sales', name: 'Sales Report', desc: 'Daily sales and revenue', icon: '📊' },
+    { id: 'profit_loss', name: 'Profit & Loss', desc: 'Revenue vs expenses', icon: '💰' },
+    { id: 'inventory_summary', name: 'Inventory Report', desc: 'Current stock levels', icon: '📦' },
+    { id: 'menu_performance', name: 'Menu Performance', desc: 'Best selling items', icon: '🍽️' },
+    { id: 'payment_methods', name: 'Payment Analysis', desc: 'Payment breakdown', icon: '💳' },
+    { id: 'executive_summary', name: 'Executive Summary', desc: 'Business overview', icon: '📋' }
   ]
 
   const calculateDateRange = () => {
-    const endDate = new Date()
-    const startDate = new Date()
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     
     switch (dateRange) {
       case 'today':
-        startDate.setHours(0, 0, 0, 0)
-        endDate.setHours(23, 59, 59, 999)
-        break
-      case 'week':
-        startDate.setDate(startDate.getDate() - 7)
-        startDate.setHours(0, 0, 0, 0)
-        endDate.setHours(23, 59, 59, 999)
-        break
-      case 'month':
-        startDate.setDate(startDate.getDate() - 30)
-        startDate.setHours(0, 0, 0, 0)
-        endDate.setHours(23, 59, 59, 999)
-        break
-      case 'custom':
-        if (customStartDate && customEndDate) {
-          const customStart = new Date(customStartDate)
-          const customEnd = new Date(customEndDate)
-          
-          // Validate custom dates
-          if (customStart > customEnd) {
-            throw new Error('Start date must be before end date')
-          }
-          
-          // Set proper time boundaries
-          customStart.setHours(0, 0, 0, 0)
-          customEnd.setHours(23, 59, 59, 999)
-          
-          startDate.setTime(customStart.getTime())
-          endDate.setTime(customEnd.getTime())
-        } else {
-          throw new Error('Please select both start and end dates for custom range')
+        return {
+          startDate: today,
+          endDate: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1)
         }
-        break
+      case 'week':
+        const weekStart = new Date(today)
+        weekStart.setDate(today.getDate() - 7)
+        return { startDate: weekStart, endDate: now }
+      case 'month':
+        const monthStart = new Date(today)
+        monthStart.setDate(today.getDate() - 30)
+        return { startDate: monthStart, endDate: now }
+      case 'custom':
+        return {
+          startDate: customStartDate ? new Date(customStartDate) : today,
+          endDate: customEndDate ? new Date(customEndDate + 'T23:59:59') : now
+        }
+      default:
+        return { startDate: today, endDate: now }
     }
-
-    return { startDate, endDate }
   }
 
   const fetchReportData = async (): Promise<ReportData> => {
@@ -124,1125 +89,1044 @@ export default function BusinessReports() {
 
     const { startDate, endDate } = calculateDateRange()
     
-    console.log('📊 BusinessReports - Fetching data for range:', {
-      dateRange,
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
+    console.log('� DEEP DIVE: Complete context analysis')
+    console.log('👤 USER CONTEXT:', {
+      tenantId: profile.tenantId,
+      userId: profile.uid,
+      email: profile.email
+    })
+    console.log('🏪 BRANCH CONTEXT:', {
+      selectedBranchId: selectedBranch.id,
+      selectedBranchName: selectedBranch.name,
+      selectedBranchObject: selectedBranch
+    })
+    console.log('📅 DATE RANGE CONTEXT:', {
+      dateRangeSelection: dateRange,
+      calculatedStartDate: startDate.toISOString(),
+      calculatedEndDate: endDate.toISOString(),
       customStartDate,
       customEndDate,
-      tenantId: profile.tenantId,
-      branchId: selectedBranch.id
+      todayForComparison: new Date().toISOString()
     })
 
     const timeRangeLabel = dateRange === 'custom' 
       ? `${customStartDate} to ${customEndDate}`
       : dateRange.charAt(0).toUpperCase() + dateRange.slice(1)
 
-    // Try multiple approaches for fetching orders
-    let orders: any[] = []
-    let queryMethod = 'unknown'
-    
-    // Method 1: Location-based approach (matching analytics structure)
-    try {
-      const mainLocationId = 'main-location-gJPRV0nFGiULXAW9nciyGad686z2'
-      const ordersRef = collection(db, `tenants/${profile.tenantId}/locations/location_${mainLocationId}/posOrders`)
-      const ordersQuery = query(
-        ordersRef,
-        where('completedAt', '>=', Timestamp.fromDate(startDate)),
-        where('completedAt', '<=', Timestamp.fromDate(endDate)),
-        orderBy('completedAt', 'desc')
-      )
-      const snapshot = await getDocs(ordersQuery)
-      if (snapshot.size > 0) {
-        orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-        queryMethod = 'location-based'
-        console.log('✅ Location-based query succeeded:', orders.length, 'orders')
-      }
-    } catch (error) {
-      console.log('❌ Location-based query failed:', error)
-    }
-
-    // Method 2: Direct posOrders collection
-    if (orders.length === 0) {
-      try {
-        const locationId = getBranchLocationId(selectedBranch.id)
-        const ordersRef = collection(db, `tenants/${profile.tenantId}/posOrders`)
-        const ordersQuery = query(
-          ordersRef,
-          where('locationId', '==', locationId),
-          where('completedAt', '>=', Timestamp.fromDate(startDate)),
-          where('completedAt', '<=', Timestamp.fromDate(endDate)),
-          orderBy('completedAt', 'desc')
-        )
-        const snapshot = await getDocs(ordersQuery)
-        orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-        queryMethod = 'direct-posOrders'
-        console.log('✅ Direct posOrders query:', orders.length, 'orders')
-      } catch (error) {
-        console.log('❌ Direct posOrders query failed:', error)
-      }
-    }
-
-    // Method 3: Fallback with createdAt field
-    if (orders.length === 0) {
-      try {
-        const locationId = getBranchLocationId(selectedBranch.id)
-        const ordersRef = collection(db, `tenants/${profile.tenantId}/posOrders`)
-        const ordersQuery = query(
-          ordersRef,
-          where('locationId', '==', locationId),
-          where('createdAt', '>=', Timestamp.fromDate(startDate)),
-          where('createdAt', '<=', Timestamp.fromDate(endDate)),
-          orderBy('createdAt', 'desc')
-        )
-        const snapshot = await getDocs(ordersQuery)
-        orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-        queryMethod = 'createdAt-fallback'
-        console.log('✅ CreatedAt fallback query:', orders.length, 'orders')
-      } catch (error) {
-        console.log('❌ CreatedAt fallback query failed:', error)
-      }
-    }
-
-    // Fetch inventory (current state only)
-    let inventory: any[] = []
-    try {
-      const inventoryRef = collection(db, `tenants/${profile.tenantId}/inventory`)
-      const inventorySnapshot = await getDocs(inventoryRef)
-      inventory = inventorySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-    } catch (error) {
-      console.log('❌ Inventory fetch failed:', error)
-    }
-
-    // Fetch expenses for the period
-    let expenses: any[] = []
-    try {
-      const expensesRef = collection(db, `tenants/${profile.tenantId}/expenses`)
-      const expensesQuery = query(
-        expensesRef,
-        where('date', '>=', Timestamp.fromDate(startDate)),
-        where('date', '<=', Timestamp.fromDate(endDate))
-      )
-      const expensesSnapshot = await getDocs(expensesQuery)
-      expenses = expensesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-    } catch (error) {
-      console.log('❌ Expenses fetch failed:', error)
-    }
-
-    // Fetch purchase orders for the period
-    let purchaseOrders: any[] = []
-    try {
-      const purchaseOrdersRef = collection(db, `tenants/${profile.tenantId}/purchaseOrders`)
-      const purchaseOrdersQuery = query(
-        purchaseOrdersRef,
-        where('createdAt', '>=', Timestamp.fromDate(startDate)),
-        where('createdAt', '<=', Timestamp.fromDate(endDate)),
-        orderBy('createdAt', 'desc')
-      )
-      const purchaseOrdersSnapshot = await getDocs(purchaseOrdersQuery)
-      purchaseOrders = purchaseOrdersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-    } catch (error) {
-      console.log('❌ Purchase Orders fetch failed:', error)
-    }
-
-    console.log('📊 Final data summary:', {
-      queryMethod,
-      ordersFound: orders.length,
-      inventoryItems: inventory.length,
-      expensesFound: expenses.length,
-      purchaseOrdersFound: purchaseOrders.length,
-      dateRange: timeRangeLabel
+    // Get branch location ID for filtering
+    const branchLocationId = getBranchLocationId(selectedBranch.id)
+    console.log('🔑 BRANCH IDENTIFIER ANALYSIS:', {
+      originalBranchId: selectedBranch.id,
+      processedBranchLocationId: branchLocationId,
+      branchUtilsFunction: 'getBranchLocationId'
     })
 
-    return {
-      orders,
-      inventory,
-      expenses,
-      purchaseOrders,
-      timeRange: timeRangeLabel,
-      startDate,
-      endDate
+    try {
+      // Fetch Orders with comprehensive debugging
+      console.log('� STARTING ORDER INVESTIGATION...')
+      const ordersData = await fetchOrdersData(profile.tenantId, branchLocationId, startDate, endDate)
+      console.log(`✅ ORDER INVESTIGATION COMPLETE: Found ${ordersData.length} orders`)
+
+      // Quick analysis of found orders
+      if (ordersData.length > 0) {
+        const totalSales = ordersData.reduce((sum, order: any) => sum + (order.total || 0), 0)
+        console.log(`💰 SALES SUMMARY: ₱${totalSales} from ${ordersData.length} orders`)
+        console.log('📋 ORDER DETAILS:')
+        ordersData.forEach((order: any, index) => {
+          console.log(`  ${index + 1}. Order ${order.id}: ₱${order.total}`)
+        })
+      }
+
+      // Fetch Inventory
+      console.log('📦 Fetching inventory...')
+      const inventoryRef = collection(db, 'tenants', profile.tenantId, 'inventory')
+      const inventoryQuery = query(inventoryRef, where('branchId', '==', selectedBranch.id))
+      const inventorySnapshot = await getDocs(inventoryQuery)
+      const inventoryData = inventorySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      console.log(`✅ Found ${inventoryData.length} inventory items`)
+
+      // Fetch Expenses (simplified to avoid composite index)
+      console.log('💸 Fetching expenses...')
+      const expensesRef = collection(db, 'tenants', profile.tenantId, 'expenses')
+      const expensesQuery = query(expensesRef, where('branchId', '==', selectedBranch.id))
+      const expensesSnapshot = await getDocs(expensesQuery)
+      const expensesData = expensesSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter((expense: any) => {
+          const expenseDate = expense.date?.toDate() || new Date(expense.dateString || 0)
+          return expenseDate >= startDate && expenseDate <= endDate
+        })
+      console.log(`✅ Found ${expensesData.length} expenses`)
+
+      // Fetch Purchase Orders (simplified to avoid composite index)
+      console.log('🛒 Fetching purchase orders...')
+      const poRef = collection(db, 'tenants', profile.tenantId, 'purchaseOrders')
+      const poQuery = query(poRef, where('branchId', '==', selectedBranch.id))
+      const poSnapshot = await getDocs(poQuery)
+      const poData = poSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter((po: any) => {
+          const poDate = po.createdAt?.toDate() || new Date(po.dateString || 0)
+          return poDate >= startDate && poDate <= endDate
+        })
+      console.log(`✅ Found ${poData.length} purchase orders`)
+
+      console.log('🎯 FINAL DATA SUMMARY:', {
+        orders: ordersData.length,
+        inventory: inventoryData.length,
+        expenses: expensesData.length,
+        purchaseOrders: poData.length,
+        timeRange: timeRangeLabel
+      })
+
+      return {
+        orders: ordersData,
+        inventory: inventoryData,
+        expenses: expensesData,
+        purchaseOrders: poData,
+        timeRange: timeRangeLabel,
+        startDate,
+        endDate
+      }
+    } catch (error) {
+      console.error('❌ Error fetching report data:', error)
+      throw error
     }
   }
 
-  const generatePDF = async (reportType: string) => {
-    setLoading(true)
+  // DEEP INVESTIGATION: Enhanced order fetching with extensive debugging
+  const fetchOrdersData = async (tenantId: string, branchLocationId: string, startDate: Date, endDate: Date) => {
     try {
-      const data = await fetchReportData()
-      
-      // Validate data
-      if (data.orders.length === 0 && reportType.includes('sales')) {
-        alert(`No sales data found for the selected period (${data.timeRange}).\n\nTips:\n• Try a different date range\n• Check if you have recorded sales for this period\n• Verify your branch selection`)
-        return
-      }
-      
-      console.log('📊 Generating PDF report:', {
-        type: reportType,
-        period: data.timeRange,
-        orders: data.orders.length,
-        inventory: data.inventory.length,
-        expenses: data.expenses.length
+      console.log('� DEEP INVESTIGATION: Starting comprehensive order search...')
+      console.log('📋 Search Parameters:', {
+        tenantId,
+        branchLocationId,
+        selectedBranchId: selectedBranch?.id,
+        selectedBranchName: selectedBranch?.name,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        dateRange
       })
 
-      const pdf = new jsPDF()
-
-      switch (reportType) {
-        case 'daily_sales':
-          generateDailySalesReport(pdf, data)
-          break
-        case 'profit_loss':
-          generateProfitLossReport(pdf, data)
-          break
-        case 'payment_methods':
-          generatePaymentMethodsReport(pdf, data)
-          break
-        case 'inventory_summary':
-          generateInventoryReport(pdf, data)
-          break
-        case 'menu_performance':
-          generateMenuPerformanceReport(pdf, data)
-          break
-        case 'executive_summary':
-          generateExecutiveSummaryReport(pdf, data)
-          break
-        case 'purchase_summary':
-          generatePurchaseSummaryReport(pdf, data)
-          break
-        case 'supplier_analysis':
-          generateSupplierAnalysisReport(pdf, data)
-          break
-        case 'cost_tracking':
-          generateCostTrackingReport(pdf, data)
-          break
-        default:
-          generateGenericReport(pdf, data, reportType)
+      const ordersRef = collection(db, 'tenants', tenantId, 'orders')
+      
+      // INVESTIGATION 1: Get ALL orders first to understand the data structure
+      console.log('🔍 INVESTIGATION 1: Fetching ALL orders to analyze structure...')
+      let allOrdersSnapshot = await getDocs(query(ordersRef, limit(50)))
+      let allOrders = allOrdersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      
+      console.log(`📊 Found ${allOrders.length} total orders in database`)
+      
+      if (allOrders.length > 0) {
+        console.log('🔬 ANALYZING FIRST FEW ORDERS:')
+        allOrders.slice(0, 3).forEach((order: any, index) => {
+          console.log(`Order ${index + 1}:`, {
+            id: order.id,
+            branchId: order.branchId,
+            branchLocationId: order.branchLocationId,
+            total: order.total,
+            createdAt: order.createdAt,
+            orderDate: order.orderDate,
+            timestamp: order.timestamp,
+            date: order.date,
+            allFields: Object.keys(order)
+          })
+        })
+        
+        // Check what branch identifiers exist
+        const branchIds = Array.from(new Set((allOrders as any[]).map(o => o.branchId).filter(Boolean)))
+        const branchLocationIds = Array.from(new Set((allOrders as any[]).map(o => o.branchLocationId).filter(Boolean)))
+        
+        console.log('🏪 BRANCH IDENTIFIERS FOUND:')
+        console.log('branchIds:', branchIds)
+        console.log('branchLocationIds:', branchLocationIds)
+        console.log('Looking for branchId:', selectedBranch?.id)
+        console.log('Looking for branchLocationId:', branchLocationId)
       }
 
-      const filename = `coretrack-${reportType}-${data.timeRange.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`
-      pdf.save(filename)
+      // INVESTIGATION 2: Try different branch matching strategies
+      console.log('🔍 INVESTIGATION 2: Trying multiple branch matching strategies...')
       
-      console.log('✅ PDF generated successfully:', filename)
+      // Strategy 2a: Exact branchLocationId match
+      let ordersData = (allOrders as any[]).filter(order => order.branchLocationId === branchLocationId)
+      console.log(`Strategy 2a (branchLocationId === "${branchLocationId}"): Found ${ordersData.length} orders`)
+      
+      // Strategy 2b: Exact branchId match
+      if (ordersData.length === 0) {
+        ordersData = (allOrders as any[]).filter(order => order.branchId === selectedBranch?.id)
+        console.log(`Strategy 2b (branchId === "${selectedBranch?.id}"): Found ${ordersData.length} orders`)
+      }
+      
+      // Strategy 2c: Partial match on any branch field
+      if (ordersData.length === 0) {
+        const searchTerms = [selectedBranch?.id, branchLocationId, selectedBranch?.name].filter(Boolean)
+        ordersData = (allOrders as any[]).filter(order => {
+          return searchTerms.some(term => 
+            order.branchId?.includes(term) || 
+            order.branchLocationId?.includes(term) ||
+            order.branch?.includes(term) ||
+            order.location?.includes(term)
+          )
+        })
+        console.log(`Strategy 2c (partial match): Found ${ordersData.length} orders`)
+      }
+      
+      // Strategy 2d: If still no results, try without branch filtering
+      if (ordersData.length === 0) {
+        console.log('🚨 NO BRANCH MATCHES - Using all orders for debugging')
+        ordersData = allOrders as any[]
+      }
+
+      // INVESTIGATION 3: Date range analysis
+      console.log('🔍 INVESTIGATION 3: Analyzing dates in found orders...')
+      
+      const dateAnalysis = (ordersData as any[]).map(order => {
+        const dates = {
+          createdAt: order.createdAt?.toDate?.() || null,
+          orderDate: order.orderDate ? new Date(order.orderDate) : null,
+          timestamp: order.timestamp?.toDate?.() || null,
+          date: order.date ? new Date(order.date) : null,
+          dateString: order.dateString ? new Date(order.dateString) : null
+        }
+        
+        return {
+          id: order.id,
+          total: order.total,
+          dates,
+          validDates: Object.entries(dates)
+            .filter(([key, date]) => date && !isNaN(date.getTime()))
+            .map(([key, date]) => ({ field: key, date: date.toISOString() }))
+        }
+      })
+      
+      console.log('📅 DATE ANALYSIS:')
+      dateAnalysis.slice(0, 3).forEach(analysis => {
+        console.log(`Order ${analysis.id}:`, {
+          total: analysis.total,
+          validDates: analysis.validDates
+        })
+      })
+
+      // INVESTIGATION 4: Apply date filtering with multiple date fields
+      console.log('🔍 INVESTIGATION 4: Filtering by date range...')
+      
+      // Consider reset date if provided
+      const effectiveStartDate = resetDate && new Date(resetDate) > startDate 
+        ? new Date(resetDate) 
+        : startDate
+      
+      if (resetDate && new Date(resetDate) > startDate) {
+        console.log(`🔄 RESET DATE OVERRIDE: Using reset date ${resetDate} instead of ${startDate.toISOString()}`)
+      }
+      
+      const dateFilteredOrders = (ordersData as any[]).filter(order => {
+        // Try multiple date fields
+        const possibleDates = [
+          order.createdAt?.toDate?.(),
+          order.orderDate ? new Date(order.orderDate) : null,
+          order.timestamp?.toDate?.(),
+          order.date ? new Date(order.date) : null,
+          order.dateString ? new Date(order.dateString) : null
+        ].filter(date => date && !isNaN(date.getTime()))
+        
+        if (possibleDates.length === 0) {
+          console.log(`⚠️ Order ${order.id} has no valid dates`)
+          return false
+        }
+        
+        // Use the first valid date
+        const orderDate = possibleDates[0]
+        const inRange = orderDate >= effectiveStartDate && orderDate <= endDate
+        
+        if (inRange) {
+          console.log(`✅ Order ${order.id} (₱${order.total}) is in range:`, {
+            orderDate: orderDate.toISOString(),
+            effectiveStartDate: effectiveStartDate.toISOString(),
+            endDate: endDate.toISOString(),
+            resetDateApplied: resetDate ? true : false
+          })
+        }
+        
+        return inRange
+      })
+
+      console.log(`📊 FINAL RESULTS: Found ${dateFilteredOrders.length} orders in date range`)
+      
+      if (dateFilteredOrders.length > 0) {
+        const totalSales = dateFilteredOrders.reduce((sum, order) => sum + (order.total || 0), 0)
+        console.log(`💰 Total Sales Found: ₱${totalSales}`)
+        
+        dateFilteredOrders.forEach(order => {
+          console.log(`Order: ${order.id} - ₱${order.total}`)
+        })
+      } else {
+        console.log('❌ NO ORDERS FOUND - Debugging info:')
+        console.log('Available orders count:', allOrders.length)
+        console.log('Orders with valid dates:', (ordersData as any[]).filter(o => {
+          const dates = [o.createdAt?.toDate?.(), o.orderDate ? new Date(o.orderDate) : null]
+          return dates.some(d => d && !isNaN(d.getTime()))
+        }).length)
+        console.log('Date range:', { 
+          startDate: startDate.toISOString(), 
+          effectiveStartDate: effectiveStartDate.toISOString(),
+          endDate: endDate.toISOString(),
+          resetDate: resetDate || 'Not set'
+        })
+      }
+
+      // Sort by date
+      return dateFilteredOrders.sort((a: any, b: any) => {
+        const dateA = a.createdAt?.toDate() || new Date(a.orderDate || a.timestamp?.toDate() || 0)
+        const dateB = b.createdAt?.toDate() || new Date(b.orderDate || b.timestamp?.toDate() || 0)
+        return dateB.getTime() - dateA.getTime()
+      })
 
     } catch (error) {
-      console.error('❌ Error generating report:', error)
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      alert(`Failed to generate report: ${errorMessage}\n\nPlease check:\n• Your internet connection\n• Selected date range\n• Branch selection\n• That you have data for this period`)
+      console.error('❌ Error in fetchOrdersData:', error)
+      return []
+    }
+  }
+
+  // Debug function to analyze all orders
+  const analyzeAllOrders = async () => {
+    if (!profile?.tenantId) {
+      alert('Authentication error. Please refresh and try again.')
+      return
+    }
+
+    try {
+      setLoading(true)
+      console.log('🔍 STARTING COMPREHENSIVE ORDER ANALYSIS...')
+      
+      const ordersRef = collection(db, 'tenants', profile.tenantId, 'orders')
+      const allOrdersSnapshot = await getDocs(query(ordersRef, limit(100)))
+      const allOrders = allOrdersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      
+      console.log(`📊 FOUND ${allOrders.length} TOTAL ORDERS`)
+      console.log('='.repeat(50))
+      
+      // Group orders by date and calculate totals
+      const ordersByDate = new Map()
+      let totalAllTime = 0
+      let totalPostReset = 0
+      const resetDateObj = resetDate ? new Date(resetDate) : null
+      
+      allOrders.forEach((order: any, index) => {
+        const orderDate = order.createdAt?.toDate() || 
+                         (order.orderDate ? new Date(order.orderDate) : null) ||
+                         (order.timestamp?.toDate()) ||
+                         null
+        
+        const dateStr = orderDate ? orderDate.toISOString().split('T')[0] : 'No Date'
+        const total = order.total || 0
+        
+        totalAllTime += total
+        
+        // Check if order is after reset date
+        if (resetDateObj && orderDate && orderDate >= resetDateObj) {
+          totalPostReset += total
+        } else if (!resetDateObj) {
+          totalPostReset += total
+        }
+        
+        if (!ordersByDate.has(dateStr)) {
+          ordersByDate.set(dateStr, { orders: [], total: 0 })
+        }
+        
+        const dayData = ordersByDate.get(dateStr)
+        dayData.orders.push({
+          id: order.id,
+          total: total,
+          date: orderDate ? orderDate.toISOString() : 'Invalid Date',
+          branchId: order.branchId,
+          paymentMethod: order.paymentMethod
+        })
+        dayData.total += total
+        
+        console.log(`${index + 1}. Order ${order.id}:`, {
+          total: `₱${total}`,
+          date: orderDate ? orderDate.toISOString() : 'No valid date',
+          branchId: order.branchId,
+          isAfterReset: resetDateObj && orderDate ? orderDate >= resetDateObj : 'N/A'
+        })
+      })
+      
+      console.log('='.repeat(50))
+      console.log('📊 SUMMARY ANALYSIS:')
+      console.log(`💰 Total All Time: ₱${totalAllTime}`)
+      if (resetDateObj) {
+        console.log(`🔄 Total After Reset (${resetDate}): ₱${totalPostReset}`)
+        console.log(`🗑️ Amount from before reset: ₱${totalAllTime - totalPostReset}`)
+      }
+      console.log(`📅 Orders found across ${ordersByDate.size} different dates`)
+      
+      console.log('='.repeat(50))
+      console.log('📅 ORDERS BY DATE:')
+      
+      // Sort dates and display
+      const sortedDates = Array.from(ordersByDate.entries())
+        .sort((a, b) => {
+          if (a[0] === 'No Date') return 1
+          if (b[0] === 'No Date') return -1
+          return new Date(b[0]).getTime() - new Date(a[0]).getTime()
+        })
+      
+      sortedDates.forEach(([date, data]) => {
+        const isBeforeReset = resetDateObj && date !== 'No Date' && new Date(date) < resetDateObj
+        console.log(`${date}: ₱${data.total} (${data.orders.length} orders)${isBeforeReset ? ' [BEFORE RESET]' : ''}`)
+        data.orders.forEach((order: any) => {
+          console.log(`  - ${order.id}: ₱${order.total}`)
+        })
+      })
+      
+      // Alert summary
+      const message = resetDateObj 
+        ? `Analysis Complete!\n\nTotal All Time: ₱${totalAllTime}\nAfter Reset (${resetDate}): ₱${totalPostReset}\nBefore Reset: ₱${totalAllTime - totalPostReset}\n\nCheck console for detailed breakdown.`
+        : `Analysis Complete!\n\nTotal Found: ₱${totalAllTime} from ${allOrders.length} orders\nAcross ${ordersByDate.size} different dates\n\nCheck console for detailed breakdown.`
+      
+      alert(message)
+      
+    } catch (error) {
+      console.error('❌ Error analyzing orders:', error)
+      alert('Failed to analyze orders. Check console for details.')
     } finally {
       setLoading(false)
     }
   }
 
-  // Report Generators - Simplified and Clean
-  const generateDailySalesReport = (pdf: jsPDF, data: ReportData) => {
-    const pageWidth = pdf.internal.pageSize.width
+  const generatePDF = async () => {
+    try {
+      setLoading(true)
+      console.log('📄 Starting PDF generation...', { selectedReportType, dateRange })
+
+      // Validate inputs before fetching data
+      if (!selectedBranch) {
+        alert('Please select a branch before generating the report.')
+        return
+      }
+
+      if (!profile?.tenantId) {
+        alert('Authentication error. Please refresh and try again.')
+        return
+      }
+
+      if (dateRange === 'custom' && (!customStartDate || !customEndDate)) {
+        alert('Please select both start and end dates for custom date range.')
+        return
+      }
+
+      // Fetch the data
+      console.log('📊 Fetching report data...')
+      const data = await fetchReportData()
+      
+      // Validate that we have data
+      if (!data.orders.length && !data.inventory.length && !data.expenses.length) {
+        const message = `No data found for the selected period (${data.timeRange}). Please try a different date range or check if you have any transactions recorded.`
+        console.warn('⚠️ No data available for report:', { data })
+        alert(message)
+        return
+      }
+
+      console.log('✅ Data fetched successfully:', {
+        orders: data.orders.length,
+        inventory: data.inventory.length,
+        expenses: data.expenses.length,
+        purchaseOrders: data.purchaseOrders.length
+      })
+
+      // Generate the PDF
+      await generateSpecificReport(selectedReportType, data)
+      
+    } catch (error) {
+      console.error('❌ Error generating PDF:', error)
+      alert('Failed to generate report. Please try again or contact support.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const generateSpecificReport = async (reportType: string, data: ReportData) => {
+    const doc = new jsPDF()
+    const pageHeight = doc.internal.pageSize.height
+    const pageWidth = doc.internal.pageSize.width
     let yPos = 20
 
     // Header
-    pdf.setFontSize(20)
-    pdf.setFont('helvetica', 'bold')
-    pdf.text('Daily Sales Summary Report', pageWidth / 2, yPos, { align: 'center' })
-    yPos += 15
-
-    // Business info
-    pdf.setFontSize(12)
-    pdf.setFont('helvetica', 'normal')
-    pdf.text(`Business: ${profile?.displayName || 'N/A'}`, 20, yPos)
-    yPos += 8
-    pdf.text(`Branch: ${selectedBranch?.name || 'N/A'}`, 20, yPos)
-    yPos += 8
-    pdf.text(`Period: ${data.timeRange}`, 20, yPos)
-    yPos += 8
-    pdf.text(`Generated: ${new Date().toLocaleString()}`, 20, yPos)
-    yPos += 15
-
-    // Filter for valid orders
-    const validOrders = data.orders.filter(order => {
-      const status = order.status
-      const total = order.total || 0
-      return (status === 'completed' || status === 'Completed' || total > 0)
-    })
-
-    const totalRevenue = validOrders.reduce((sum, order) => sum + (order.total || 0), 0)
-    const totalTransactions = validOrders.length
-    const averageOrderValue = totalTransactions > 0 ? totalRevenue / totalTransactions : 0
-
-    // Sales Overview
-    pdf.setFontSize(16)
-    pdf.setFont('helvetica', 'bold')
-    pdf.text('Sales Overview', 20, yPos)
-    yPos += 12
-
-    pdf.setFontSize(11)
-    pdf.setFont('helvetica', 'normal')
-    
-    const salesData = [
-      ['Total Revenue:', `₱${totalRevenue.toLocaleString()}`],
-      ['Total Transactions:', `${totalTransactions}`],
-      ['Average Order Value:', `₱${averageOrderValue.toFixed(2)}`],
-      ['Data Quality:', validOrders.length > 0 ? 'Good' : 'No valid orders found'],
-      ['Orders Found:', `${data.orders.length} total, ${validOrders.length} valid`]
-    ]
-
-    salesData.forEach(([label, value]) => {
-      pdf.text(label, 20, yPos)
-      pdf.text(value, 120, yPos)
-      yPos += 7
-    })
-
+    doc.setFontSize(20)
+    doc.text('CoreTrack Business Reports', 20, yPos)
     yPos += 10
 
-    // Payment Methods Breakdown
-    if (validOrders.length > 0) {
-      pdf.setFontSize(16)
-      pdf.setFont('helvetica', 'bold')
-      pdf.text('Payment Methods Breakdown', 20, yPos)
-      yPos += 12
-
-      const paymentSummary = { cash: 0, card: 0, gcash: 0, maya: 0, other: 0 }
-      
-      validOrders.forEach(order => {
-        const method = (order.paymentMethod || 'cash').toLowerCase()
-        const amount = order.total || 0
-        
-        if (method.includes('cash')) paymentSummary.cash += amount
-        else if (method.includes('card')) paymentSummary.card += amount
-        else if (method.includes('gcash')) paymentSummary.gcash += amount
-        else if (method.includes('maya') || method.includes('paymaya')) paymentSummary.maya += amount
-        else paymentSummary.other += amount
-      })
-
-      Object.entries(paymentSummary).forEach(([method, amount]) => {
-        if (amount > 0) {
-          const percentage = ((amount / totalRevenue) * 100).toFixed(1)
-          pdf.text(`${method.toUpperCase()}:`, 20, yPos)
-          pdf.text(`₱${amount.toLocaleString()} (${percentage}%)`, 80, yPos)
-          yPos += 7
-        }
-      })
-    }
-
-    // Footer
-    const footerY = pdf.internal.pageSize.height - 20
-    pdf.setFontSize(8)
-    pdf.setFont('helvetica', 'italic')
-    pdf.text('Generated by CoreTrack Business Management System', pageWidth / 2, footerY, { align: 'center' })
-  }
-
-  const generateProfitLossReport = (pdf: jsPDF, data: ReportData) => {
-    const pageWidth = pdf.internal.pageSize.width
-    let yPos = 20
-
-    // Header
-    pdf.setFontSize(20)
-    pdf.setFont('helvetica', 'bold')
-    pdf.text('Profit & Loss Statement', pageWidth / 2, yPos, { align: 'center' })
-    yPos += 15
-
-    // Business info
-    pdf.setFontSize(12)
-    pdf.setFont('helvetica', 'normal')
-    pdf.text(`Business: ${profile?.displayName || 'N/A'}`, 20, yPos)
+    doc.setFontSize(12)
+    doc.text(`Branch: ${selectedBranch?.name || 'All Branches'}`, 20, yPos)
     yPos += 8
-    pdf.text(`Branch: ${selectedBranch?.name || 'N/A'}`, 20, yPos)
+    doc.text(`Period: ${data.timeRange}`, 20, yPos)
     yPos += 8
-    pdf.text(`Period: ${data.timeRange}`, 20, yPos)
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 20, yPos)
     yPos += 15
 
-    const validOrders = data.orders.filter(order => order.status === 'completed' || order.total > 0)
-    const totalRevenue = validOrders.reduce((sum, order) => sum + (order.total || 0), 0)
-    const totalExpenses = data.expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0)
-    const netProfit = totalRevenue - totalExpenses
-    const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0
-
-    // P&L Statement
-    pdf.setFontSize(16)
-    pdf.setFont('helvetica', 'bold')
-    pdf.text('Financial Summary', 20, yPos)
-    yPos += 12
-
-    pdf.setFontSize(11)
-    pdf.setFont('helvetica', 'normal')
-
-    const financialData = [
-      ['REVENUE', ''],
-      ['Total Sales:', `₱${totalRevenue.toLocaleString()}`],
-      ['', ''],
-      ['EXPENSES', ''],
-      ['Total Expenses:', `₱${totalExpenses.toLocaleString()}`],
-      ['', ''],
-      ['PROFIT/LOSS', ''],
-      ['Net Profit:', `₱${netProfit.toLocaleString()}`],
-      ['Profit Margin:', `${profitMargin.toFixed(1)}%`],
-      ['Status:', netProfit > 0 ? 'PROFITABLE' : netProfit < 0 ? 'LOSS' : 'BREAK EVEN']
-    ]
-
-    financialData.forEach(([label, value]) => {
-      if (label.includes('REVENUE') || label.includes('EXPENSES') || label.includes('PROFIT')) {
-        pdf.setFont('helvetica', 'bold')
-      } else {
-        pdf.setFont('helvetica', 'normal')
-      }
-      
-      pdf.text(label, 20, yPos)
-      pdf.text(value, 120, yPos)
-      yPos += 7
-    })
-  }
-
-  const generatePaymentMethodsReport = (pdf: jsPDF, data: ReportData) => {
-    // Similar structure to daily sales but focused on payment analysis
-    generateDailySalesReport(pdf, data) // Reuse for now, can be specialized later
-  }
-
-  const generateInventoryReport = (pdf: jsPDF, data: ReportData) => {
-    const pageWidth = pdf.internal.pageSize.width
-    let yPos = 20
-
-    pdf.setFontSize(20)
-    pdf.setFont('helvetica', 'bold')
-    pdf.text('Inventory Summary Report', pageWidth / 2, yPos, { align: 'center' })
-    yPos += 15
-
-    pdf.setFontSize(12)
-    pdf.setFont('helvetica', 'normal')
-    pdf.text(`Business: ${profile?.displayName || 'N/A'}`, 20, yPos)
-    yPos += 8
-    pdf.text(`Generated: ${new Date().toLocaleString()}`, 20, yPos)
-    yPos += 15
-
-    const totalItems = data.inventory.length
-    const lowStockItems = data.inventory.filter(item => (item.quantity || 0) <= (item.lowStockThreshold || 10)).length
-    const outOfStockItems = data.inventory.filter(item => (item.quantity || 0) === 0).length
-    const totalValue = data.inventory.reduce((sum, item) => sum + ((item.quantity || 0) * (item.price || 0)), 0)
-
-    pdf.setFontSize(16)
-    pdf.setFont('helvetica', 'bold')
-    pdf.text('Inventory Overview', 20, yPos)
-    yPos += 12
-
-    pdf.setFontSize(11)
-    pdf.setFont('helvetica', 'normal')
-
-    const inventoryData = [
-      ['Total Items:', `${totalItems}`],
-      ['Low Stock Alerts:', `${lowStockItems}`],
-      ['Out of Stock:', `${outOfStockItems}`],
-      ['Total Value:', `₱${totalValue.toLocaleString()}`],
-      ['Stock Status:', outOfStockItems === 0 ? 'Good' : 'Needs Attention']
-    ]
-
-    inventoryData.forEach(([label, value]) => {
-      pdf.text(label, 20, yPos)
-      pdf.text(value, 120, yPos)
-      yPos += 7
-    })
-  }
-
-  const generateMenuPerformanceReport = (pdf: jsPDF, data: ReportData) => {
-    const pageWidth = pdf.internal.pageSize.width
-    let yPos = 20
-
-    pdf.setFontSize(20)
-    pdf.setFont('helvetica', 'bold')
-    pdf.text('Menu Performance Report', pageWidth / 2, yPos, { align: 'center' })
-    yPos += 15
-
-    // Analyze menu items from orders
-    const itemSales: Record<string, { quantity: number, revenue: number }> = {}
-    
-    data.orders.forEach(order => {
-      if (order.items && Array.isArray(order.items)) {
-        order.items.forEach((item: any) => {
-          const name = item.name || 'Unknown Item'
-          const quantity = item.quantity || 1
-          const revenue = (item.price || 0) * quantity
-          
-          if (!itemSales[name]) {
-            itemSales[name] = { quantity: 0, revenue: 0 }
-          }
-          itemSales[name].quantity += quantity
-          itemSales[name].revenue += revenue
-        })
-      }
-    })
-
-    const sortedItems = Object.entries(itemSales)
-      .sort(([,a], [,b]) => b.revenue - a.revenue)
-      .slice(0, 10)
-
-    pdf.setFontSize(12)
-    pdf.setFont('helvetica', 'normal')
-    pdf.text(`Period: ${data.timeRange}`, 20, yPos)
-    yPos += 15
-
-    pdf.setFontSize(16)
-    pdf.setFont('helvetica', 'bold')
-    pdf.text('Top Performing Items', 20, yPos)
-    yPos += 12
-
-    pdf.setFontSize(10)
-    pdf.setFont('helvetica', 'normal')
-
-    sortedItems.forEach(([name, data], index) => {
-      pdf.text(`${index + 1}. ${name}`, 20, yPos)
-      pdf.text(`${data.quantity} sold`, 120, yPos)
-      pdf.text(`₱${data.revenue.toLocaleString()}`, 160, yPos)
-      yPos += 6
-    })
-  }
-
-  const generateExecutiveSummaryReport = (pdf: jsPDF, data: ReportData) => {
-    const pageWidth = pdf.internal.pageSize.width
-    let yPos = 20
-
-    pdf.setFontSize(20)
-    pdf.setFont('helvetica', 'bold')
-    pdf.text('Executive Summary', pageWidth / 2, yPos, { align: 'center' })
-    yPos += 15
-
-    // Combine key metrics from all areas
-    const validOrders = data.orders.filter(order => order.status === 'completed' || order.total > 0)
-    const totalRevenue = validOrders.reduce((sum, order) => sum + (order.total || 0), 0)
-    const totalExpenses = data.expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0)
-    const netProfit = totalRevenue - totalExpenses
-
-    pdf.setFontSize(12)
-    pdf.setFont('helvetica', 'normal')
-    pdf.text(`Period: ${data.timeRange}`, 20, yPos)
-    yPos += 8
-    pdf.text(`Generated: ${new Date().toLocaleString()}`, 20, yPos)
-    yPos += 15
-
-    pdf.setFontSize(14)
-    pdf.setFont('helvetica', 'bold')
-    pdf.text('Key Performance Indicators', 20, yPos)
+    // Add a line
+    doc.line(20, yPos, pageWidth - 20, yPos)
     yPos += 10
 
-    pdf.setFontSize(11)
-    pdf.setFont('helvetica', 'normal')
-
-    const kpiData = [
-      ['Total Revenue:', `₱${totalRevenue.toLocaleString()}`],
-      ['Total Transactions:', `${validOrders.length}`],
-      ['Total Expenses:', `₱${totalExpenses.toLocaleString()}`],
-      ['Net Profit:', `₱${netProfit.toLocaleString()}`],
-      ['Inventory Items:', `${data.inventory.length}`],
-      ['Business Status:', netProfit > 0 ? 'PROFITABLE' : 'REVIEW NEEDED']
-    ]
-
-    kpiData.forEach(([label, value]) => {
-      pdf.text(label, 20, yPos)
-      pdf.text(value, 120, yPos)
-      yPos += 7
-    })
-  }
-
-  const generateGenericReport = (pdf: jsPDF, data: ReportData, reportType: string) => {
-    pdf.setFontSize(20)
-    pdf.text(`${reportType.replace('_', ' ').toUpperCase()} Report`, 20, 30)
-    pdf.setFontSize(12)
-    pdf.text(`Period: ${data.timeRange}`, 20, 50)
-    pdf.text(`Data: ${data.orders.length} orders, ${data.inventory.length} inventory items`, 20, 65)
-    pdf.text('This report type is being developed. Please check back soon.', 20, 85)
-  }
-
-  // Purchase Order Report Generators
-  const generatePurchaseSummaryReport = (pdf: jsPDF, data: ReportData) => {
-    const pageWidth = pdf.internal.pageSize.width
-    let yPos = 20
-
-    // Header
-    pdf.setFontSize(20)
-    pdf.setFont('helvetica', 'bold')
-    pdf.text('Purchase Order Summary Report', pageWidth / 2, yPos, { align: 'center' })
-    yPos += 15
-
-    // Business info
-    pdf.setFontSize(12)
-    pdf.setFont('helvetica', 'normal')
-    pdf.text(`Business: ${profile?.displayName || 'N/A'}`, 20, yPos)
-    yPos += 8
-    pdf.text(`Branch: ${selectedBranch?.name || 'N/A'}`, 20, yPos)
-    yPos += 8
-    pdf.text(`Period: ${data.timeRange}`, 20, yPos)
-    yPos += 8
-    pdf.text(`Generated: ${new Date().toLocaleString()}`, 20, yPos)
-    yPos += 15
-
-    // Calculate purchase order metrics
-    const totalPurchaseOrders = data.purchaseOrders.length
-    const totalSpending = data.purchaseOrders.reduce((sum, po) => {
-      return sum + (po.totalAmount || po.total || 0)
-    }, 0)
-    
-    const completedPurchaseOrders = data.purchaseOrders.filter(po => 
-      po.status === 'completed' || po.status === 'received' || po.status === 'delivered'
-    )
-    const completedSpending = completedPurchaseOrders.reduce((sum, po) => {
-      return sum + (po.totalAmount || po.total || 0)
-    }, 0)
-
-    const pendingPurchaseOrders = data.purchaseOrders.filter(po => 
-      po.status === 'pending' || po.status === 'ordered' || po.status === 'processing'
-    )
-    const pendingSpending = pendingPurchaseOrders.reduce((sum, po) => {
-      return sum + (po.totalAmount || po.total || 0)
-    }, 0)
-
-    const averageOrderValue = totalPurchaseOrders > 0 ? totalSpending / totalPurchaseOrders : 0
-
-    // Purchase Overview
-    pdf.setFontSize(16)
-    pdf.setFont('helvetica', 'bold')
-    pdf.text('Purchase Order Overview', 20, yPos)
-    yPos += 12
-
-    pdf.setFontSize(11)
-    pdf.setFont('helvetica', 'normal')
-    
-    const purchaseData = [
-      ['Total Purchase Orders:', `${totalPurchaseOrders}`],
-      ['Total Spending:', `₱${totalSpending.toLocaleString()}`],
-      ['Completed Orders:', `${completedPurchaseOrders.length} (₱${completedSpending.toLocaleString()})`],
-      ['Pending Orders:', `${pendingPurchaseOrders.length} (₱${pendingSpending.toLocaleString()})`],
-      ['Average Order Value:', `₱${averageOrderValue.toFixed(2)}`],
-      ['Completion Rate:', `${totalPurchaseOrders > 0 ? ((completedPurchaseOrders.length / totalPurchaseOrders) * 100).toFixed(1) : 0}%`]
-    ]
-
-    purchaseData.forEach(([label, value]) => {
-      pdf.text(label, 20, yPos)
-      pdf.text(value, 120, yPos)
-      yPos += 7
-    })
-
-    yPos += 10
-
-    // Status Breakdown
-    if (totalPurchaseOrders > 0) {
-      pdf.setFontSize(16)
-      pdf.setFont('helvetica', 'bold')
-      pdf.text('Status Breakdown', 20, yPos)
-      yPos += 12
-
-      const statusSummary: Record<string, { count: number, amount: number }> = {}
-      
-      data.purchaseOrders.forEach(po => {
-        const status = po.status || 'unknown'
-        const amount = po.totalAmount || po.total || 0
-        
-        if (!statusSummary[status]) {
-          statusSummary[status] = { count: 0, amount: 0 }
-        }
-        statusSummary[status].count += 1
-        statusSummary[status].amount += amount
-      })
-
-      Object.entries(statusSummary).forEach(([status, data]) => {
-        const percentage = ((data.amount / totalSpending) * 100).toFixed(1)
-        pdf.text(`${status.toUpperCase()}:`, 20, yPos)
-        pdf.text(`${data.count} orders - ₱${data.amount.toLocaleString()} (${percentage}%)`, 80, yPos)
-        yPos += 7
-      })
+    switch (reportType) {
+      case 'daily_sales':
+        await generateSalesReport(doc, data, yPos)
+        break
+      case 'profit_loss':
+        await generateProfitLossReport(doc, data, yPos)
+        break
+      case 'inventory_summary':
+        await generateInventoryReport(doc, data, yPos)
+        break
+      case 'menu_performance':
+        await generateMenuPerformanceReport(doc, data, yPos)
+        break
+      case 'payment_methods':
+        await generatePaymentMethodsReport(doc, data, yPos)
+        break
+      case 'executive_summary':
+        await generateExecutiveSummaryReport(doc, data, yPos)
+        break
     }
 
-    // Recent Purchase Orders (if space allows)
-    if (yPos < 200 && data.purchaseOrders.length > 0) {
-      yPos += 10
-      pdf.setFontSize(16)
-      pdf.setFont('helvetica', 'bold')
-      pdf.text('Recent Purchase Orders', 20, yPos)
-      yPos += 12
-
-      pdf.setFontSize(9)
-      pdf.setFont('helvetica', 'normal')
-
-      const recentOrders = data.purchaseOrders.slice(0, 10)
-      recentOrders.forEach(po => {
-        const date = po.createdAt?.toDate?.()?.toLocaleDateString() || 'N/A'
-        const supplier = po.supplier?.name || po.supplierName || 'Unknown'
-        const amount = po.totalAmount || po.total || 0
-        const status = po.status || 'unknown'
-        
-        pdf.text(`${date} - ${supplier} - ₱${amount.toLocaleString()} (${status})`, 20, yPos)
-        yPos += 5
-        
-        if (yPos > 250) return // Prevent overflow
-      })
-    }
-
-    // Footer
-    const footerY = pdf.internal.pageSize.height - 20
-    pdf.setFontSize(8)
-    pdf.setFont('helvetica', 'italic')
-    pdf.text('Generated by CoreTrack Business Management System', pageWidth / 2, footerY, { align: 'center' })
+    // Save the PDF
+    const reportName = reportOptions.find(r => r.id === reportType)?.name || 'Business Report'
+    const fileName = `${reportName.replace(/\s+/g, '_')}_${data.timeRange.replace(/\s+/g, '_')}.pdf`
+    doc.save(fileName)
   }
 
-  const generateSupplierAnalysisReport = (pdf: jsPDF, data: ReportData) => {
-    const pageWidth = pdf.internal.pageSize.width
-    let yPos = 20
-
-    // Header
-    pdf.setFontSize(20)
-    pdf.setFont('helvetica', 'bold')
-    pdf.text('Supplier Analysis Report', pageWidth / 2, yPos, { align: 'center' })
-    yPos += 15
-
-    // Business info
-    pdf.setFontSize(12)
-    pdf.setFont('helvetica', 'normal')
-    pdf.text(`Business: ${profile?.displayName || 'N/A'}`, 20, yPos)
-    yPos += 8
-    pdf.text(`Period: ${data.timeRange}`, 20, yPos)
-    yPos += 15
-
-    // Analyze suppliers from purchase orders
-    const supplierAnalysis: Record<string, { orders: number, totalSpent: number, avgOrderValue: number }> = {}
+  // Report generators
+  const generateSalesReport = async (doc: jsPDF, data: ReportData, startY: number) => {
+    let yPos = startY
     
-    data.purchaseOrders.forEach(po => {
-      const supplier = po.supplier?.name || po.supplierName || 'Unknown Supplier'
-      const amount = po.totalAmount || po.total || 0
-      
-      if (!supplierAnalysis[supplier]) {
-        supplierAnalysis[supplier] = { orders: 0, totalSpent: 0, avgOrderValue: 0 }
-      }
-      
-      supplierAnalysis[supplier].orders += 1
-      supplierAnalysis[supplier].totalSpent += amount
-    })
+    doc.setFontSize(16)
+    doc.text('Sales Report', 20, yPos)
+    yPos += 15
 
-    // Calculate average order values
-    Object.keys(supplierAnalysis).forEach(supplier => {
-      const data = supplierAnalysis[supplier]
-      data.avgOrderValue = data.orders > 0 ? data.totalSpent / data.orders : 0
-    })
-
-    const sortedSuppliers = Object.entries(supplierAnalysis)
-      .sort(([,a], [,b]) => b.totalSpent - a.totalSpent)
-      .slice(0, 15) // Top 15 suppliers
-
-    const totalSpending = Object.values(supplierAnalysis).reduce((sum, data) => sum + data.totalSpent, 0)
-
-    pdf.setFontSize(16)
-    pdf.setFont('helvetica', 'bold')
-    pdf.text('Top Suppliers by Spending', 20, yPos)
-    yPos += 12
-
-    if (sortedSuppliers.length === 0) {
-      pdf.setFontSize(11)
-      pdf.setFont('helvetica', 'normal')
-      pdf.text('No purchase order data found for the selected period.', 20, yPos)
+    if (data.orders.length === 0) {
+      doc.setFontSize(12)
+      doc.text('No sales data available for the selected period.', 20, yPos)
       return
     }
 
-    pdf.setFontSize(10)
-    pdf.setFont('helvetica', 'bold')
-    pdf.text('Supplier', 20, yPos)
-    pdf.text('Orders', 100, yPos)
-    pdf.text('Total Spent', 130, yPos)
-    pdf.text('Avg Order', 170, yPos)
-    pdf.text('% of Total', 200, yPos)
-    yPos += 8
+    // Sales Summary
+    const totalSales = data.orders.reduce((sum, order) => sum + (order.total || 0), 0)
+    const totalOrders = data.orders.length
+    const averageOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0
 
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(9)
-
-    sortedSuppliers.forEach(([supplier, data], index) => {
-      const percentage = totalSpending > 0 ? ((data.totalSpent / totalSpending) * 100).toFixed(1) : '0.0'
-      
-      // Truncate long supplier names
-      const displayName = supplier.length > 15 ? supplier.substring(0, 12) + '...' : supplier
-      
-      pdf.text(`${index + 1}. ${displayName}`, 20, yPos)
-      pdf.text(`${data.orders}`, 100, yPos)
-      pdf.text(`₱${data.totalSpent.toLocaleString()}`, 130, yPos)
-      pdf.text(`₱${data.avgOrderValue.toFixed(0)}`, 170, yPos)
-      pdf.text(`${percentage}%`, 200, yPos)
-      yPos += 6
-    })
-
+    doc.setFontSize(14)
+    doc.text('Sales Summary:', 20, yPos)
     yPos += 10
 
-    // Summary stats
-    pdf.setFontSize(16)
-    pdf.setFont('helvetica', 'bold')
-    pdf.text('Supplier Summary', 20, yPos)
-    yPos += 12
+    doc.setFontSize(12)
+    doc.text(`Total Sales: ₱${totalSales.toFixed(2)}`, 30, yPos)
+    yPos += 8
+    doc.text(`Total Orders: ${totalOrders}`, 30, yPos)
+    yPos += 8
+    doc.text(`Average Order Value: ₱${averageOrderValue.toFixed(2)}`, 30, yPos)
+    yPos += 15
 
-    pdf.setFontSize(11)
-    pdf.setFont('helvetica', 'normal')
-    
-    const summaryData = [
-      ['Total Suppliers:', `${Object.keys(supplierAnalysis).length}`],
-      ['Total Spending:', `₱${totalSpending.toLocaleString()}`],
-      ['Top Supplier:', sortedSuppliers.length > 0 ? sortedSuppliers[0][0] : 'N/A'],
-      ['Top Supplier Spending:', sortedSuppliers.length > 0 ? `₱${sortedSuppliers[0][1].totalSpent.toLocaleString()}` : 'N/A'],
-      ['Average per Supplier:', `₱${(totalSpending / Math.max(1, Object.keys(supplierAnalysis).length)).toFixed(2)}`]
-    ]
+    // Daily breakdown if we have multiple days
+    doc.setFontSize(14)
+    doc.text('Daily Breakdown:', 20, yPos)
+    yPos += 10
 
-    summaryData.forEach(([label, value]) => {
-      pdf.text(label, 20, yPos)
-      pdf.text(value, 120, yPos)
-      yPos += 7
+    const dailySales = new Map()
+    data.orders.forEach(order => {
+      const date = order.createdAt?.toDate()?.toDateString() || new Date(order.orderDate || 0).toDateString()
+      const current = dailySales.get(date) || { sales: 0, orders: 0 }
+      dailySales.set(date, {
+        sales: current.sales + (order.total || 0),
+        orders: current.orders + 1
+      })
     })
 
-    // Footer
-    const footerY = pdf.internal.pageSize.height - 20
-    pdf.setFontSize(8)
-    pdf.setFont('helvetica', 'italic')
-    pdf.text('Generated by CoreTrack Business Management System', pageWidth / 2, footerY, { align: 'center' })
+    doc.setFontSize(12)
+    dailySales.forEach((summary, date) => {
+      if (yPos > 250) { // New page if needed
+        doc.addPage()
+        yPos = 20
+      }
+      doc.text(`${date}: ₱${summary.sales.toFixed(2)} (${summary.orders} orders)`, 30, yPos)
+      yPos += 8
+    })
   }
 
-  const generateCostTrackingReport = (pdf: jsPDF, data: ReportData) => {
-    const pageWidth = pdf.internal.pageSize.width
-    let yPos = 20
-
-    // Header
-    pdf.setFontSize(20)
-    pdf.setFont('helvetica', 'bold')
-    pdf.text('Cost Tracking Report', pageWidth / 2, yPos, { align: 'center' })
-    yPos += 15
-
-    // Business info
-    pdf.setFontSize(12)
-    pdf.setFont('helvetica', 'normal')
-    pdf.text(`Business: ${profile?.displayName || 'N/A'}`, 20, yPos)
-    yPos += 8
-    pdf.text(`Period: ${data.timeRange}`, 20, yPos)
-    yPos += 15
-
-    // Cost breakdown by category
-    const totalPurchaseOrders = data.purchaseOrders.length
-    const totalPurchaseSpending = data.purchaseOrders.reduce((sum, po) => sum + (po.totalAmount || po.total || 0), 0)
-    const totalExpenses = data.expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0)
-    const totalCosts = totalPurchaseSpending + totalExpenses
-
-    // Inventory cost analysis
-    const totalInventoryValue = data.inventory.reduce((sum, item) => {
-      return sum + ((item.quantity || 0) * (item.price || item.cost || 0))
-    }, 0)
-
-    pdf.setFontSize(16)
-    pdf.setFont('helvetica', 'bold')
-    pdf.text('Cost Overview', 20, yPos)
-    yPos += 12
-
-    pdf.setFontSize(11)
-    pdf.setFont('helvetica', 'normal')
+  const generateProfitLossReport = async (doc: jsPDF, data: ReportData, startY: number) => {
+    let yPos = startY
     
-    const costData = [
-      ['Purchase Orders:', `₱${totalPurchaseSpending.toLocaleString()}`, `(${totalPurchaseOrders} orders)`],
-      ['Operating Expenses:', `₱${totalExpenses.toLocaleString()}`, `(${data.expenses.length} entries)`],
-      ['Total Costs:', `₱${totalCosts.toLocaleString()}`, ''],
-      ['Current Inventory Value:', `₱${totalInventoryValue.toLocaleString()}`, `(${data.inventory.length} items)`],
-      ['', '', ''],
-      ['Cost Breakdown:', '', ''],
-      ['Purchase Orders %:', `${totalCosts > 0 ? ((totalPurchaseSpending / totalCosts) * 100).toFixed(1) : 0}%`, ''],
-      ['Operating Expenses %:', `${totalCosts > 0 ? ((totalExpenses / totalCosts) * 100).toFixed(1) : 0}%`, '']
-    ]
+    doc.setFontSize(16)
+    doc.text('Profit & Loss Report', 20, yPos)
+    yPos += 15
 
-    costData.forEach(([label, value, extra]) => {
-      if (label.includes('Cost Breakdown') || label.includes('Total Costs')) {
-        pdf.setFont('helvetica', 'bold')
-      } else {
-        pdf.setFont('helvetica', 'normal')
-      }
-      
-      pdf.text(label, 20, yPos)
-      pdf.text(value, 120, yPos)
-      if (extra) pdf.text(extra, 170, yPos)
-      yPos += 7
-    })
-
-    yPos += 10
-
-    // Monthly trend (if we have enough data)
-    if (data.purchaseOrders.length > 0) {
-      pdf.setFontSize(16)
-      pdf.setFont('helvetica', 'bold')
-      pdf.text('Purchase Order Trends', 20, yPos)
-      yPos += 12
-
-      // Group by month
-      const monthlySpending: Record<string, number> = {}
-      data.purchaseOrders.forEach(po => {
-        const date = po.createdAt?.toDate?.() || new Date()
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-        const amount = po.totalAmount || po.total || 0
-        
-        monthlySpending[monthKey] = (monthlySpending[monthKey] || 0) + amount
-      })
-
-      const sortedMonths = Object.entries(monthlySpending)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .slice(-6) // Last 6 months
-
-      pdf.setFontSize(11)
-      pdf.setFont('helvetica', 'normal')
-
-      sortedMonths.forEach(([month, amount]) => {
-        const [year, monthNum] = month.split('-')
-        const monthName = new Date(parseInt(year), parseInt(monthNum) - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-        
-        pdf.text(`${monthName}:`, 20, yPos)
-        pdf.text(`₱${amount.toLocaleString()}`, 120, yPos)
-        yPos += 7
-      })
-    }
-
-    // Low stock items that need purchasing
-    if (data.inventory.length > 0) {
-      yPos += 10
-      const lowStockItems = data.inventory.filter(item => (item.quantity || 0) <= (item.lowStockThreshold || 5))
-      
-      if (lowStockItems.length > 0) {
-        pdf.setFontSize(16)
-        pdf.setFont('helvetica', 'bold')
-        pdf.text('Items Needing Reorder', 20, yPos)
-        yPos += 12
-
-        pdf.setFontSize(9)
-        pdf.setFont('helvetica', 'normal')
-
-        lowStockItems.slice(0, 10).forEach(item => {
-          const name = item.name || 'Unknown Item'
-          const current = item.quantity || 0
-          const threshold = item.lowStockThreshold || 5
-          const cost = item.price || item.cost || 0
-          
-          pdf.text(`${name} - Current: ${current}, Min: ${threshold}, Cost: ₱${cost}`, 20, yPos)
-          yPos += 5
+    const totalRevenue = data.orders.reduce((sum, order) => sum + (order.total || 0), 0)
+    const totalExpenses = data.expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0)
+    
+    // Calculate Cost of Goods Sold (COGS) from order items
+    let totalCOGS = 0
+    data.orders.forEach(order => {
+      if (order.items && Array.isArray(order.items)) {
+        order.items.forEach((item: any) => {
+          const quantity = item.quantity || 1
+          const costPrice = item.costPrice || item.cost || 0
+          totalCOGS += quantity * costPrice
         })
       }
+    })
+    
+    // If no COGS data available, estimate based on typical food service margins
+    if (totalCOGS === 0 && totalRevenue > 0) {
+      // Estimate COGS as 30-35% of revenue (typical for food service)
+      totalCOGS = totalRevenue * 0.33 // 33% estimated COGS
+      console.log(`⚠️ No COGS data found. Estimating COGS at 33% of revenue: ₱${totalCOGS}`)
+    }
+    
+    const grossProfit = totalRevenue - totalCOGS
+    const netProfit = grossProfit - totalExpenses
+
+    doc.setFontSize(14)
+    doc.text('Financial Summary:', 20, yPos)
+    yPos += 10
+
+    doc.setFontSize(12)
+    doc.text(`Total Revenue: ₱${totalRevenue.toFixed(2)}`, 30, yPos)
+    yPos += 8
+    doc.text(`Cost of Goods Sold (COGS): ₱${totalCOGS.toFixed(2)}`, 30, yPos)
+    yPos += 8
+    doc.text(`Gross Profit: ₱${grossProfit.toFixed(2)}`, 30, yPos)
+    yPos += 8
+    doc.text(`Operating Expenses: ₱${totalExpenses.toFixed(2)}`, 30, yPos)
+    yPos += 8
+    doc.text(`Net Profit: ₱${netProfit.toFixed(2)}`, 30, yPos)
+    yPos += 8
+    doc.text(`Gross Margin: ${totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100).toFixed(2) : '0.00'}%`, 30, yPos)
+    yPos += 8
+    doc.text(`Net Margin: ${totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(2) : '0.00'}%`, 30, yPos)
+    yPos += 15
+
+    // COGS breakdown if available
+    if (totalCOGS > 0) {
+      doc.setFontSize(14)
+      doc.text('Cost Analysis:', 20, yPos)
+      yPos += 10
+
+      doc.setFontSize(12)
+      if (totalCOGS === totalRevenue * 0.33) {
+        doc.text('* COGS estimated at 33% of revenue (no cost data available)', 30, yPos)
+        yPos += 8
+        doc.text('  Configure menu item costs for accurate profit calculation', 30, yPos)
+        yPos += 15
+      } else {
+        doc.text('COGS calculated from menu item costs', 30, yPos)
+        yPos += 15
+      }
     }
 
-    // Footer
-    const footerY = pdf.internal.pageSize.height - 20
-    pdf.setFontSize(8)
-    pdf.setFont('helvetica', 'italic')
-    pdf.text('Generated by CoreTrack Business Management System', pageWidth / 2, footerY, { align: 'center' })
+    // Expense breakdown
+    if (data.expenses.length > 0) {
+      doc.setFontSize(14)
+      doc.text('Expense Categories:', 20, yPos)
+      yPos += 10
+
+      const expenseCategories = new Map()
+      data.expenses.forEach(expense => {
+        const category = expense.category || 'Other'
+        const current = expenseCategories.get(category) || 0
+        expenseCategories.set(category, current + (expense.amount || 0))
+      })
+
+      doc.setFontSize(12)
+      expenseCategories.forEach((amount, category) => {
+        if (yPos > 250) {
+          doc.addPage()
+          yPos = 20
+        }
+        doc.text(`${category}: ₱${amount.toFixed(2)}`, 30, yPos)
+        yPos += 8
+      })
+    }
+  }
+
+  const generateInventoryReport = async (doc: jsPDF, data: ReportData, startY: number) => {
+    let yPos = startY
+    
+    doc.setFontSize(16)
+    doc.text('Inventory Report', 20, yPos)
+    yPos += 15
+
+    if (data.inventory.length === 0) {
+      doc.setFontSize(12)
+      doc.text('No inventory data available.', 20, yPos)
+      return
+    }
+
+    doc.setFontSize(14)
+    doc.text('Current Stock Levels:', 20, yPos)
+    yPos += 10
+
+    const totalItems = data.inventory.length
+    const lowStockItems = data.inventory.filter(item => (item.quantity || 0) < (item.minimumStock || 5))
+    const outOfStockItems = data.inventory.filter(item => (item.quantity || 0) === 0)
+
+    doc.setFontSize(12)
+    doc.text(`Total Items: ${totalItems}`, 30, yPos)
+    yPos += 8
+    doc.text(`Low Stock Items: ${lowStockItems.length}`, 30, yPos)
+    yPos += 8
+    doc.text(`Out of Stock: ${outOfStockItems.length}`, 30, yPos)
+    yPos += 15
+
+    // Low stock items detail
+    if (lowStockItems.length > 0) {
+      doc.setFontSize(14)
+      doc.text('Items Requiring Attention:', 20, yPos)
+      yPos += 10
+
+      doc.setFontSize(12)
+      lowStockItems.forEach(item => {
+        if (yPos > 250) {
+          doc.addPage()
+          yPos = 20
+        }
+        const status = (item.quantity || 0) === 0 ? 'OUT OF STOCK' : 'LOW STOCK'
+        doc.text(`${item.name}: ${item.quantity || 0} units (${status})`, 30, yPos)
+        yPos += 8
+      })
+    }
+  }
+
+  const generateMenuPerformanceReport = async (doc: jsPDF, data: ReportData, startY: number) => {
+    let yPos = startY
+    
+    doc.setFontSize(16)
+    doc.text('Menu Performance Report', 20, yPos)
+    yPos += 15
+
+    if (data.orders.length === 0) {
+      doc.setFontSize(12)
+      doc.text('No order data available for menu analysis.', 20, yPos)
+      return
+    }
+
+    // Analyze menu items from orders
+    const itemSales = new Map()
+    data.orders.forEach(order => {
+      if (order.items && Array.isArray(order.items)) {
+        order.items.forEach((item: any) => {
+          const itemName = item.name || 'Unknown Item'
+          const quantity = item.quantity || 1
+          const price = item.price || 0
+          const current = itemSales.get(itemName) || { quantity: 0, revenue: 0 }
+          itemSales.set(itemName, {
+            quantity: current.quantity + quantity,
+            revenue: current.revenue + (quantity * price)
+          })
+        })
+      }
+    })
+
+    if (itemSales.size === 0) {
+      doc.setFontSize(12)
+      doc.text('No detailed item data available in orders.', 20, yPos)
+      return
+    }
+
+    // Sort by quantity sold
+    const sortedItems = Array.from(itemSales.entries())
+      .sort((a, b) => b[1].quantity - a[1].quantity)
+      .slice(0, 10) // Top 10 items
+
+    doc.setFontSize(14)
+    doc.text('Top Selling Items:', 20, yPos)
+    yPos += 10
+
+    doc.setFontSize(12)
+    sortedItems.forEach(([itemName, stats], index) => {
+      if (yPos > 250) {
+        doc.addPage()
+        yPos = 20
+      }
+      doc.text(`${index + 1}. ${itemName}: ${stats.quantity} sold, ₱${stats.revenue.toFixed(2)}`, 30, yPos)
+      yPos += 8
+    })
+  }
+
+  const generatePaymentMethodsReport = async (doc: jsPDF, data: ReportData, startY: number) => {
+    let yPos = startY
+    
+    doc.setFontSize(16)
+    doc.text('Payment Methods Analysis', 20, yPos)
+    yPos += 15
+
+    if (data.orders.length === 0) {
+      doc.setFontSize(12)
+      doc.text('No payment data available.', 20, yPos)
+      return
+    }
+
+    const paymentMethods = new Map()
+    data.orders.forEach(order => {
+      const method = order.paymentMethod || 'Cash'
+      const amount = order.total || 0
+      const current = paymentMethods.get(method) || { count: 0, amount: 0 }
+      paymentMethods.set(method, {
+        count: current.count + 1,
+        amount: current.amount + amount
+      })
+    })
+
+    const totalAmount = data.orders.reduce((sum, order) => sum + (order.total || 0), 0)
+
+    doc.setFontSize(14)
+    doc.text('Payment Method Breakdown:', 20, yPos)
+    yPos += 10
+
+    doc.setFontSize(12)
+    paymentMethods.forEach((stats, method) => {
+      if (yPos > 250) {
+        doc.addPage()
+        yPos = 20
+      }
+      const percentage = totalAmount > 0 ? ((stats.amount / totalAmount) * 100).toFixed(1) : '0.0'
+      doc.text(`${method}: ₱${stats.amount.toFixed(2)} (${stats.count} transactions, ${percentage}%)`, 30, yPos)
+      yPos += 8
+    })
+  }
+
+  const generateExecutiveSummaryReport = async (doc: jsPDF, data: ReportData, startY: number) => {
+    let yPos = startY
+    
+    doc.setFontSize(16)
+    doc.text('Executive Summary', 20, yPos)
+    yPos += 15
+
+    // Calculate proper profit metrics
+    const totalRevenue = data.orders.reduce((sum, order) => sum + (order.total || 0), 0)
+    const totalExpenses = data.expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0)
+    
+    // Calculate COGS
+    let totalCOGS = 0
+    data.orders.forEach(order => {
+      if (order.items && Array.isArray(order.items)) {
+        order.items.forEach((item: any) => {
+          const quantity = item.quantity || 1
+          const costPrice = item.costPrice || item.cost || 0
+          totalCOGS += quantity * costPrice
+        })
+      }
+    })
+    
+    // Estimate COGS if no data available
+    if (totalCOGS === 0 && totalRevenue > 0) {
+      totalCOGS = totalRevenue * 0.33 // 33% estimated COGS
+    }
+    
+    const grossProfit = totalRevenue - totalCOGS
+    const netProfit = grossProfit - totalExpenses
+    const totalOrders = data.orders.length
+
+    doc.setFontSize(14)
+    doc.text('Key Performance Indicators:', 20, yPos)
+    yPos += 10
+
+    doc.setFontSize(12)
+    doc.text(`Total Revenue: ₱${totalRevenue.toFixed(2)}`, 30, yPos)
+    yPos += 8
+    doc.text(`Cost of Goods Sold: ₱${totalCOGS.toFixed(2)}`, 30, yPos)
+    yPos += 8
+    doc.text(`Gross Profit: ₱${grossProfit.toFixed(2)}`, 30, yPos)
+    yPos += 8
+    doc.text(`Operating Expenses: ₱${totalExpenses.toFixed(2)}`, 30, yPos)
+    yPos += 8
+    doc.text(`Net Profit: ₱${netProfit.toFixed(2)}`, 30, yPos)
+    yPos += 8
+    doc.text(`Total Orders: ${totalOrders}`, 30, yPos)
+    yPos += 8
+    doc.text(`Average Order Value: ₱${totalOrders > 0 ? (totalRevenue / totalOrders).toFixed(2) : '0.00'}`, 30, yPos)
+    yPos += 15
+
+    // Business insights
+    doc.setFontSize(14)
+    doc.text('Business Insights:', 20, yPos)
+    yPos += 10
+
+    doc.setFontSize(12)
+    const grossMargin = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100).toFixed(1) : '0.0'
+    const netMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : '0.0'
+    
+    doc.text(`• Gross Profit Margin: ${grossMargin}%`, 30, yPos)
+    yPos += 8
+    doc.text(`• Net Profit Margin: ${netMargin}%`, 30, yPos)
+    yPos += 8
+
+    const lowStockCount = data.inventory.filter(item => (item.quantity || 0) < (item.minimumStock || 5)).length
+    if (lowStockCount > 0) {
+      doc.text(`• ${lowStockCount} items need restocking`, 30, yPos)
+      yPos += 8
+    }
+
+    const cogsRatio = totalRevenue > 0 ? ((totalCOGS / totalRevenue) * 100).toFixed(1) : '0.0'
+    doc.text(`• Cost of Goods Sold ratio: ${cogsRatio}%`, 30, yPos)
+    yPos += 8
+    
+    if (totalCOGS === totalRevenue * 0.33) {
+      doc.text(`• Note: COGS estimated (configure menu costs for accuracy)`, 30, yPos)
+      yPos += 8
+    }
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-6 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold mb-2">Business Reports Center</h1>
-            <p className="text-blue-100">Generate comprehensive PDF reports for all aspects of your business</p>
-          </div>
-          <div className="text-right">
-            <div className="flex items-center gap-2 text-blue-100 mb-2">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <span className="text-sm">Professional PDF Reports</span>
+    <div className="min-h-screen bg-surface-50">
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-surface-900 mb-2">Business Reports</h1>
+          <p className="text-surface-600">Generate comprehensive business analytics and insights</p>
+        </div>
+
+        {/* Controls */}
+        <div className="bg-white rounded-2xl shadow-sm border border-surface-200 p-6 mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Date Range */}
+            <div>
+              <label className="block text-sm font-medium text-surface-700 mb-2">Time Period</label>
+              <select
+                value={dateRange}
+                onChange={(e) => setDateRange(e.target.value as any)}
+                className="w-full px-4 py-3 rounded-xl border border-surface-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all"
+              >
+                <option value="today">Today</option>
+                <option value="week">Last 7 Days</option>
+                <option value="month">Last 30 Days</option>
+                <option value="custom">Custom Range</option>
+              </select>
             </div>
-            <p className="text-xs text-blue-200">Branch: {selectedBranch?.name || 'Not selected'}</p>
+
+            {/* Custom Date Range */}
+            {dateRange === 'custom' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 mb-2">Start Date</label>
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-surface-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 mb-2">End Date</label>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-surface-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Generate Button */}
+            <div className="lg:col-start-4 flex items-end">
+              <button
+                onClick={generatePDF}
+                disabled={loading}
+                className="w-full px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50 transition-all font-medium"
+              >
+                {loading ? 'Generating...' : 'Generate PDF'}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Date Range Selection - Enhanced */}
-      <div className="bg-white rounded-xl border border-surface-200 p-6">
-        <h3 className="text-lg font-semibold text-surface-900 mb-4">Report Period</h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-          {(['today', 'week', 'month', 'custom'] as const).map((range) => (
+        {/* Debug Mode */}
+        <div className="bg-white rounded-2xl shadow-sm border border-surface-200 p-6 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-surface-900">Debug Mode</h2>
             <button
-              key={range}
-              onClick={() => setDateRange(range)}
-              className={`p-3 rounded-lg border-2 transition-all text-center ${
-                dateRange === range
-                  ? 'border-primary-500 bg-primary-50 text-primary-700'
-                  : 'border-gray-200 hover:border-gray-300 text-gray-700'
+              onClick={() => setShowDebugMode(!showDebugMode)}
+              className="px-4 py-2 bg-surface-100 text-surface-700 rounded-lg hover:bg-surface-200 transition-all"
+            >
+              {showDebugMode ? 'Hide Debug' : 'Show Debug'}
+            </button>
+          </div>
+          
+          {showDebugMode && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 mb-2">
+                    System Reset Date (Optional)
+                  </label>
+                  <input
+                    type="date"
+                    value={resetDate}
+                    onChange={(e) => setResetDate(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-surface-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all"
+                    placeholder="When did you reset your system?"
+                  />
+                  <p className="text-xs text-surface-500 mt-1">
+                    Set this to filter out orders from before your reset
+                  </p>
+                </div>
+                <div>
+                  <button
+                    onClick={analyzeAllOrders}
+                    disabled={loading}
+                    className="w-full px-6 py-3 bg-amber-600 text-white rounded-xl hover:bg-amber-700 disabled:opacity-50 transition-all font-medium"
+                  >
+                    {loading ? 'Analyzing...' : 'Analyze All Orders'}
+                  </button>
+                  <p className="text-xs text-surface-500 mt-1">
+                    View all orders in your database with dates
+                  </p>
+                </div>
+              </div>
+              
+              <div className="bg-surface-50 rounded-lg p-4">
+                <h3 className="font-medium text-surface-900 mb-2">Debug Info:</h3>
+                <p className="text-sm text-surface-600 mb-2">
+                  • Use this section to understand why you're seeing ₱1530 instead of ₱675
+                </p>
+                <p className="text-sm text-surface-600 mb-2">
+                  • Set your reset date to filter out old transactions
+                </p>
+                <p className="text-sm text-surface-600">
+                  • "Analyze All Orders" will show you every order with creation dates
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Report Options */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {reportOptions.map((report) => (
+            <div
+              key={report.id}
+              onClick={() => setSelectedReportType(report.id)}
+              className={`bg-white rounded-2xl shadow-sm border transition-all cursor-pointer hover:shadow-md ${
+                selectedReportType === report.id
+                  ? 'border-primary-500 shadow-lg shadow-primary-500/10'
+                  : 'border-surface-200'
               }`}
             >
-              <div className="font-medium">
-                {range === 'today' && '📅 Today'}
-                {range === 'week' && '📅 Last 7 Days'}
-                {range === 'month' && '📅 Last 30 Days'}
-                {range === 'custom' && '📅 Custom Period'}
-              </div>
-              <div className="text-xs text-gray-500 mt-1">
-                {range === 'today' && 'Current day'}
-                {range === 'week' && '7 days ago to now'}
-                {range === 'month' && '30 days ago to now'}
-                {range === 'custom' && 'Select date range'}
-              </div>
-            </button>
-          ))}
-        </div>
-
-        {dateRange === 'custom' && (
-          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-            <h4 className="font-medium text-blue-900 mb-3">Custom Date Range</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
-                <input
-                  type="date"
-                  value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
-                  max={new Date().toISOString().split('T')[0]}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
-                <input
-                  type="date"
-                  value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
-                  min={customStartDate}
-                  max={new Date().toISOString().split('T')[0]}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-            </div>
-            {customStartDate && customEndDate && (
-              <div className="mt-3 p-3 bg-white rounded border">
-                <p className="text-sm text-gray-600">
-                  📊 Selected period: <span className="font-medium">{customStartDate}</span> to <span className="font-medium">{customEndDate}</span>
-                  {(() => {
-                    const start = new Date(customStartDate)
-                    const end = new Date(customEndDate)
-                    const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
-                    return ` (${days} day${days === 1 ? '' : 's'})`
-                  })()}
-                </p>
-                {new Date(customStartDate) > new Date(customEndDate) && (
-                  <p className="text-sm text-red-600 mt-1">⚠️ Start date must be before end date</p>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Report Categories */}
-      <div className="grid gap-6">
-        {reportCategories.map((category) => (
-          <div key={category.title} className="bg-white rounded-xl border border-surface-200 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <span className="text-2xl">{category.icon}</span>
-              <h3 className="text-lg font-semibold text-surface-900">{category.title}</h3>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {category.reports.map((report) => (
-                <div
-                  key={report.id}
-                  className="border border-surface-200 rounded-lg p-4 hover:border-primary-300 hover:bg-primary-25 transition-all cursor-pointer group"
-                  onClick={() => setSelectedReportType(report.id)}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <h4 className="font-medium text-surface-900 group-hover:text-primary-700">
-                      {report.name}
-                    </h4>
-                    <input
-                      type="radio"
-                      checked={selectedReportType === report.id}
-                      onChange={() => setSelectedReportType(report.id)}
-                      className="text-primary-600 focus:ring-primary-500"
-                    />
-                  </div>
-                  <p className="text-sm text-surface-600 mb-3">{report.desc}</p>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      generatePDF(report.id)
-                    }}
-                    disabled={loading}
-                    className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                  >
-                    {loading && selectedReportType === report.id ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-                        </svg>
-                        Generate PDF
-                      </>
-                    )}
-                  </button>
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-2xl">{report.icon}</div>
+                  {selectedReportType === report.id && (
+                    <div className="w-6 h-6 bg-primary-600 rounded-full flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                  )}
                 </div>
-              ))}
+                <h3 className="text-lg font-semibold text-surface-900 mb-2">{report.name}</h3>
+                <p className="text-sm text-surface-600">{report.desc}</p>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Quick Actions */}
-      <div className="bg-gradient-to-r from-green-100 to-blue-100 rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-surface-900 mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <button
-            onClick={() => generatePDF('daily_sales')}
-            disabled={loading}
-            className="flex items-center gap-3 p-4 bg-white rounded-lg hover:shadow-md transition-all disabled:opacity-50"
-          >
-            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-            </div>
-            <div className="text-left">
-              <p className="font-medium text-surface-900">Sales Report</p>
-              <p className="text-sm text-surface-600">Quick sales summary</p>
-            </div>
-          </button>
-
-          <button
-            onClick={() => generatePDF('profit_loss')}
-            disabled={loading}
-            className="flex items-center gap-3 p-4 bg-white rounded-lg hover:shadow-md transition-all disabled:opacity-50"
-          >
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-              </svg>
-            </div>
-            <div className="text-left">
-              <p className="font-medium text-surface-900">P&L Statement</p>
-              <p className="text-sm text-surface-600">Profit & loss analysis</p>
-            </div>
-          </button>
-
-          <button
-            onClick={() => generatePDF('purchase_summary')}
-            disabled={loading}
-            className="flex items-center gap-3 p-4 bg-white rounded-lg hover:shadow-md transition-all disabled:opacity-50"
-          >
-            <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-              <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-              </svg>
-            </div>
-            <div className="text-left">
-              <p className="font-medium text-surface-900">Purchase Summary</p>
-              <p className="text-sm text-surface-600">How much you spent</p>
-            </div>
-          </button>
-
-          <button
-            onClick={() => generatePDF('executive_summary')}
-            disabled={loading}
-            className="flex items-center gap-3 p-4 bg-white rounded-lg hover:shadow-md transition-all disabled:opacity-50"
-          >
-            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-              <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <div className="text-left">
-              <p className="font-medium text-surface-900">Executive Summary</p>
-              <p className="text-sm text-surface-600">High-level overview</p>
-            </div>
-          </button>
+          ))}
         </div>
       </div>
     </div>

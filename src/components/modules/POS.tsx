@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '@/lib/context/AuthContext'
+import TutorialOverlay from '@/components/tutorial/TutorialOverlay'
+import { useTutorial } from '@/hooks/useTutorial'
 import { useBranch } from '@/lib/context/BranchContext'
 import { getMenuItems, type MenuItem } from '@/lib/firebase/menuBuilder'
 import { getPOSItems, createPOSOrder, getPOSOrders, updatePOSOrder, type POSItem as FirebasePOSItem, type POSOrder } from '@/lib/firebase/pos'
@@ -21,6 +23,7 @@ interface CartItem extends POSItem {
 export default function POS() {
   const { user, profile } = useAuth()
   const { selectedBranch } = useBranch()
+  const { showTutorial, currentStep, nextStep, prevStep, completeTutorial, startTutorial } = useTutorial()
   
   // Development mode detection
   const isDevelopment = process.env.NODE_ENV === 'development'
@@ -752,7 +755,7 @@ ${order.status === 'voided' ? `\nVOID REASON: ${order.voidReason || 'N/A'}` : ''
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
           {/* Modern Header */}
-          <div className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
+          <div className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm tutorial-header">
             <div className="px-4 sm:px-6 py-4">
               <div className="flex items-center justify-between">
                 {/* Left - Logo & Branch Info */}
@@ -762,10 +765,17 @@ ${order.status === 'voided' ? `\nVOID REASON: ${order.voidReason || 'N/A'}` : ''
                     <h1 className="text-xl font-bold text-gray-900">Point of Sale</h1>
                     <p className="text-sm text-gray-500">Main Branch • Order #1234</p>
                   </div>
+                  
+                  {/* First Timer Badge */}
+                  {showTutorial && (
+                    <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium animate-pulse">
+                      👋 Welcome! Taking tour...
+                    </div>
+                  )}
                 </div>
 
                 {/* Center - Quick Actions */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 tutorial-quick-actions">
                   <button
                     onClick={() => {
                       setShowRecentOrders(true)
@@ -837,7 +847,7 @@ ${order.status === 'voided' ? `\nVOID REASON: ${order.voidReason || 'N/A'}` : ''
                 </div>
 
                 {/* Search Bar */}
-                <div className="mb-4">
+                <div className="mb-4 tutorial-search">
                   <div className="relative">
                     <input
                       type="text"
@@ -864,7 +874,7 @@ ${order.status === 'voided' ? `\nVOID REASON: ${order.voidReason || 'N/A'}` : ''
                   </div>
                 </div>
                 
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 tutorial-categories">
                   {[
                     { name: 'All', emoji: '🍽️' },
                     { name: 'Food', emoji: '🍕' },
@@ -3008,6 +3018,15 @@ ${order.status === 'voided' ? `\nVOID REASON: ${order.voidReason || 'N/A'}` : ''
               </div>
             </div>
           )}
+
+          {/* Tutorial Overlay */}
+          <TutorialOverlay
+            show={showTutorial}
+            currentStep={currentStep}
+            onNext={nextStep}
+            onPrev={prevStep}
+            onComplete={completeTutorial}
+          />
         </div>
   )
 }

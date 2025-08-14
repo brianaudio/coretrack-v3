@@ -112,7 +112,7 @@ const getPOSItemsCollection = (tenantId: string) => {
 
 // Get POS orders collection reference  
 const getPOSOrdersCollection = (tenantId: string) => {
-  return collection(db, `tenants/${tenantId}/posOrders`);
+  return collection(db, `tenants/${tenantId}/orders`);
 };
 
 // Get all POS menu items (with optional location filtering)

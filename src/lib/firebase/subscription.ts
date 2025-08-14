@@ -189,3 +189,20 @@ export const getTrialDaysRemaining = (subscription: TenantSubscription | null): 
   
   return Math.max(0, diffDays);
 };
+
+// Update tenant subscription with partial data
+export const updateTenantSubscription = async (
+  tenantId: string,
+  updates: Partial<TenantSubscription>
+): Promise<void> => {
+  try {
+    const subscriptionRef = doc(db, 'subscriptions', tenantId);
+    await updateDoc(subscriptionRef, {
+      ...updates,
+      updatedAt: Timestamp.now()
+    });
+  } catch (error) {
+    console.error('Error updating subscription:', error);
+    throw error;
+  }
+};

@@ -45,7 +45,7 @@ export interface ShiftContextType {
   archiveShift: (shiftId: string) => Promise<void>
   
   // Data Operations
-  resetDailyData: () => Promise<void>
+  resetDailyData: () => Promise<any>
   getShiftSummary: () => Promise<any>
   
   // Shift History
@@ -95,18 +95,38 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
   const loadCurrentShift = async () => {
     try {
       setLoading(true)
-      if (!profile?.tenantId || !selectedBranch) return
+      console.log('🚀 [SHIFT-CONTEXT] Loading current shift...', {
+        tenantId: profile?.tenantId,
+        selectedBranch: selectedBranch?.id,
+        locationId: selectedBranch ? getBranchLocationId(selectedBranch.id) : 'none'
+      })
+      
+      if (!profile?.tenantId || !selectedBranch) {
+        console.log('🚨 [SHIFT-CONTEXT] Missing required data for shift loading')
+        return
+      }
       
       const locationId = getBranchLocationId(selectedBranch.id)
+      console.log('🔍 [SHIFT-CONTEXT] Getting active shift for location:', locationId)
       const activeShift = await getActiveShift(profile.tenantId, locationId)
+      
+      console.log('📋 [SHIFT-CONTEXT] Active shift result:', {
+        found: !!activeShift,
+        shiftId: activeShift?.id,
+        shiftStatus: activeShift?.status,
+        shiftName: activeShift?.name,
+        createdBy: activeShift?.createdBy
+      })
       
       setCurrentShift(activeShift)
       setError(null)
     } catch (err) {
-      console.error('Error loading current shift:', err)
+      console.error('❌ [SHIFT-CONTEXT] Error loading current shift:', err)
       setError('Failed to load current shift')
+      setCurrentShift(null)
     } finally {
       setLoading(false)
+      console.log('✅ [SHIFT-CONTEXT] Shift loading completed')
     }
   }
 
@@ -234,9 +254,38 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
 
   const resetDailyData = async () => {
     try {
-      // TODO: Reset daily operational data
-      // This will archive current data and start fresh
-      console.log('Resetting daily data')
+      if (!profile?.tenantId || !selectedBranch) {
+        throw new Error('Missing tenant or branch information for daily reset')
+      }
+
+      console.log('🔄 Starting daily data reset...')
+      const locationId = getBranchLocationId(selectedBranch.id)
+      
+      // Import and use the ShiftResetService for proper reset
+      const { ShiftResetService } = await import('../services/ShiftResetService')
+      const resetService = new ShiftResetService(profile.tenantId, selectedBranch.id)
+      
+      // Create a daily reset with current timestamp
+      const dailyResetData = {
+        tenantId: profile.tenantId,
+        branchId: selectedBranch.id,
+        shiftId: `daily-reset-${Date.now()}`,
+        shiftName: `Daily Reset ${new Date().toLocaleDateString()}`,
+        startTime: Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000)), // 24 hours ago
+        resetBy: profile.uid || profile.email || 'system',
+        resetReason: 'system' as const,
+        generateReport: true,
+        preserveInventoryLevels: true
+      }
+      
+      // Perform the actual reset
+      const summary = await resetService.performShiftReset(dailyResetData)
+      
+      // Update last reset timestamp
+      localStorage.setItem('lastDailyReset', new Date().toISOString())
+      
+      console.log('✅ Daily reset completed:', summary)
+      return summary
     } catch (err) {
       console.error('Error resetting daily data:', err)
       throw err
@@ -283,6 +332,19 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       return []
     }
   }
+
+  // Debug log the shift state whenever it changes
+  useEffect(() => {
+    console.log('🔄 [SHIFT-CONTEXT] Shift state updated:', {
+      currentShift: currentShift ? {
+        id: currentShift.id,
+        status: currentShift.status,
+        name: currentShift.name
+      } : null,
+      isShiftActive: currentShift?.status === 'active',
+      loading
+    })
+  }, [currentShift, loading])
 
   const value: ShiftContextType = {
     currentShift,

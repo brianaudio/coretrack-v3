@@ -16,32 +16,135 @@ export default function HybridResetManager() {
   const { profile } = useAuth()
   const { resetDailyData, isShiftActive } = useShift()
   
-  const [resetSchedule, setResetSchedule] = useState<ResetSchedule>({
-    enabled: true,
-    time: '03:00',
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-  })
+  // Load schedule from localStorage with fallback defaults
+  const loadSchedule = (): ResetSchedule => {
+    if (typeof window === 'undefined') return { enabled: true, time: '03:00', timezone: 'Asia/Manila' }
+    
+    try {
+      const saved = localStorage.getItem('resetSchedule')
+      if (saved) {
+        return { ...{ enabled: true, time: '03:00', timezone: 'Asia/Manila' }, ...JSON.parse(saved) }
+      }
+    } catch (error) {
+      console.warn('Error loading reset schedule:', error)
+    }
+    return { enabled: true, time: '03:00', timezone: 'Asia/Manila' }
+  }
   
+  const [resetSchedule, setResetSchedule] = useState<ResetSchedule>(loadSchedule())
   const [showConfirmReset, setShowConfirmReset] = useState(false)
   const [nextResetCountdown, setNextResetCountdown] = useState('')
+  const [lastResetCheck, setLastResetCheck] = useState<string | null>(null)
+  
+  // Save schedule to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('resetSchedule', JSON.stringify(resetSchedule))
+    }
+  }, [resetSchedule])
+  
+  // Check for missed resets on component mount
+  useEffect(() => {
+    checkMissedResets()
+    registerServiceWorker()
+  }, [])
+  
+  // Register service worker for background reset capability
+  const registerServiceWorker = async () => {
+    if ('serviceWorker' in navigator) {
+      try {
+        const registration = await navigator.serviceWorker.register('/reset-worker.js')
+        console.log('✅ Reset Service Worker registered')
+        
+        // Listen for messages from service worker
+        navigator.serviceWorker.addEventListener('message', (event) => {
+          if (event.data.type === 'PERFORM_RESET') {
+            console.log('📨 Received reset command from service worker')
+            handleAutoReset()
+          }
+        })
+        
+        // Check if there's a pending reset flag
+        const cache = await caches.open('reset-flags')
+        const resetNeeded = await cache.match('/reset-needed')
+        if (resetNeeded) {
+          const timestamp = await resetNeeded.text()
+          const resetTime = new Date(timestamp)
+          const now = new Date()
+          
+          // If reset was needed and it's been more than 1 hour
+          if (now.getTime() - resetTime.getTime() > 60 * 60 * 1000) {
+            console.log('🚨 Found pending background reset, executing now...')
+            handleAutoReset()
+            cache.delete('/reset-needed')
+          }
+        }
+      } catch (error) {
+        console.warn('Service Worker registration failed:', error)
+      }
+    }
+  }
+  
+  // Send schedule to service worker when it changes
+  useEffect(() => {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: 'SCHEDULE_RESET',
+        data: { time: resetSchedule.time, enabled: resetSchedule.enabled }
+      })
+    }
+  }, [resetSchedule.time, resetSchedule.enabled])
   
   // Calculate next reset time
-  useEffect(() => {
-    const calculateNextReset = () => {
+  const calculateNextReset = () => {
+    const now = new Date()
+    const [hours, minutes] = resetSchedule.time.split(':').map(Number)
+    
+    const nextReset = new Date()
+    nextReset.setHours(hours, minutes, 0, 0)
+    
+    // If the time has already passed today, set for tomorrow
+    if (nextReset <= now) {
+      nextReset.setDate(nextReset.getDate() + 1)
+    }
+    
+    return nextReset
+  }
+  
+  // Check if we missed any automatic resets
+  const checkMissedResets = async () => {
+    if (!resetSchedule.enabled || typeof window === 'undefined') return
+    
+    try {
+      const lastDailyReset = localStorage.getItem('lastDailyReset')
       const now = new Date()
-      const [hours, minutes] = resetSchedule.time.split(':').map(Number)
       
-      const nextReset = new Date()
-      nextReset.setHours(hours, minutes, 0, 0)
-      
-      // If the time has already passed today, set for tomorrow
-      if (nextReset <= now) {
-        nextReset.setDate(nextReset.getDate() + 1)
+      if (!lastDailyReset) {
+        console.log('🔄 No previous reset found, may need initial reset')
+        return
       }
       
-      return nextReset
+      const lastResetDate = new Date(lastDailyReset)
+      const hoursSinceReset = Math.floor((now.getTime() - lastResetDate.getTime()) / (1000 * 60 * 60))
+      
+      console.log(`⏰ Hours since last reset: ${hoursSinceReset}`)
+      
+      // If more than 25 hours since last reset (allowing 1 hour buffer), perform catch-up reset
+      if (hoursSinceReset > 25) {
+        console.log('🚨 Missed reset detected, performing catch-up reset...')
+        if (!isShiftActive) {
+          await handleAutoReset()
+        } else {
+          console.log('⚠️ Missed reset detected but shift is active - will reset when shift ends')
+        }
+      }
+    } catch (error) {
+      console.error('Error checking missed resets:', error)
     }
+  }
 
+  // Countdown timer update
+  useEffect(() => {
     const updateCountdown = () => {
       if (!resetSchedule.enabled) return
       
@@ -92,20 +195,24 @@ export default function HybridResetManager() {
     }
 
     try {
+      console.log('🔄 Performing automatic reset...')
       await resetDailyData()
-      console.log('Auto-reset completed at', new Date().toLocaleString())
+      localStorage.setItem('lastDailyReset', new Date().toISOString())
+      console.log('✅ Auto-reset completed at', new Date().toLocaleString())
     } catch (error) {
-      console.error('Auto-reset failed:', error)
+      console.error('❌ Auto-reset failed:', error)
     }
   }
 
   const handleManualReset = async () => {
     try {
+      console.log('🔄 Performing manual reset...')
       await resetDailyData()
+      localStorage.setItem('lastDailyReset', new Date().toISOString())
       setShowConfirmReset(false)
-      console.log('Manual reset completed at', new Date().toLocaleString())
+      console.log('✅ Manual reset completed at', new Date().toLocaleString())
     } catch (error) {
-      console.error('Manual reset failed:', error)
+      console.error('❌ Manual reset failed:', error)
     }
   }
 

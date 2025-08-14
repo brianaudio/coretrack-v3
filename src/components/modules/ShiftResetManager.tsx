@@ -111,18 +111,6 @@ export default function ShiftResetManager({ onResetComplete, className = '' }: S
     }
   }
 
-  const handleTestReset = () => {
-    console.log('🧪 Test Reset Button Clicked!')
-    console.log('Current state:', {
-      profile: profile?.tenantId,
-      branch: selectedBranch?.id,
-      currentShift: currentShift?.id,
-      canPerformReset,
-      isResetting
-    })
-    alert('Test reset button works! Check console for details.')
-  }
-
   const formatCurrency = (amount: number) => {
     return `₱${amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
   }
@@ -173,21 +161,13 @@ export default function ShiftResetManager({ onResetComplete, className = '' }: S
                 {isResetting ? 'Resetting...' : 'End Shift & Reset'}
               </button>
             ) : (
-              <div className="flex gap-2">
-                <button
-                  onClick={handleTestReset}
-                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors"
-                >
-                  Test Button
-                </button>
-                <button
-                  onClick={() => setShowConfirmModal(true)}
-                  disabled={isManualResetting}
-                  className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium text-sm transition-colors"
-                >
-                  {isManualResetting ? 'Resetting...' : 'Manual Data Reset'}
-                </button>
-              </div>
+              <button
+                onClick={() => setShowConfirmModal(true)}
+                disabled={isManualResetting}
+                className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium text-sm transition-colors"
+              >
+                {isManualResetting ? 'Resetting...' : 'Manual Data Reset'}
+              </button>
             )}
           </div>
         </div>

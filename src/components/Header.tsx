@@ -4,6 +4,7 @@ import { ModuleType } from './Dashboard'
 import { useAuth } from '../lib/context/AuthContext'
 import { useShift } from '../lib/context/ShiftContext'
 import { useShiftReset } from '../lib/hooks/useShiftReset'
+import { useHelp } from '../lib/context/HelpContext'
 import { handleLogoutWithShiftEnd } from '../lib/utils/logoutUtils'
 import BranchSelector from './BranchSelector'
 import NotificationCenter from './NotificationCenter'
@@ -33,6 +34,7 @@ export default function Header({ activeModule, onSidebarToggle, onLogout }: Head
   const { profile, tenant, signOut, user } = useAuth()
   const { isShiftActive, currentShift, loading } = useShift()
   const { performReset, isResetting } = useShiftReset()
+  const { showHelp } = useHelp()
 
   // Get user info from AuthContext instead of UserContext
   const currentRole = profile?.role || null
@@ -162,6 +164,21 @@ export default function Header({ activeModule, onSidebarToggle, onLogout }: Head
 
               {/* Action Buttons */}
               <div className="flex items-center space-x-2">
+                {/* Help/Tutorial Button */}
+                <button 
+                  onClick={() => {
+                    console.log('Help button clicked, activeModule:', activeModule)
+                    showHelp(activeModule)
+                  }}
+                  className="text-gray-500 hover:text-blue-600 hover:bg-blue-50 px-2 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
+                  title="Help & Tutorials"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="hidden lg:inline">Help</span>
+                </button>
+
                 {/* Smart End Shift & Sign Out Button */}
                 <button 
                   onClick={handleEndShiftAndLogout}

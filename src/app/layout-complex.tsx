@@ -9,8 +9,10 @@ import { BusinessSettingsProvider } from '../lib/context/BusinessSettingsContext
 import { MenuPOSSyncProvider } from '../lib/context/MenuPOSSyncContext'
 import { UserProvider } from '../lib/rbac/UserContext'
 import { ToastProvider } from '../components/ui/Toast'
+import { HelpProvider } from '../lib/context/HelpContext'
 import ErrorBoundary from '../components/ErrorBoundary'
 import DataInitializer from '../components/DataInitializer'
+import HelpModal from '../components/HelpModal'
 
 export const metadata: Metadata = {
   title: 'CoreTrack - Business Inventory Management',
@@ -58,7 +60,11 @@ export default function RootLayout({
                 console.log('🔍 INVENTORY STATUS CHECK');
                 console.log('=' .repeat(50));
                 
-                const TENANT_ID = 'halYcRuDyldZNDp9H1mgtqwDpZh2';
+                const TENANT_ID = profile?.tenantId;
+                if (!TENANT_ID) {
+                  console.log('❌ No tenant ID available');
+                  return;
+                }
                 
                 try {
                   const { collection, getDocs } = await import('firebase/firestore');
@@ -123,7 +129,11 @@ export default function RootLayout({
                 console.log('🔍 MENU INGREDIENTS vs INVENTORY CENTER CHECK');
                 console.log('=' .repeat(60));
                 
-                const TENANT_ID = 'halYcRuDyldZNDp9H1mgtqwDpZh2';
+                const TENANT_ID = profile?.tenantId;
+                if (!TENANT_ID) {
+                  console.log('❌ No tenant ID available');
+                  return;
+                }
                 
                 try {
                   const { collection, getDocs } = await import('firebase/firestore');
@@ -589,9 +599,12 @@ export default function RootLayout({
                     <SubscriptionProvider>
                       <UserPermissionsProvider>
                         <MenuPOSSyncProvider>
-                          <ToastProvider>
-                            {children}
-                          </ToastProvider>
+                          <HelpProvider>
+                            <ToastProvider>
+                              {children}
+                              <HelpModal />
+                            </ToastProvider>
+                          </HelpProvider>
                         </MenuPOSSyncProvider>
                       </UserPermissionsProvider>
                     </SubscriptionProvider>

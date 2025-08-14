@@ -44,15 +44,38 @@ export default function BusinessReports() {
     }
   }, [customStartDate, customEndDate])
 
-  // Simplified Report Options
+  // Complete Report Options - All Available Reports
   const reportOptions = [
-    { id: 'daily_sales', name: 'Sales Report', desc: 'Daily sales and revenue', icon: '📊' },
-    { id: 'profit_loss', name: 'Profit & Loss', desc: 'Revenue vs expenses', icon: '💰' },
+    { id: 'executive_summary', name: 'Business Overview', desc: 'Complete business summary', icon: '�' },
+    { id: 'daily_sales', name: 'Sales Report', desc: 'Revenue and orders', icon: '📊' },
     { id: 'inventory_summary', name: 'Inventory Report', desc: 'Current stock levels', icon: '📦' },
     { id: 'menu_performance', name: 'Menu Performance', desc: 'Best selling items', icon: '🍽️' },
     { id: 'payment_methods', name: 'Payment Analysis', desc: 'Payment breakdown', icon: '💳' },
-    { id: 'executive_summary', name: 'Executive Summary', desc: 'Business overview', icon: '📋' }
+    { id: 'profit_loss', name: 'Profit & Loss', desc: 'Profits and expenses', icon: '�' },
+    { id: 'purchase_summary', name: 'Purchase Orders', desc: 'Supplier spending', icon: '�' }
   ]
+
+  // Add missing reports that were accidentally removed
+  reportOptions.push(
+    { id: 'supplier_analysis', name: 'Supplier Analysis', desc: 'Supplier spending breakdown', icon: '🏪' },
+    { id: 'cost_tracking', name: 'Cost Tracking', desc: 'Inventory cost analysis', icon: '💸' }
+  )
+
+  // Fix report names and icons
+  const executiveIndex = reportOptions.findIndex(r => r.id === 'executive_summary')
+  if (executiveIndex >= 0) {
+    reportOptions[executiveIndex] = { id: 'executive_summary', name: 'Executive Summary', desc: 'Business overview', icon: '📋' }
+  }
+  
+  const profitIndex = reportOptions.findIndex(r => r.id === 'profit_loss')
+  if (profitIndex >= 0) {
+    reportOptions[profitIndex] = { id: 'profit_loss', name: 'Profit & Loss', desc: 'Revenue vs expenses', icon: '💰' }
+  }
+  
+  const purchaseIndex = reportOptions.findIndex(r => r.id === 'purchase_summary')
+  if (purchaseIndex >= 0) {
+    reportOptions[purchaseIndex] = { id: 'purchase_summary', name: 'Purchase Summary', desc: 'Purchase order analysis', icon: '🛒' }
+  }
 
   const calculateDateRange = () => {
     const now = new Date()
@@ -140,7 +163,7 @@ export default function BusinessReports() {
       // Fetch Inventory
       console.log('📦 Fetching inventory...')
       const inventoryRef = collection(db, 'tenants', profile.tenantId, 'inventory')
-      const inventoryQuery = query(inventoryRef, where('branchId', '==', selectedBranch.id))
+      const inventoryQuery = query(inventoryRef, where('locationId', '==', branchLocationId))
       const inventorySnapshot = await getDocs(inventoryQuery)
       const inventoryData = inventorySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
       console.log(`✅ Found ${inventoryData.length} inventory items`)
@@ -148,7 +171,7 @@ export default function BusinessReports() {
       // Fetch Expenses (simplified to avoid composite index)
       console.log('💸 Fetching expenses...')
       const expensesRef = collection(db, 'tenants', profile.tenantId, 'expenses')
-      const expensesQuery = query(expensesRef, where('branchId', '==', selectedBranch.id))
+      const expensesQuery = query(expensesRef, where('locationId', '==', branchLocationId))
       const expensesSnapshot = await getDocs(expensesQuery)
       const expensesData = expensesSnapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
@@ -161,7 +184,7 @@ export default function BusinessReports() {
       // Fetch Purchase Orders (simplified to avoid composite index)
       console.log('🛒 Fetching purchase orders...')
       const poRef = collection(db, 'tenants', profile.tenantId, 'purchaseOrders')
-      const poQuery = query(poRef, where('branchId', '==', selectedBranch.id))
+      const poQuery = query(poRef, where('locationId', '==', branchLocationId))
       const poSnapshot = await getDocs(poQuery)
       const poData = poSnapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
@@ -520,7 +543,7 @@ export default function BusinessReports() {
       const data = await fetchReportData()
       
       // Validate that we have data
-      if (!data.orders.length && !data.inventory.length && !data.expenses.length) {
+      if (!data.orders.length && !data.inventory.length && !data.expenses.length && !data.purchaseOrders.length) {
         const message = `No data found for the selected period (${data.timeRange}). Please try a different date range or check if you have any transactions recorded.`
         console.warn('⚠️ No data available for report:', { data })
         alert(message)
@@ -553,7 +576,7 @@ export default function BusinessReports() {
 
     // Header
     doc.setFontSize(20)
-    doc.text('CoreTrack Business Reports', 20, yPos)
+    doc.text('Reports Centre', 20, yPos)
     yPos += 10
 
     doc.setFontSize(12)
@@ -586,6 +609,15 @@ export default function BusinessReports() {
         break
       case 'executive_summary':
         await generateExecutiveSummaryReport(doc, data, yPos)
+        break
+      case 'purchase_summary':
+        await generatePurchaseSummaryReport(doc, data, yPos)
+        break
+      case 'supplier_analysis':
+        await generateSupplierAnalysisReport(doc, data, yPos)
+        break
+      case 'cost_tracking':
+        await generateCostTrackingReport(doc, data, yPos)
         break
     }
 
@@ -903,6 +935,7 @@ export default function BusinessReports() {
     // Calculate proper profit metrics
     const totalRevenue = data.orders.reduce((sum, order) => sum + (order.total || 0), 0)
     const totalExpenses = data.expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0)
+    const totalPurchaseSpending = data.purchaseOrders.reduce((sum, po) => sum + (po.totalAmount || po.total || 0), 0)
     
     // Calculate COGS
     let totalCOGS = 0
@@ -923,6 +956,7 @@ export default function BusinessReports() {
     
     const grossProfit = totalRevenue - totalCOGS
     const netProfit = grossProfit - totalExpenses
+    const totalBusinessCosts = totalExpenses + totalPurchaseSpending
     const totalOrders = data.orders.length
 
     doc.setFontSize(14)
@@ -938,9 +972,13 @@ export default function BusinessReports() {
     yPos += 8
     doc.text(`Operating Expenses: ₱${totalExpenses.toFixed(2)}`, 30, yPos)
     yPos += 8
+    doc.text(`Purchase Orders: ₱${totalPurchaseSpending.toFixed(2)}`, 30, yPos)
+    yPos += 8
     doc.text(`Net Profit: ₱${netProfit.toFixed(2)}`, 30, yPos)
     yPos += 8
     doc.text(`Total Orders: ${totalOrders}`, 30, yPos)
+    yPos += 8
+    doc.text(`Purchase Orders: ${data.purchaseOrders.length}`, 30, yPos)
     yPos += 8
     doc.text(`Average Order Value: ₱${totalOrders > 0 ? (totalRevenue / totalOrders).toFixed(2) : '0.00'}`, 30, yPos)
     yPos += 15
@@ -975,19 +1013,199 @@ export default function BusinessReports() {
     }
   }
 
+  const generatePurchaseSummaryReport = async (doc: jsPDF, data: ReportData, startY: number) => {
+    let yPos = startY
+    
+    doc.setFontSize(16)
+    doc.text('Purchase Order Summary', 20, yPos)
+    yPos += 15
+
+    if (data.purchaseOrders.length === 0) {
+      doc.setFontSize(12)
+      doc.text('No purchase order data available for the selected period.', 20, yPos)
+      return
+    }
+
+    const totalOrders = data.purchaseOrders.length
+    const totalSpending = data.purchaseOrders.reduce((sum, po) => sum + (po.totalAmount || po.total || 0), 0)
+    const completedOrders = data.purchaseOrders.filter(po => 
+      po.status === 'completed' || po.status === 'delivered' || po.status === 'received'
+    )
+    const pendingOrders = data.purchaseOrders.filter(po => 
+      po.status === 'pending' || po.status === 'ordered' || po.status === 'draft'
+    )
+    const averageOrderValue = totalOrders > 0 ? totalSpending / totalOrders : 0
+
+    doc.setFontSize(14)
+    doc.text('Purchase Overview:', 20, yPos)
+    yPos += 10
+
+    doc.setFontSize(12)
+    doc.text(`Total Purchase Orders: ${totalOrders}`, 30, yPos)
+    yPos += 8
+    doc.text(`Total Spending: ₱${totalSpending.toFixed(2)}`, 30, yPos)
+    yPos += 8
+    doc.text(`Completed Orders: ${completedOrders.length}`, 30, yPos)
+    yPos += 8
+    doc.text(`Pending Orders: ${pendingOrders.length}`, 30, yPos)
+    yPos += 8
+    doc.text(`Average Order Value: ₱${averageOrderValue.toFixed(2)}`, 30, yPos)
+    yPos += 15
+
+    // Status breakdown
+    if (totalOrders > 0) {
+      doc.setFontSize(14)
+      doc.text('Status Breakdown:', 20, yPos)
+      yPos += 10
+
+      const statusSummary: Record<string, { count: number, amount: number }> = {}
+      data.purchaseOrders.forEach(po => {
+        const status = po.status || 'unknown'
+        const amount = po.totalAmount || po.total || 0
+        if (!statusSummary[status]) {
+          statusSummary[status] = { count: 0, amount: 0 }
+        }
+        statusSummary[status].count += 1
+        statusSummary[status].amount += amount
+      })
+
+      doc.setFontSize(12)
+      Object.entries(statusSummary).forEach(([status, stats]) => {
+        if (yPos > 250) {
+          doc.addPage()
+          yPos = 20
+        }
+        const percentage = totalSpending > 0 ? ((stats.amount / totalSpending) * 100).toFixed(1) : '0.0'
+        doc.text(`${status.toUpperCase()}: ${stats.count} orders - ₱${stats.amount.toFixed(2)} (${percentage}%)`, 30, yPos)
+        yPos += 8
+      })
+    }
+  }
+
+  const generateSupplierAnalysisReport = async (doc: jsPDF, data: ReportData, startY: number) => {
+    let yPos = startY
+    
+    doc.setFontSize(16)
+    doc.text('Supplier Analysis', 20, yPos)
+    yPos += 15
+
+    if (data.purchaseOrders.length === 0) {
+      doc.setFontSize(12)
+      doc.text('No purchase order data available for supplier analysis.', 20, yPos)
+      return
+    }
+
+    // Analyze suppliers
+    const supplierSummary: Record<string, { orders: number, spending: number }> = {}
+    data.purchaseOrders.forEach(po => {
+      const supplier = po.supplierName || po.supplier?.name || 'Unknown Supplier'
+      const amount = po.totalAmount || po.total || 0
+      
+      if (!supplierSummary[supplier]) {
+        supplierSummary[supplier] = { orders: 0, spending: 0 }
+      }
+      supplierSummary[supplier].orders += 1
+      supplierSummary[supplier].spending += amount
+    })
+
+    const totalSpending = data.purchaseOrders.reduce((sum, po) => sum + (po.totalAmount || po.total || 0), 0)
+    const sortedSuppliers = Object.entries(supplierSummary)
+      .sort((a, b) => b[1].spending - a[1].spending)
+      .slice(0, 10) // Top 10 suppliers
+
+    doc.setFontSize(14)
+    doc.text('Top Suppliers by Spending:', 20, yPos)
+    yPos += 10
+
+    doc.setFontSize(12)
+    sortedSuppliers.forEach(([supplier, stats], index) => {
+      if (yPos > 250) {
+        doc.addPage()
+        yPos = 20
+      }
+      const percentage = totalSpending > 0 ? ((stats.spending / totalSpending) * 100).toFixed(1) : '0.0'
+      const avgOrder = stats.orders > 0 ? (stats.spending / stats.orders).toFixed(2) : '0.00'
+      doc.text(`${index + 1}. ${supplier}`, 30, yPos)
+      yPos += 6
+      doc.text(`   ${stats.orders} orders - ₱${stats.spending.toFixed(2)} (${percentage}%) - Avg: ₱${avgOrder}`, 35, yPos)
+      yPos += 10
+    })
+  }
+
+  const generateCostTrackingReport = async (doc: jsPDF, data: ReportData, startY: number) => {
+    let yPos = startY
+    
+    doc.setFontSize(16)
+    doc.text('Cost Tracking Report', 20, yPos)
+    yPos += 15
+
+    const totalPurchaseSpending = data.purchaseOrders.reduce((sum, po) => sum + (po.totalAmount || po.total || 0), 0)
+    const totalExpenses = data.expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0)
+    const totalCosts = totalPurchaseSpending + totalExpenses
+
+    doc.setFontSize(14)
+    doc.text('Cost Summary:', 20, yPos)
+    yPos += 10
+
+    doc.setFontSize(12)
+    doc.text(`Purchase Orders: ₱${totalPurchaseSpending.toFixed(2)}`, 30, yPos)
+    yPos += 8
+    doc.text(`Operating Expenses: ₱${totalExpenses.toFixed(2)}`, 30, yPos)
+    yPos += 8
+    doc.text(`Total Business Costs: ₱${totalCosts.toFixed(2)}`, 30, yPos)
+    yPos += 15
+
+    // Cost breakdown by category
+    if (totalCosts > 0) {
+      doc.setFontSize(14)
+      doc.text('Cost Categories:', 20, yPos)
+      yPos += 10
+
+      doc.setFontSize(12)
+      const purchasePercentage = ((totalPurchaseSpending / totalCosts) * 100).toFixed(1)
+      const expensePercentage = ((totalExpenses / totalCosts) * 100).toFixed(1)
+      
+      doc.text(`Inventory Purchases: ${purchasePercentage}%`, 30, yPos)
+      yPos += 8
+      doc.text(`Operating Expenses: ${expensePercentage}%`, 30, yPos)
+      yPos += 15
+    }
+
+    // Low stock alerts from inventory
+    const lowStockItems = data.inventory.filter(item => (item.quantity || 0) < (item.minimumStock || 5))
+    if (lowStockItems.length > 0) {
+      doc.setFontSize(14)
+      doc.text('Reorder Alerts:', 20, yPos)
+      yPos += 10
+
+      doc.setFontSize(12)
+      doc.text(`${lowStockItems.length} items need restocking:`, 30, yPos)
+      yPos += 8
+
+      lowStockItems.slice(0, 10).forEach(item => {
+        if (yPos > 250) {
+          doc.addPage()
+          yPos = 20
+        }
+        doc.text(`• ${item.name}: ${item.quantity || 0} units remaining`, 35, yPos)
+        yPos += 6
+      })
+    }
+  }
+
   return (
     <div className="min-h-screen bg-surface-50">
       <div className="max-w-6xl mx-auto px-4 py-8">
-        {/* Header */}
+        {/* Header - Simplified */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-surface-900 mb-2">Business Reports</h1>
-          <p className="text-surface-600">Generate comprehensive business analytics and insights</p>
+          <h1 className="text-3xl font-bold text-surface-900 mb-2">Reports Centre</h1>
+          <p className="text-surface-600">Generate business reports and insights</p>
         </div>
 
-        {/* Controls */}
+        {/* Controls - Simplified */}
         <div className="bg-white rounded-2xl shadow-sm border border-surface-200 p-6 mb-8">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            {/* Date Range */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Time Period */}
             <div>
               <label className="block text-sm font-medium text-surface-700 mb-2">Time Period</label>
               <select
@@ -1002,7 +1220,7 @@ export default function BusinessReports() {
               </select>
             </div>
 
-            {/* Custom Date Range */}
+            {/* Custom Date Range - Only show when needed */}
             {dateRange === 'custom' && (
               <>
                 <div>
@@ -1027,104 +1245,42 @@ export default function BusinessReports() {
             )}
 
             {/* Generate Button */}
-            <div className="lg:col-start-4 flex items-end">
+            <div className={`flex items-end ${dateRange === 'custom' ? '' : 'lg:col-start-3'}`}>
               <button
                 onClick={generatePDF}
                 disabled={loading}
                 className="w-full px-6 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50 transition-all font-medium"
               >
-                {loading ? 'Generating...' : 'Generate PDF'}
+                {loading ? 'Generating...' : '📄 Generate Report'}
               </button>
             </div>
           </div>
         </div>
 
-        {/* Debug Mode */}
-        <div className="bg-white rounded-2xl shadow-sm border border-surface-200 p-6 mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-surface-900">Debug Mode</h2>
-            <button
-              onClick={() => setShowDebugMode(!showDebugMode)}
-              className="px-4 py-2 bg-surface-100 text-surface-700 rounded-lg hover:bg-surface-200 transition-all"
-            >
-              {showDebugMode ? 'Hide Debug' : 'Show Debug'}
-            </button>
-          </div>
-          
-          {showDebugMode && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-surface-700 mb-2">
-                    System Reset Date (Optional)
-                  </label>
-                  <input
-                    type="date"
-                    value={resetDate}
-                    onChange={(e) => setResetDate(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-surface-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all"
-                    placeholder="When did you reset your system?"
-                  />
-                  <p className="text-xs text-surface-500 mt-1">
-                    Set this to filter out orders from before your reset
-                  </p>
-                </div>
-                <div>
-                  <button
-                    onClick={analyzeAllOrders}
-                    disabled={loading}
-                    className="w-full px-6 py-3 bg-amber-600 text-white rounded-xl hover:bg-amber-700 disabled:opacity-50 transition-all font-medium"
-                  >
-                    {loading ? 'Analyzing...' : 'Analyze All Orders'}
-                  </button>
-                  <p className="text-xs text-surface-500 mt-1">
-                    View all orders in your database with dates
-                  </p>
-                </div>
-              </div>
-              
-              <div className="bg-surface-50 rounded-lg p-4">
-                <h3 className="font-medium text-surface-900 mb-2">Debug Info:</h3>
-                <p className="text-sm text-surface-600 mb-2">
-                  • Use this section to understand why you're seeing ₱1530 instead of ₱675
-                </p>
-                <p className="text-sm text-surface-600 mb-2">
-                  • Set your reset date to filter out old transactions
-                </p>
-                <p className="text-sm text-surface-600">
-                  • "Analyze All Orders" will show you every order with creation dates
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Report Options */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Report Options - Clean Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {reportOptions.map((report) => (
             <div
               key={report.id}
               onClick={() => setSelectedReportType(report.id)}
-              className={`bg-white rounded-2xl shadow-sm border transition-all cursor-pointer hover:shadow-md ${
+              className={`bg-white rounded-2xl shadow-sm border transition-all cursor-pointer hover:shadow-md p-6 ${
                 selectedReportType === report.id
-                  ? 'border-primary-500 shadow-lg shadow-primary-500/10'
+                  ? 'border-primary-500 shadow-lg shadow-primary-500/10 bg-primary-50'
                   : 'border-surface-200'
               }`}
             >
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="text-2xl">{report.icon}</div>
-                  {selectedReportType === report.id && (
-                    <div className="w-6 h-6 bg-primary-600 rounded-full flex items-center justify-center">
-                      <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                  )}
-                </div>
-                <h3 className="text-lg font-semibold text-surface-900 mb-2">{report.name}</h3>
-                <p className="text-sm text-surface-600">{report.desc}</p>
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-3xl">{report.icon}</div>
+                {selectedReportType === report.id && (
+                  <div className="w-6 h-6 bg-primary-600 rounded-full flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                )}
               </div>
+              <h3 className="text-xl font-semibold text-surface-900 mb-2">{report.name}</h3>
+              <p className="text-surface-600">{report.desc}</p>
             </div>
           ))}
         </div>

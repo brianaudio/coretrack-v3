@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
+import { useBranch } from '../../lib/context/BranchContext'
 import { db } from '../../lib/firebase'
-import { collection, getDocs, query, orderBy, limit, DocumentData } from 'firebase/firestore'
+import { collection, getDocs, query, orderBy, limit, where, DocumentData } from 'firebase/firestore'
 
 // Capital Intelligence Dashboard Component
 export default function CapitalIntelligence() {
   const { profile, tenant } = useAuth()
+  const { selectedBranch } = useBranch()
   const [activeTab, setActiveTab] = useState('overview')
   const [loading, setLoading] = useState(false)
   const [alertThresholds, setAlertThresholds] = useState({
@@ -23,6 +25,13 @@ export default function CapitalIntelligence() {
     purchaseToSalesVelocity: number
     totalInventoryValue: number
     totalCapitalDeployed: number
+    totalRecentSales: number
+    moneyFlowAnalysis: {
+      type: string
+      message: string
+      isGood: boolean
+      details: string[]
+    }
     recentPurchases: Array<{
       name: string
       amount: number
@@ -40,6 +49,13 @@ export default function CapitalIntelligence() {
     purchaseToSalesVelocity: 0,
     totalInventoryValue: 0,
     totalCapitalDeployed: 0,
+    totalRecentSales: 0,
+    moneyFlowAnalysis: {
+      type: 'unknown',
+      message: 'Loading analysis...',
+      isGood: false,
+      details: [] as string[]
+    },
     recentPurchases: [],
     recommendations: []
   })
@@ -47,17 +63,95 @@ export default function CapitalIntelligence() {
   // Load real data from Firebase
   useEffect(() => {
     const loadCapitalData = async () => {
-      if (!tenant?.id || !profile?.tenantId) return
+      if (!tenant?.id || !profile?.tenantId || !selectedBranch?.id) return
       
       setLoading(true)
       try {
         // Fetch real data from Firebase collections
         const tenantId = profile.tenantId
+        const branchId = selectedBranch.id
         
-        // Get inventory data
+        // Get inventory data FILTERED BY BRANCH
         const inventoryRef = collection(db, `tenants/${tenantId}/inventory`)
-        const inventorySnapshot = await getDocs(inventoryRef)
-        const inventoryItems = inventorySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[]
+        
+        // First, get ALL inventory to see what branch IDs exist
+        const allInventorySnapshot = await getDocs(inventoryRef)
+        const allInventoryItems = allInventorySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[]
+        
+        console.log('=== BRANCH FILTERING DEBUG ===')
+        console.log('🔍 Current selected branch ID:', branchId)
+        console.log('🔍 Selected branch object:', selectedBranch)
+        console.log('🔍 All inventory items with their branch IDs:')
+        allInventoryItems.forEach((item, index) => {
+          console.log(`  Item ${index + 1}: ${item.name}`)
+          console.log(`    - branchId: "${item.branchId}"`)
+          console.log(`    - branch: "${item.branch}"`) 
+          console.log(`    - locationId: "${item.locationId}"`)
+          console.log(`    - location: "${item.location}"`)
+          console.log(`    - all fields:`, Object.keys(item))
+        })
+        
+        // Try multiple filtering approaches
+        let inventoryItems: any[] = []
+        
+        // Try 1: Filter by branchId
+        console.log('🔍 Trying filter 1: branchId ==', branchId)
+        const query1 = query(inventoryRef, where('branchId', '==', branchId))
+        const result1 = await getDocs(query1)
+        inventoryItems = result1.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+        console.log('🔍 Filter 1 results:', inventoryItems.length, 'items')
+        
+        // Try 2: Filter by branch field if no results
+        if (inventoryItems.length === 0) {
+          console.log('🔍 Trying filter 2: branch ==', branchId)
+          const query2 = query(inventoryRef, where('branch', '==', branchId))
+          const result2 = await getDocs(query2)
+          inventoryItems = result2.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+          console.log('🔍 Filter 2 results:', inventoryItems.length, 'items')
+        }
+        
+        // Try 3: Filter by locationId with "location_" prefix
+        if (inventoryItems.length === 0) {
+          const locationIdWithPrefix = `location_${branchId}`
+          console.log('🔍 Trying filter 3: locationId ==', locationIdWithPrefix)
+          const query3 = query(inventoryRef, where('locationId', '==', locationIdWithPrefix))
+          const result3 = await getDocs(query3)
+          inventoryItems = result3.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+          console.log('🔍 Filter 3 results:', inventoryItems.length, 'items')
+        }
+        
+        // Try 4: Filter by locationId without prefix if no results
+        if (inventoryItems.length === 0) {
+          console.log('🔍 Trying filter 4: locationId ==', branchId)
+          const query4 = query(inventoryRef, where('locationId', '==', branchId))
+          const result4 = await getDocs(query4)
+          inventoryItems = result4.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+          console.log('🔍 Filter 4 results:', inventoryItems.length, 'items')
+        }
+        
+        console.log('=== FINAL FILTERING RESULT ===')
+        console.log('🔍 BRANCH-FILTERED DATA VERIFICATION:')
+        console.log('- Firebase Path:', `tenants/${tenantId}/inventory`)
+        console.log('- Branch Filter:', branchId)
+        console.log('- Selected Branch:', selectedBranch.name)
+        console.log('- Total inventory items found for this branch:', inventoryItems.length)
+        console.log('- Data source: Firebase Firestore (BRANCH-SPECIFIC ONLY)')
+        console.log('📋 DETAILED INVENTORY BREAKDOWN:')
+        
+        inventoryItems.forEach((item, index) => {
+          console.log(`📦 ITEM ${index + 1}:`, {
+            id: item.id,
+            name: item.name || 'Unnamed Item',
+            category: item.category || 'No category',
+            currentStock: item.currentStock || 0,
+            costPerUnit: item.costPerUnit || 0,
+            sellingPrice: item.sellingPrice || 'Not set',
+            unit: item.unit || 'pieces',
+            supplier: item.supplier || 'No supplier',
+            branchId: item.branchId || item.branch || 'No branch',
+            itemValue: (item.currentStock || 0) * (item.costPerUnit || 0)
+          })
+        })
         
         // Get recent orders for sales data
         const ordersRef = collection(db, `tenants/${tenantId}/orders`)
@@ -65,19 +159,90 @@ export default function CapitalIntelligence() {
         const ordersSnapshot = await getDocs(recentOrdersQuery)
         const recentOrders = ordersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[]
         
-        // Get purchase orders
+        // Get purchase orders FILTERED BY BRANCH
         const purchaseOrdersRef = collection(db, `tenants/${tenantId}/purchaseOrders`)
-        const purchaseSnapshot = await getDocs(purchaseOrdersRef)
-        const purchases = purchaseSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[]
         
-        // Calculate real metrics
-        const totalInventoryValue = inventoryItems.reduce((sum, item) => {
-          const value = (item.currentStock || 0) * (item.costPerUnit || 0)
-          return sum + (isNaN(value) ? 0 : value)
-        }, 0)
+        // First, get ALL purchase orders to see what branch IDs exist
+        const allPurchaseSnapshot = await getDocs(purchaseOrdersRef)
+        const allPurchases = allPurchaseSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[]
+        
+        console.log('=== PURCHASE ORDER FILTERING DEBUG ===')
+        console.log('🔍 All purchase orders with their branch IDs:')
+        allPurchases.forEach((purchase, index) => {
+          console.log(`  Purchase ${index + 1}: ${purchase.supplierName || 'Unknown'}`)
+          console.log(`    - branchId: "${purchase.branchId}"`)
+          console.log(`    - branch: "${purchase.branch}"`) 
+          console.log(`    - locationId: "${purchase.locationId}"`)
+          console.log(`    - location: "${purchase.location}"`)
+          console.log(`    - all fields:`, Object.keys(purchase))
+        })
+        
+        // Try multiple filtering approaches for purchase orders
+        let purchases: any[] = []
+        
+        // Try 1: Filter by branchId
+        console.log('🔍 Trying purchase filter 1: branchId ==', branchId)
+        const purchaseQuery1 = query(purchaseOrdersRef, where('branchId', '==', branchId))
+        const purchaseResult1 = await getDocs(purchaseQuery1)
+        purchases = purchaseResult1.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+        console.log('🔍 Purchase filter 1 results:', purchases.length, 'items')
+        
+        // Try 2: Filter by branch field if no results
+        if (purchases.length === 0) {
+          console.log('🔍 Trying purchase filter 2: branch ==', branchId)
+          const purchaseQuery2 = query(purchaseOrdersRef, where('branch', '==', branchId))
+          const purchaseResult2 = await getDocs(purchaseQuery2)
+          purchases = purchaseResult2.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+          console.log('🔍 Purchase filter 2 results:', purchases.length, 'items')
+        }
+        
+        // Try 3: Filter by locationId with "location_" prefix
+        if (purchases.length === 0) {
+          const locationIdWithPrefix = `location_${branchId}`
+          console.log('🔍 Trying purchase filter 3: locationId ==', locationIdWithPrefix)
+          const purchaseQuery3 = query(purchaseOrdersRef, where('locationId', '==', locationIdWithPrefix))
+          const purchaseResult3 = await getDocs(purchaseQuery3)
+          purchases = purchaseResult3.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+          console.log('🔍 Purchase filter 3 results:', purchases.length, 'items')
+        }
+        
+        // Try 4: Filter by locationId without prefix if no results
+        if (purchases.length === 0) {
+          console.log('🔍 Trying purchase filter 4: locationId ==', branchId)
+          const purchaseQuery4 = query(purchaseOrdersRef, where('locationId', '==', branchId))
+          const purchaseResult4 = await getDocs(purchaseQuery4)
+          purchases = purchaseResult4.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+          console.log('🔍 Purchase filter 4 results:', purchases.length, 'items')
+        }
+        
+        console.log('=== PURCHASE ORDERS FILTERING RESULT ===')
+        console.log('🔍 BRANCH-FILTERED PURCHASE ORDERS:')
+        console.log('- Total purchase orders found for this branch:', purchases.length)
+        
+        // Calculate real metrics with DETAILED debugging
+        console.log("🔍 DETAILED INVENTORY CALCULATION:")
+        let totalInventoryValue = 0
+        inventoryItems.forEach((item, index) => {
+          const stock = item.currentStock || 0
+          const cost = item.costPerUnit || 0
+          const value = stock * cost
+          
+          console.log(`📦 ITEM ${index + 1}: ${item.name || 'Unnamed'}`)
+          console.log(`   Stock: ${stock} ${item.unit || 'units'}`)
+          console.log(`   Cost per unit: ₱${cost}`)
+          console.log(`   Value: ${stock} × ₱${cost} = ₱${value}`)
+          
+          totalInventoryValue += (isNaN(value) ? 0 : value)
+        })
+        
+        console.log("💰 TOTAL: ₱" + totalInventoryValue)
+        console.log("💰 YOUR EXPECTED: ₱6275")
+        console.log("💰 DIFFERENCE: ₱" + (totalInventoryValue - 6275))
         
         const totalCapitalDeployed = purchases.reduce((sum, purchase) => {
-          return sum + (purchase.totalAmount || 0)
+          // Use the correct field name from purchase order structure
+          const amount = purchase.total || purchase.totalAmount || purchase.amount || purchase.grandTotal || 0
+          return sum + amount
         }, 0)
         
         // Calculate daily sales average (last 30 days)
@@ -91,6 +256,90 @@ export default function CapitalIntelligence() {
         
         const totalRecentSales = recentSales.reduce((sum, order) => sum + (order.total || 0), 0)
         const avgDailySales = recentSales.length > 0 ? totalRecentSales / Math.min(30, recentSales.length) : 0
+        
+        // Calculate the difference between spending and current inventory value
+        const moneyDifference = totalCapitalDeployed - totalInventoryValue
+        const differencePercentage = totalCapitalDeployed > 0 ? (moneyDifference / totalCapitalDeployed) * 100 : 0
+        
+        // Analyze what happened to the missing money
+        let analysisResult: {
+          type: string
+          message: string
+          isGood: boolean
+          details: string[]
+        } = {
+          type: 'unknown',
+          message: 'Unable to determine what happened',
+          isGood: false,
+          details: []
+        }
+        
+        if (Math.abs(moneyDifference) < 100) {
+          analysisResult = {
+            type: 'balanced',
+            message: 'Your spending and inventory value are perfectly balanced',
+            isGood: true,
+            details: ['Your inventory management is precise']
+          }
+        } else if (moneyDifference > 0) {
+          // Spent more than current inventory value
+          if (totalRecentSales > 0) {
+            const salesVsMissingMoney = (totalRecentSales / moneyDifference) * 100
+            if (salesVsMissingMoney >= 80) {
+              analysisResult = {
+                type: 'sales_success',
+                message: `Great! You've converted ₱${moneyDifference.toLocaleString()} of inventory into sales`,
+                isGood: true,
+                details: [
+                  `Recent sales: ₱${totalRecentSales.toLocaleString()}`,
+                  `This explains ${Math.round(salesVsMissingMoney)}% of the difference`,
+                  'Your money is flowing properly from inventory to cash'
+                ]
+              }
+            } else {
+              analysisResult = {
+                type: 'partial_sales',
+                message: `Some sales made (₱${totalRecentSales.toLocaleString()}) but ₱${(moneyDifference - totalRecentSales).toLocaleString()} is unaccounted for`,
+                isGood: false,
+                details: [
+                  'Check for damaged/expired items',
+                  'Verify inventory counts are accurate',
+                  'Review cost price entries'
+                ]
+              }
+            }
+          } else {
+            analysisResult = {
+              type: 'no_sales',
+              message: `₱${moneyDifference.toLocaleString()} difference with no recent sales - needs investigation`,
+              isGood: false,
+              details: [
+                'No sales recorded in the last 30 days',
+                'Check for missing/damaged inventory',
+                'Verify purchase order amounts and inventory cost prices'
+              ]
+            }
+          }
+        } else {
+          // Inventory value is higher than spending
+          analysisResult = {
+            type: 'inventory_growth',
+            message: `Your inventory value increased by ₱${Math.abs(moneyDifference).toLocaleString()}`,
+            isGood: true,
+            details: [
+              'You may have received bulk discounts',
+              'Product values might have appreciated',
+              'Efficient restocking strategy'
+            ]
+          }
+        }
+        
+        console.log('=== MONEY FLOW ANALYSIS ===')
+        console.log('Money spent:', totalCapitalDeployed)
+        console.log('Current inventory value:', totalInventoryValue)
+        console.log('Difference:', moneyDifference)
+        console.log('Recent sales:', totalRecentSales)
+        console.log('Analysis result:', analysisResult)
         
         // Calculate ICR (Inventory to Capital Ratio)
         const currentICR = totalCapitalDeployed > 0 ? totalInventoryValue / totalCapitalDeployed : 0
@@ -125,12 +374,32 @@ export default function CapitalIntelligence() {
           purchaseToSalesVelocity: avgDailySales,
           totalInventoryValue: Math.round(totalInventoryValue),
           totalCapitalDeployed: Math.round(totalCapitalDeployed),
-          recentPurchases: purchases.slice(0, 5).map((p, index) => ({
-            id: p.id || `purchase-${index}`,
-            name: p.supplierName || 'Unknown Supplier',
-            amount: p.totalAmount || 0,
-            date: p.createdAt?.toDate ? p.createdAt.toDate() : new Date(p.createdAt || Date.now())
-          })),
+          totalRecentSales: Math.round(totalRecentSales),
+          moneyFlowAnalysis: analysisResult,
+          recentPurchases: purchases.slice(0, 5).map((p, index) => {
+            // Use the correct field name from purchase order structure
+            const amount = p.total || p.totalAmount || p.amount || p.grandTotal || 0
+            
+            console.log('Purchase data for display:', {
+              id: p.id,
+              supplierName: p.supplierName,
+              orderNumber: p.orderNumber,
+              total: p.total,
+              subtotal: p.subtotal,
+              tax: p.tax,
+              status: p.status,
+              finalAmount: amount
+            })
+            
+            return {
+              id: p.id || `purchase-${index}`,
+              name: p.supplierName || p.supplier || 'Unknown Supplier',
+              amount: amount,
+              orderNumber: p.orderNumber || '',
+              status: p.status || 'unknown',
+              date: p.createdAt?.toDate ? p.createdAt.toDate() : new Date(p.createdAt || Date.now())
+            }
+          }),
           recommendations
         }
         
@@ -143,13 +412,11 @@ export default function CapitalIntelligence() {
     }
     
     loadCapitalData()
-  }, [tenant?.id, profile?.tenantId])
+  }, [tenant?.id, profile?.tenantId, selectedBranch?.id])
 
   const tabs = [
-    { id: 'overview', label: 'Capital Overview', icon: '📊' },
-    { id: 'analysis', label: 'Deep Analysis', icon: '🔍' },
-    { id: 'recommendations', label: 'Smart Recommendations', icon: '💡' },
-    { id: 'settings', label: 'Alert Settings', icon: '⚙️' }
+    { id: 'overview', label: 'Overview', icon: '📊' },
+    { id: 'tips', label: 'Tips', icon: '💡' }
   ]
 
   const getICRColor = (icr: number) => {
@@ -167,343 +434,426 @@ export default function CapitalIntelligence() {
 
   const efficiencyScore = getEfficiencyScore(capitalData.currentICR, capitalData.capitalRecoveryTime, capitalData.purchaseToSalesVelocity)
 
+  // Helper functions for easy understanding
+  const getStockHealthStatus = () => {
+    const days = capitalData.capitalRecoveryTime
+    if (days <= 14) return { status: 'Excellent', color: 'green', emoji: '🔥', message: 'Your money moves super fast!' }
+    if (days <= 30) return { status: 'Good', color: 'blue', emoji: '✅', message: 'Healthy cash flow' }
+    if (days <= 60) return { status: 'Okay', color: 'yellow', emoji: '⚠️', message: 'Could be faster' }
+    return { status: 'Slow', color: 'red', emoji: '🐌', message: 'Money is stuck too long' }
+  }
+
+  const getSpendingEfficiency = () => {
+    const ratio = capitalData.totalCapitalDeployed > 0 ? (capitalData.totalInventoryValue / capitalData.totalCapitalDeployed) : 0
+    if (ratio >= 0.8) return { level: 'Excellent', color: 'green', emoji: '💪', message: 'Great purchasing decisions!' }
+    if (ratio >= 0.6) return { level: 'Good', color: 'blue', emoji: '👌', message: 'Solid inventory management' }
+    if (ratio >= 0.4) return { level: 'Okay', color: 'yellow', emoji: '📈', message: 'Room for improvement' }
+    return { level: 'Poor', color: 'red', emoji: '⚠️', message: 'Check your buying strategy' }
+  }
+
+  const stockHealth = getStockHealthStatus()
+  const spendingEfficiency = getSpendingEfficiency()
+
   const renderOverview = () => (
-    <div className="space-y-6">
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Inventory Capital Ratio</p>
-              <p className="text-xs text-gray-500">Capital tied up in inventory</p>
-            </div>
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <span className="text-xl">💰</span>
-            </div>
-          </div>
-          <div className="flex items-baseline space-x-2">
-            <span className={`text-3xl font-bold ${getICRColor(capitalData.currentICR)}`}>
-              {capitalData.currentICR}%
-            </span>
-            <span className="text-sm text-gray-500">
-              {capitalData.currentICR <= 50 ? 'Efficient' : capitalData.currentICR <= 70 ? 'Moderate' : 'High Risk'}
-            </span>
-          </div>
-          <div className="mt-2 text-xs text-gray-600">
-            ₱{capitalData.totalCapitalDeployed.toLocaleString()} of ₱{capitalData.totalInventoryValue.toLocaleString()}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Capital Recovery Time</p>
-              <p className="text-xs text-gray-500">Days to recover investment</p>
-            </div>
-            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-              <span className="text-xl">⏱️</span>
-            </div>
-          </div>
-          <div className="flex items-baseline space-x-2">
-            <span className="text-3xl font-bold text-green-600">{capitalData.capitalRecoveryTime}</span>
-            <span className="text-sm text-gray-500">days</span>
-          </div>
-          <div className="mt-2 text-xs text-gray-600">
-            {capitalData.capitalRecoveryTime <= 21 ? 'Excellent' : capitalData.capitalRecoveryTime <= 35 ? 'Good' : 'Needs Improvement'}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Purchase-to-Sales Velocity</p>
-              <p className="text-xs text-gray-500">Sales per dollar invested</p>
-            </div>
-            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-              <span className="text-xl">🚀</span>
-            </div>
-          </div>
-          <div className="flex items-baseline space-x-2">
-            <span className="text-3xl font-bold text-purple-600">{capitalData.purchaseToSalesVelocity}x</span>
-            <span className="text-sm text-gray-500">velocity</span>
-          </div>
-          <div className="mt-2 text-xs text-gray-600">
-            {capitalData.purchaseToSalesVelocity >= 2.0 ? 'High Performance' : capitalData.purchaseToSalesVelocity >= 1.5 ? 'Good' : 'Below Target'}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Capital Efficiency Score</p>
-              <p className="text-xs text-gray-500">Overall performance rating</p>
-            </div>
-            <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-              <span className="text-xl">⭐</span>
-            </div>
-          </div>
-          <div className="flex items-baseline space-x-2">
-            <span className={`text-3xl font-bold ${efficiencyScore >= 80 ? 'text-green-600' : efficiencyScore >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
-              {efficiencyScore}
-            </span>
-            <span className="text-sm text-gray-500">/100</span>
-          </div>
-          <div className="mt-2 text-xs text-gray-600">
-            {efficiencyScore >= 80 ? 'Excellent' : efficiencyScore >= 60 ? 'Good' : 'Needs Focus'}
-          </div>
-        </div>
+    <div className="space-y-8">
+      {/* Clean Status Header */}
+      <div className="text-center">
+        <div className="text-6xl mb-4">{stockHealth.emoji}</div>
+        <h2 className="text-2xl font-semibold text-gray-900 mb-2">Business Health: {stockHealth.status}</h2>
+        <p className="text-gray-600">{stockHealth.message}</p>
       </div>
 
-      {/* Recent Purchase Analysis */}
-      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">Recent Purchase Impact</h3>
-            <p className="text-sm text-gray-600">How recent purchases affect your capital efficiency</p>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-500">Last 7 days</span>
-            <select className="text-sm border border-gray-300 rounded-md px-2 py-1">
-              <option>Last 7 days</option>
-              <option>Last 30 days</option>
-              <option>Last 90 days</option>
-            </select>
-          </div>
-        </div>
-        <div className="space-y-3">
-          {capitalData.recentPurchases.map((purchase: any) => (
-            <div key={purchase.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center space-x-4">
-                <div className={`w-3 h-3 rounded-full ${
-                  purchase.status === 'good' ? 'bg-green-500' : 
-                  purchase.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
-                }`}></div>
-                <div>
-                  <p className="font-medium text-gray-900">{purchase.name}</p>
-                  <p className="text-sm text-gray-600">{purchase.date.toLocaleDateString()}</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="font-semibold text-gray-900">${purchase.amount.toLocaleString()}</p>
-                <p className={`text-sm ${
-                  purchase.status === 'good' ? 'text-green-600' : 
-                  purchase.status === 'warning' ? 'text-yellow-600' : 'text-red-600'
-                }`}>
-                  {purchase.impact}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Quick Recommendations */}
-      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Wins</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {capitalData.recommendations.slice(0, 3).map((rec: any) => (
-            <div key={rec.id || rec.title} className={`p-4 rounded-lg border-2 ${
-              rec.priority === 'high' ? 'border-red-200 bg-red-50' :
-              rec.priority === 'medium' ? 'border-yellow-200 bg-yellow-50' :
-              'border-green-200 bg-green-50'
-            }`}>
-              <div className="flex items-center space-x-2 mb-2">
-                <span className={`w-2 h-2 rounded-full ${
-                  rec.priority === 'high' ? 'bg-red-500' :
-                  rec.priority === 'medium' ? 'bg-yellow-500' :
-                  'bg-green-500'
-                }`}></span>
-                <h4 className="font-medium text-gray-900">{rec.title}</h4>
-              </div>
-              <p className="text-sm text-gray-600 mb-2">{rec.description}</p>
-              <p className="text-xs font-medium text-blue-600">{rec.impact}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-
-  const renderAnalysis = () => (
-    <div className="space-y-6">
-      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Capital Efficiency Deep Dive</h3>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* ICR Breakdown */}
-          <div>
-            <h4 className="font-medium text-gray-900 mb-3">Inventory Capital Ratio Breakdown</h4>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                <span className="text-sm text-gray-600">Fast-Moving Items (0-7 days)</span>
-                <span className="font-medium text-green-600">18.2%</span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                <span className="text-sm text-gray-600">Medium-Moving Items (8-21 days)</span>
-                <span className="font-medium text-yellow-600">21.4%</span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                <span className="text-sm text-gray-600">Slow-Moving Items (22+ days)</span>
-                <span className="font-medium text-red-600">13.3%</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Capital Recovery Analysis */}
-          <div>
-            <h4 className="font-medium text-gray-900 mb-3">Capital Recovery Analysis</h4>
-            <div className="space-y-3">
-              <div className="p-4 bg-blue-50 rounded-lg">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-blue-900">Average Recovery Time</span>
-                  <span className="text-lg font-bold text-blue-600">16 days</span>
-                </div>
-                <div className="text-xs text-blue-700">
-                  Industry average: 28 days (43% better)
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Best performing category:</span>
-                  <span className="font-medium text-green-600">Beverages (8 days)</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Needs improvement:</span>
-                  <span className="font-medium text-red-600">Equipment (45 days)</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Trending Analysis */}
-      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">30-Day Capital Efficiency Trend</h3>
-        <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
+      {/* Clean Metric Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Money in Inventory */}
+        <div className="bg-white rounded-2xl p-8 border border-gray-100 hover:border-blue-200 transition-all duration-200">
           <div className="text-center">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-2xl">📈</span>
+            <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mx-auto mb-4">
+              <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
             </div>
-            <p className="text-gray-600 mb-2">Interactive charts will be implemented here</p>
-            <p className="text-sm text-gray-500">Showing ICR, recovery time, and velocity trends</p>
+            <h3 className="text-sm font-medium text-gray-500 mb-2">Money in Stock</h3>
+            <div className="text-3xl font-bold text-gray-900 mb-3">
+              ₱{capitalData.totalInventoryValue.toLocaleString()}
+            </div>
+            <p className="text-sm text-gray-500">Current inventory value</p>
+          </div>
+        </div>
+
+        {/* Money Spent */}
+        <div className="bg-white rounded-2xl p-8 border border-gray-100 hover:border-orange-200 transition-all duration-200">
+          <div className="text-center">
+            <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center mx-auto mb-4">
+              <svg className="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+              </svg>
+            </div>
+            <h3 className="text-sm font-medium text-gray-500 mb-2">Money Spent</h3>
+            <div className="text-3xl font-bold text-gray-900 mb-3">
+              ₱{capitalData.totalCapitalDeployed.toLocaleString()}
+            </div>
+            <p className="text-sm text-gray-500">
+              {capitalData.totalCapitalDeployed === 0 ? "No purchases yet" : "Total investment"}
+            </p>
+          </div>
+        </div>
+
+        {/* Days to Sell */}
+        <div className="bg-white rounded-2xl p-8 border border-gray-100 hover:border-green-200 transition-all duration-200">
+          <div className="text-center">
+            <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center mx-auto mb-4">
+              <svg className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h3 className="text-sm font-medium text-gray-500 mb-2">Days to Sell All</h3>
+            <div className="text-3xl font-bold text-gray-900 mb-3">
+              {capitalData.capitalRecoveryTime === Infinity || isNaN(capitalData.capitalRecoveryTime) 
+                ? "∞" 
+                : Math.round(capitalData.capitalRecoveryTime)
+              }
+              {capitalData.capitalRecoveryTime !== Infinity && !isNaN(capitalData.capitalRecoveryTime) && (
+                <span className="text-lg text-gray-500 ml-1">days</span>
+              )}
+            </div>
+            <p className="text-sm text-gray-500">
+              {capitalData.capitalRecoveryTime === Infinity || isNaN(capitalData.capitalRecoveryTime)
+                ? "Need sales data"
+                : capitalData.capitalRecoveryTime <= 30 ? "Healthy pace" : "Could be faster"
+              }
+            </p>
           </div>
         </div>
       </div>
-    </div>
-  )
 
-  const renderRecommendations = () => (
-    <div className="space-y-6">
-      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">AI-Powered Capital Optimization</h3>
-        <div className="space-y-4">
-          {capitalData.recommendations.map((rec: any) => (
-            <div key={rec.id || rec.title} className="p-6 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center space-x-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    rec.type === 'reduce' ? 'bg-red-100 text-red-600' :
-                    rec.type === 'optimize' ? 'bg-blue-100 text-blue-600' :
-                    'bg-green-100 text-green-600'
+      {/* Business Intelligence Insights */}
+      {capitalData.totalInventoryValue > 0 && (
+        <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
+          <div className="text-center mb-8">
+            <h3 className="text-2xl font-semibold text-gray-900 mb-3">Business Intelligence</h3>
+            <p className="text-gray-500 max-w-2xl mx-auto">
+              Understanding the relationship between your spending and inventory value
+            </p>
+          </div>
+          
+          {/* Key Metrics Explanation */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl p-6">
+              <div className="flex items-center mb-4">
+                <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center mr-4">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                  </svg>
+                </div>
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-900">Money in Stock</h4>
+                  <p className="text-2xl font-bold text-blue-600">₱{capitalData.totalInventoryValue.toLocaleString()}</p>
+                </div>
+              </div>
+              <p className="text-gray-600 text-sm leading-relaxed">
+                Current value of all products sitting in your inventory, calculated using cost prices
+              </p>
+            </div>
+
+            <div className="bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-2xl p-6">
+              <div className="flex items-center mb-4">
+                <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center mr-4">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                  </svg>
+                </div>
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-900">Money Spent</h4>
+                  <p className="text-2xl font-bold text-orange-600">₱{capitalData.totalCapitalDeployed.toLocaleString()}</p>
+                </div>
+              </div>
+              <p className="text-gray-600 text-sm leading-relaxed">
+                Total cash invested in purchase orders to suppliers for inventory restocking
+              </p>
+            </div>
+          </div>
+
+          {/* Status Analysis */}
+          <div className="mb-8">
+            {capitalData.totalInventoryValue < capitalData.totalCapitalDeployed ? (
+              <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-2xl p-6 border border-yellow-200">
+                <div className="flex items-start space-x-4">
+                  <div className="w-12 h-12 bg-yellow-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-lg font-semibold text-yellow-800 mb-2">Money Flow Analysis</h4>
+                    <p className="text-yellow-700 mb-3">
+                      Your inventory value (₱{capitalData.totalInventoryValue.toLocaleString()}) is less than what you spent (₱{capitalData.totalCapitalDeployed.toLocaleString()})
+                    </p>
+                    <div className="bg-white/60 rounded-lg p-3">
+                      <p className="text-sm text-yellow-800">
+                        <strong>Difference:</strong> ₱{(capitalData.totalCapitalDeployed - capitalData.totalInventoryValue).toLocaleString()}
+                      </p>
+                      <p className="text-xs text-yellow-700 mt-1">
+                        This typically means you've successfully sold inventory or some items may have lost value
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : capitalData.totalInventoryValue > capitalData.totalCapitalDeployed ? (
+              <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-2xl p-6 border border-green-200">
+                <div className="flex items-start space-x-4">
+                  <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-lg font-semibold text-green-800 mb-2">Inventory Growth</h4>
+                    <p className="text-green-700 mb-3">
+                      Your inventory value (₱{capitalData.totalInventoryValue.toLocaleString()}) exceeds what you spent (₱{capitalData.totalCapitalDeployed.toLocaleString()})
+                    </p>
+                    <div className="bg-white/60 rounded-lg p-3">
+                      <p className="text-sm text-green-800">
+                        <strong>Value Increase:</strong> ₱{(capitalData.totalInventoryValue - capitalData.totalCapitalDeployed).toLocaleString()}
+                      </p>
+                      <p className="text-xs text-green-700 mt-1">
+                        This indicates efficient purchasing or inventory value appreciation
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-200">
+                <div className="flex items-start space-x-4">
+                  <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-lg font-semibold text-blue-800 mb-2">Perfect Balance</h4>
+                    <p className="text-blue-700 mb-3">
+                      Your spending and inventory value are perfectly aligned at ₱{capitalData.totalCapitalDeployed.toLocaleString()}
+                    </p>
+                    <div className="bg-white/60 rounded-lg p-3">
+                      <p className="text-xs text-blue-700">
+                        This demonstrates excellent inventory management and precise purchasing decisions
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* AI Analysis Results */}
+          <div className="bg-gray-50 rounded-2xl p-6">
+            <div className="flex items-center mb-4">
+              <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center mr-3">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+              </div>
+              <h4 className="text-lg font-semibold text-gray-900">AI Analysis</h4>
+            </div>
+            
+            <div className={`rounded-xl p-5 ${
+              capitalData.moneyFlowAnalysis.isGood 
+                ? 'bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200' 
+                : 'bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200'
+            }`}>
+              <div className="flex items-start space-x-3">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                  capitalData.moneyFlowAnalysis.isGood ? 'bg-green-500' : 'bg-yellow-500'
+                }`}>
+                  {capitalData.moneyFlowAnalysis.isGood ? (
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.084 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className={`font-medium mb-3 ${
+                    capitalData.moneyFlowAnalysis.isGood ? 'text-green-800' : 'text-yellow-800'
                   }`}>
-                    {rec.type === 'reduce' ? '📉' : rec.type === 'optimize' ? '⚙️' : '📈'}
+                    {capitalData.moneyFlowAnalysis.message}
+                  </p>
+                  <div className="space-y-2">
+                    {capitalData.moneyFlowAnalysis.details.map((detail, index) => (
+                      <div key={index} className="flex items-center space-x-2">
+                        <div className={`w-1.5 h-1.5 rounded-full ${
+                          capitalData.moneyFlowAnalysis.isGood ? 'bg-green-500' : 'bg-yellow-500'
+                        }`}></div>
+                        <p className={`text-sm ${
+                          capitalData.moneyFlowAnalysis.isGood ? 'text-green-700' : 'text-yellow-700'
+                        }`}>
+                          {detail}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Sales Performance Summary */}
+            {capitalData.totalRecentSales > 0 && (
+              <div className="mt-4 bg-white rounded-xl p-4 border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+                      <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-4 4" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Recent Sales Performance</p>
+                      <p className="text-xs text-gray-500">Last 30 days</p>
+                    </div>
+                  </div>
+                  <p className="text-lg font-semibold text-indigo-600">
+                    ₱{capitalData.totalRecentSales.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Recent Purchases - Clean Design */}
+      {capitalData.recentPurchases.length > 0 && (
+        <div className="bg-white rounded-2xl p-6 border border-gray-100">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold text-gray-900">Recent Purchases</h3>
+            <span className="text-sm text-gray-500">{capitalData.recentPurchases.length} orders</span>
+          </div>
+          
+          <div className="space-y-3">
+            {capitalData.recentPurchases.slice(0, 3).map((purchase: any) => (
+              <div key={purchase.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                    </svg>
                   </div>
                   <div>
-                    <h4 className="font-medium text-gray-900">{rec.title}</h4>
-                    <p className="text-sm text-gray-600 mt-1">{rec.description}</p>
+                    <p className="font-medium text-gray-900">{purchase.name}</p>
+                    <p className="text-sm text-gray-500">{purchase.date.toLocaleDateString()}</p>
                   </div>
                 </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  rec.priority === 'high' ? 'bg-red-100 text-red-700' :
-                  rec.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                  'bg-green-100 text-green-700'
-                }`}>
-                  {rec.priority.toUpperCase()}
-                </span>
+                <div className="text-right">
+                  <p className="font-semibold text-gray-900">
+                    {purchase.amount > 0 ? `₱${purchase.amount.toLocaleString()}` : '—'}
+                  </p>
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-blue-600">{rec.impact}</p>
-                <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-                  View Details
-                </button>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 
-  const renderSettings = () => (
+  const renderTips = () => (
     <div className="space-y-6">
-      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Alert Thresholds</h3>
-        <div className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              High ICR Alert Threshold (%)
-            </label>
-            <div className="flex items-center space-x-4">
-              <input
-                type="range"
-                min="50"
-                max="90"
-                value={alertThresholds.highICR}
-                onChange={(e) => setAlertThresholds({...alertThresholds, highICR: parseInt(e.target.value)})}
-                className="flex-1"
-              />
-              <span className="w-12 text-sm font-medium text-gray-900">{alertThresholds.highICR}%</span>
+      <div className="bg-white rounded-2xl p-8 border border-gray-100">
+        <h3 className="text-xl font-semibold text-gray-900 mb-8">Business Tips</h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="space-y-6">
+            <div className="p-6 bg-gray-50 rounded-xl">
+              <div className="flex items-center mb-3">
+                <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mr-3">
+                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-4 4" />
+                  </svg>
+                </div>
+                <h4 className="font-semibold text-gray-900">Keep Money Moving</h4>
+              </div>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                The faster you sell inventory, the faster you get cash back to reinvest. Aim to sell everything in 2-4 weeks.
+              </p>
             </div>
-            <p className="text-xs text-gray-500 mt-1">Alert when ICR exceeds this percentage</p>
+            
+            <div className="p-6 bg-gray-50 rounded-xl">
+              <div className="flex items-center mb-3">
+                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
+                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                </div>
+                <h4 className="font-semibold text-gray-900">Watch Your Timeline</h4>
+              </div>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                If it takes more than 30 days to sell everything, you might have too much inventory or slow-moving items.
+              </p>
+            </div>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Slow Recovery Alert (Days)
-            </label>
-            <div className="flex items-center space-x-4">
-              <input
-                type="range"
-                min="14"
-                max="60"
-                value={alertThresholds.slowRecovery}
-                onChange={(e) => setAlertThresholds({...alertThresholds, slowRecovery: parseInt(e.target.value)})}
-                className="flex-1"
-              />
-              <span className="w-12 text-sm font-medium text-gray-900">{alertThresholds.slowRecovery}d</span>
+          
+          <div className="space-y-6">
+            <div className="p-6 bg-gray-50 rounded-xl">
+              <div className="flex items-center mb-3">
+                <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center mr-3">
+                  <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                  </svg>
+                </div>
+                <h4 className="font-semibold text-gray-900">Smart Buying</h4>
+              </div>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                Buy more of what sells quickly and less of what sits around. This keeps cash flowing and customers happy.
+              </p>
             </div>
-            <p className="text-xs text-gray-500 mt-1">Alert when recovery time exceeds this many days</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Low Velocity Alert (Minimum Rate)
-            </label>
-            <div className="flex items-center space-x-4">
-              <input
-                type="range"
-                min="0.1"
-                max="2.0"
-                step="0.1"
-                value={alertThresholds.lowVelocity}
-                onChange={(e) => setAlertThresholds({...alertThresholds, lowVelocity: parseFloat(e.target.value)})}
-                className="flex-1"
-              />
-              <span className="w-12 text-sm font-medium text-gray-900">{alertThresholds.lowVelocity}x</span>
+            
+            <div className="p-6 bg-gray-50 rounded-xl">
+              <div className="flex items-center mb-3">
+                <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center mr-3">
+                  <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h4 className="font-semibold text-gray-900">Balance Investment</h4>
+              </div>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                Don't put all your money into inventory. Keep some cash available for opportunities and expenses.
+              </p>
             </div>
-            <p className="text-xs text-gray-500 mt-1">Alert when velocity falls below this rate</p>
           </div>
         </div>
-
-        <div className="mt-8 pt-6 border-t border-gray-200">
-          <div className="flex justify-between items-center">
-            <div>
-              <h4 className="font-medium text-gray-900">Notification Settings</h4>
-              <p className="text-sm text-gray-600">Configure how you receive capital efficiency alerts</p>
+        
+        {/* Action Steps */}
+        <div className="mt-8 p-6 bg-blue-50 rounded-xl">
+          <h4 className="font-semibold text-gray-900 mb-4">Quick Action Steps</h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-center">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-2">
+                <span className="text-lg font-bold text-blue-600">1</span>
+              </div>
+              <p className="text-sm font-medium text-gray-900">Check Numbers</p>
+              <p className="text-xs text-gray-600">Review your days to sell</p>
             </div>
-            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-              Save Settings
-            </button>
+            <div className="text-center">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-2">
+                <span className="text-lg font-bold text-blue-600">2</span>
+              </div>
+              <p className="text-sm font-medium text-gray-900">Find Slow Items</p>
+              <p className="text-xs text-gray-600">Identify what's not moving</p>
+            </div>
+            <div className="text-center">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-2">
+                <span className="text-lg font-bold text-blue-600">3</span>
+              </div>
+              <p className="text-sm font-medium text-gray-900">Adjust Strategy</p>
+              <p className="text-xs text-gray-600">Buy less slow, more fast items</p>
+            </div>
           </div>
         </div>
       </div>
@@ -511,46 +861,30 @@ export default function CapitalIntelligence() {
   )
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Capital Intelligence Dashboard</h1>
-            <p className="text-gray-600">Monitor if your inventory purchases are aligned with capital efficiency and cash flow</p>
-          </div>
-          <div className="text-right">
-            <div className="text-sm text-gray-600">Business: {tenant?.name || 'CoreTrack Business'}</div>
-            <div className="text-xs text-gray-500">Real-time capital analysis</div>
-          </div>
-        </div>
-        
-        {/* Unique Value Proposition */}
-        <div className="mt-4 p-3 bg-blue-100 rounded-lg">
-          <div className="flex items-center space-x-2">
-            <span className="text-blue-600">💡</span>
-            <p className="text-sm text-blue-800 font-medium">
-              <strong>World's First</strong> inventory system that tells you if purchases are eating your profits!
-            </p>
-          </div>
-        </div>
+    <div className="max-w-7xl mx-auto p-6 space-y-8">
+      {/* Clean Header */}
+      <div className="text-center">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Capital Intelligence</h1>
+        <p className="text-gray-600 max-w-2xl mx-auto">
+          Track how efficiently your money is working in your business
+        </p>
       </div>
 
-      {/* Tab Navigation */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-        <div className="border-b border-gray-200">
-          <nav className="flex space-x-8 px-6">
+      {/* Simple Tab Navigation */}
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="border-b border-gray-100">
+          <nav className="flex">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                className={`flex-1 py-4 px-6 text-sm font-medium transition-colors ${
                   activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'text-blue-600 bg-blue-50 border-b-2 border-blue-500'
+                    : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center justify-center space-x-2">
                   <span>{tab.icon}</span>
                   <span>{tab.label}</span>
                 </div>
@@ -559,11 +893,17 @@ export default function CapitalIntelligence() {
           </nav>
         </div>
 
-        <div className="p-6">
-          {activeTab === 'overview' && renderOverview()}
-          {activeTab === 'analysis' && renderAnalysis()}
-          {activeTab === 'recommendations' && renderRecommendations()}
-          {activeTab === 'settings' && renderSettings()}
+        <div className="p-8">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            </div>
+          ) : (
+            <>
+              {activeTab === 'overview' && renderOverview()}
+              {activeTab === 'tips' && renderTips()}
+            </>
+          )}
         </div>
       </div>
     </div>

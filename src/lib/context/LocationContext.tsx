@@ -38,19 +38,15 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
 
   const refreshLocations = async () => {
     if (!profile?.tenantId) {
-      console.log('🏢 LocationContext: No tenantId available')
       return
     }
 
     try {
       setLoading(true)
-      console.log('🏢 LocationContext: Fetching locations for tenant:', profile.tenantId)
       const fetchedLocations = await getLocations(profile.tenantId)
-      console.log('🏢 LocationContext: Fetched locations:', fetchedLocations)
       
       // If no locations exist, create a default main location
       if (fetchedLocations.length === 0) {
-        console.log('🏢 LocationContext: No locations found, creating default location')
         try {
           const defaultLocation: Omit<Location, 'id' | 'createdAt' | 'updatedAt'> = {
             tenantId: profile.tenantId,
@@ -92,7 +88,6 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
           // Import the createLocation function
           const { createLocation } = await import('../firebase/locationManagement')
           const createdLocationId = await createLocation(defaultLocation)
-          console.log('🏢 LocationContext: Created default location with ID:', createdLocationId)
           
           // Fetch locations again to get the newly created one
           const updatedLocations = await getLocations(profile.tenantId)
@@ -138,7 +133,6 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
   }
 
   useEffect(() => {
-    console.log('🏢 LocationContext: useEffect triggered, profile:', !!profile, 'tenantId:', profile?.tenantId)
     refreshLocations()
   }, [profile?.tenantId])
 

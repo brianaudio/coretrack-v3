@@ -197,7 +197,6 @@ export default function PermissionSystemDemo() {
   const simulateRoleChange = async (newRole: string) => {
     try {
       // This would normally be done by an admin
-      console.log(`Simulating role change to: ${newRole}`);
       
       // Trigger permission refresh
       window.dispatchEvent(new CustomEvent('permissionsUpdated', {

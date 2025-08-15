@@ -671,7 +671,6 @@ export function POS() {
                         <button
                           onClick={() => {
                             // Handle checkout logic here
-                            console.log('Processing order:', cart, cartTotal)
                             clearCart()
                           }}
                           className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors"

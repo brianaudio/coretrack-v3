@@ -416,7 +416,7 @@ export default function ShiftDashboard() {
                         <div className="flex -space-x-1">
                           {shift.staffOnDuty.slice(0, 3).map((staff, index) => (
                             <div
-                              key={index}
+                              key={`${shift.id}-staff-${index}-${staff}`}
                               className="w-6 h-6 bg-primary-500 rounded-full flex items-center justify-center text-xs font-medium text-white border border-white"
                               title={staff}
                             >

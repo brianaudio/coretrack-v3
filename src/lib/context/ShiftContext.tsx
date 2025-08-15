@@ -243,11 +243,12 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       const { ShiftResetService } = await import('../services/ShiftResetService')
       const resetService = new ShiftResetService(profile.tenantId, selectedBranch.id)
       
-      // Create a daily reset with current timestamp
+      // Create a daily reset with unique timestamp and random component
+      const uniqueId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       const dailyResetData = {
         tenantId: profile.tenantId,
         branchId: selectedBranch.id,
-        shiftId: `daily-reset-${Date.now()}`,
+        shiftId: `daily-reset-${uniqueId}`,
         shiftName: `Daily Reset ${new Date().toLocaleDateString()}`,
         startTime: Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000)), // 24 hours ago
         resetBy: profile.uid || profile.email || 'system',

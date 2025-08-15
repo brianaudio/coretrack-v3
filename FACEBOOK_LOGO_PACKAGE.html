@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CoreTrack Logo Converter for Facebook</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #2563eb;
+            margin-bottom: 40px;
+            font-size: 2.5em;
+        }
+        .logo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        .logo-card {
+            background: #f8fafc;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            border: 2px solid #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        .logo-card:hover {
+            border-color: #2563eb;
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(37, 99, 235, 0.1);
+        }
+        .logo-preview {
+            width: 200px;
+            height: 200px;
+            margin: 0 auto 20px;
+            border-radius: 15px;
+            overflow: hidden;
+            border: 3px solid #e2e8f0;
+        }
+        .logo-preview svg {
+            width: 100%;
+            height: 100%;
+        }
+        .download-btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+        .download-btn:hover {
+            background: #1d4ed8;
+            transform: translateY(-2px);
+        }
+        .specs {
+            background: #e0f2fe;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-size: 14px;
+            color: #0f172a;
+        }
+        .instructions {
+            background: #f0f9ff;
+            border-left: 5px solid #2563eb;
+            padding: 20px;
+            margin: 30px 0;
+            border-radius: 0 8px 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 CoreTrack Logo Package for Facebook</h1>
+        
+        <div class="instructions">
+            <h3>📱 Facebook Profile Picture Guidelines</h3>
+            <ul>
+                <li><strong>Recommended Size:</strong> 512x512 pixels (minimum 180x180)</li>
+                <li><strong>Format:</strong> PNG or JPG</li>
+                <li><strong>File Size:</strong> Under 4MB</li>
+                <li><strong>Shape:</strong> Displays as circle on mobile, square on desktop</li>
+                <li><strong>Safe Zone:</strong> Keep important elements in center circle</li>
+            </ul>
+        </div>
+
+        <div class="logo-grid">
+            <!-- Facebook Profile Version -->
+            <div class="logo-card">
+                <h3>Facebook Profile Picture</h3>
+                <div class="logo-preview">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+                        <defs>
+                            <linearGradient id="bg1" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#3b82f6"/>
+                                <stop offset="50%" style="stop-color:#2563eb"/>
+                                <stop offset="100%" style="stop-color:#1d4ed8"/>
+                            </linearGradient>
+                        </defs>
+                        <rect width="512" height="512" rx="96" fill="url(#bg1)"/>
+                        <circle cx="256" cy="256" r="64" fill="white"/>
+                        <g stroke="white" stroke-linecap="round" stroke-linejoin="round" stroke-width="16">
+                            <path d="M256 64v96M256 352v96"/>
+                            <path d="M124.16 124.16l67.84 67.84M320 320l67.84 67.84"/>
+                            <path d="M64 256h96M352 256h96"/>
+                            <path d="M124.16 387.84l67.84-67.84M320 192l67.84-67.84"/>
+                        </g>
+                        <g fill="white">
+                            <circle cx="256" cy="96" r="16"/>
+                            <circle cx="256" cy="416" r="16"/>
+                            <circle cx="416" cy="256" r="16"/>
+                            <circle cx="96" cy="256" r="16"/>
+                        </g>
+                    </svg>
+                </div>
+                <button class="download-btn" onclick="downloadSVG('facebook-profile', 'profile')">Download SVG</button>
+                <button class="download-btn" onclick="downloadPNG('facebook-profile', 512, 'profile')">Download PNG</button>
+                <div class="specs">
+                    <strong>Optimized for:</strong> Facebook profile picture<br>
+                    <strong>Size:</strong> 512×512px<br>
+                    <strong>Format:</strong> Square with rounded corners
+                </div>
+            </div>
+
+            <!-- Circular Version -->
+            <div class="logo-card">
+                <h3>Circular Profile Version</h3>
+                <div class="logo-preview" style="border-radius: 50%;">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+                        <defs>
+                            <linearGradient id="bg2" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#3b82f6"/>
+                                <stop offset="50%" style="stop-color:#2563eb"/>
+                                <stop offset="100%" style="stop-color:#1d4ed8"/>
+                            </linearGradient>
+                        </defs>
+                        <circle cx="256" cy="256" r="256" fill="url(#bg2)"/>
+                        <circle cx="256" cy="256" r="64" fill="white"/>
+                        <g stroke="white" stroke-linecap="round" stroke-linejoin="round" stroke-width="16">
+                            <path d="M256 80v96M256 336v96"/>
+                            <path d="M140.16 140.16l67.84 67.84M304 304l67.84 67.84"/>
+                            <path d="M80 256h96M336 256h96"/>
+                            <path d="M140.16 371.84l67.84-67.84M304 208l67.84-67.84"/>
+                        </g>
+                        <g fill="white">
+                            <circle cx="256" cy="112" r="16"/>
+                            <circle cx="256" cy="400" r="16"/>
+                            <circle cx="400" cy="256" r="16"/>
+                            <circle cx="112" cy="256" r="16"/>
+                        </g>
+                    </svg>
+                </div>
+                <button class="download-btn" onclick="downloadSVG('circular-profile', 'circular')">Download SVG</button>
+                <button class="download-btn" onclick="downloadPNG('circular-profile', 512, 'circular')">Download PNG</button>
+                <div class="specs">
+                    <strong>Optimized for:</strong> Circular display<br>
+                    <strong>Size:</strong> 512×512px<br>
+                    <strong>Format:</strong> Perfect circle
+                </div>
+            </div>
+
+            <!-- Icon Only Version -->
+            <div class="logo-card">
+                <h3>Icon Only (Minimal)</h3>
+                <div class="logo-preview">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" style="background: white;">
+                        <circle cx="256" cy="256" r="64" fill="#2563eb"/>
+                        <g stroke="#2563eb" stroke-linecap="round" stroke-linejoin="round" stroke-width="32">
+                            <path d="M256 32v128M256 352v128"/>
+                            <path d="M122.16 122.16l90.52 90.52M299.32 299.32l90.52 90.52"/>
+                            <path d="M32 256h128M352 256h128"/>
+                            <path d="M122.16 389.84l90.52-90.52M299.32 212.68l90.52-90.52"/>
+                        </g>
+                        <g fill="#2563eb">
+                            <circle cx="256" cy="64" r="24"/>
+                            <circle cx="256" cy="448" r="24"/>
+                            <circle cx="448" cy="256" r="24"/>
+                            <circle cx="64" cy="256" r="24"/>
+                        </g>
+                    </svg>
+                </div>
+                <button class="download-btn" onclick="downloadSVG('icon-only', 'icon')">Download SVG</button>
+                <button class="download-btn" onclick="downloadPNG('icon-only', 512, 'icon')">Download PNG</button>
+                <div class="specs">
+                    <strong>Optimized for:</strong> Clean, minimal look<br>
+                    <strong>Size:</strong> 512×512px<br>
+                    <strong>Format:</strong> Transparent background
+                </div>
+            </div>
+
+            <!-- Text Logo Version -->
+            <div class="logo-card">
+                <h3>CoreTrack with Text</h3>
+                <div class="logo-preview">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+                        <defs>
+                            <linearGradient id="bg3" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#3b82f6"/>
+                                <stop offset="50%" style="stop-color:#2563eb"/>
+                                <stop offset="100%" style="stop-color:#1d4ed8"/>
+                            </linearGradient>
+                        </defs>
+                        <rect width="512" height="512" rx="96" fill="url(#bg3)"/>
+                        
+                        <!-- Logo Icon (smaller) -->
+                        <g transform="translate(256, 180)">
+                            <circle cx="0" cy="0" r="32" fill="white"/>
+                            <g stroke="white" stroke-linecap="round" stroke-linejoin="round" stroke-width="8">
+                                <path d="M0 -64v32M0 32v32"/>
+                                <path d="M-45.25 -45.25l22.63 22.63M22.63 22.63l22.63 22.63"/>
+                                <path d="M-64 0h32M32 0h32"/>
+                                <path d="M-45.25 45.25l22.63-22.63M22.63 -22.63l22.63-22.63"/>
+                            </g>
+                            <g fill="white">
+                                <circle cx="0" cy="-48" r="8"/>
+                                <circle cx="0" cy="48" r="8"/>
+                                <circle cx="48" cy="0" r="8"/>
+                                <circle cx="-48" cy="0" r="8"/>
+                            </g>
+                        </g>
+                        
+                        <!-- CoreTrack Text -->
+                        <text x="256" y="300" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-weight="bold" font-size="36">CoreTrack</text>
+                        <text x="256" y="340" text-anchor="middle" fill="rgba(255,255,255,0.8)" font-family="Arial, sans-serif" font-size="18">Business Management</text>
+                    </svg>
+                </div>
+                <button class="download-btn" onclick="downloadSVG('text-logo', 'textlogo')">Download SVG</button>
+                <button class="download-btn" onclick="downloadPNG('text-logo', 512, 'textlogo')">Download PNG</button>
+                <div class="specs">
+                    <strong>Optimized for:</strong> Brand recognition<br>
+                    <strong>Size:</strong> 512×512px<br>
+                    <strong>Format:</strong> Logo + business name
+                </div>
+            </div>
+        </div>
+
+        <div class="instructions">
+            <h3>📋 How to Use</h3>
+            <ol>
+                <li><strong>Choose your preferred version</strong> from the options above</li>
+                <li><strong>Download PNG</strong> for immediate use on Facebook</li>
+                <li><strong>Download SVG</strong> for future editing or scaling</li>
+                <li><strong>Upload to Facebook:</strong> Go to your Facebook page → Click profile picture → Upload new</li>
+                <li><strong>Position properly:</strong> Make sure the center icon is visible in the circular crop</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        function downloadSVG(elementId, filename) {
+            const svgElements = document.querySelectorAll('.logo-preview svg');
+            let targetSvg;
+            
+            // Map elementId to the correct SVG
+            const svgMap = {
+                'facebook-profile': 0,
+                'circular-profile': 1,
+                'icon-only': 2,
+                'text-logo': 3
+            };
+            
+            targetSvg = svgElements[svgMap[elementId]];
+            
+            const svgData = new XMLSerializer().serializeToString(targetSvg);
+            const svgBlob = new Blob([svgData], {type: 'image/svg+xml;charset=utf-8'});
+            const svgUrl = URL.createObjectURL(svgBlob);
+            
+            const downloadLink = document.createElement('a');
+            downloadLink.href = svgUrl;
+            downloadLink.download = `coretrack-${filename}.svg`;
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+            URL.revokeObjectURL(svgUrl);
+        }
+
+        function downloadPNG(elementId, size, filename) {
+            const svgElements = document.querySelectorAll('.logo-preview svg');
+            let targetSvg;
+            
+            // Map elementId to the correct SVG
+            const svgMap = {
+                'facebook-profile': 0,
+                'circular-profile': 1,
+                'icon-only': 2,
+                'text-logo': 3
+            };
+            
+            targetSvg = svgElements[svgMap[elementId]];
+            
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = size;
+            canvas.height = size;
+            
+            const svgData = new XMLSerializer().serializeToString(targetSvg);
+            const svgBlob = new Blob([svgData], {type: 'image/svg+xml;charset=utf-8'});
+            const url = URL.createObjectURL(svgBlob);
+            
+            const img = new Image();
+            img.onload = function() {
+                ctx.drawImage(img, 0, 0, size, size);
+                
+                canvas.toBlob(function(blob) {
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = URL.createObjectURL(blob);
+                    downloadLink.download = `coretrack-${filename}-${size}px.png`;
+                    document.body.appendChild(downloadLink);
+                    downloadLink.click();
+                    document.body.removeChild(downloadLink);
+                    URL.revokeObjectURL(url);
+                }, 'image/png');
+            };
+            img.src = url;
+        }
+    </script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import ChatPanel from './ChatPanel'
+import ChatPanel from '../AIAssistant/ChatPanel'
 
 export default function FloatingChatButton() {
   const [isOpen, setIsOpen] = useState(false)
@@ -44,9 +44,13 @@ export default function FloatingChatButton() {
 
       {/* Chat Panel */}
       {isOpen && (
-        <ChatPanel 
+        <ChatPanel
           isOpen={isOpen}
           onClose={() => setIsOpen(false)}
+          onNewMessage={() => {
+            // Handle new message notification if needed
+            console.log('New message received');
+          }}
         />
       )}
     </>

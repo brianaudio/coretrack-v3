@@ -228,12 +228,24 @@ export default function Sidebar({
     return initial
   })
 
-  // Toggle section expand/collapse
+  // Toggle section expand/collapse (accordion behavior - only one section open at a time)
   const toggleSection = (sectionId: string) => {
-    setExpandedSections((prev: Record<string, boolean>) => ({
-      ...prev,
-      [sectionId]: !prev[sectionId]
-    }))
+    setExpandedSections((prev: Record<string, boolean>) => {
+      // If clicking the same section that's already expanded, collapse it
+      if (prev[sectionId]) {
+        return {
+          ...prev,
+          [sectionId]: false
+        }
+      }
+      
+      // Otherwise, collapse all sections and expand the clicked one
+      const newSections: Record<string, boolean> = {}
+      menuSections.forEach(section => {
+        newSections[section.id] = section.id === sectionId
+      })
+      return newSections
+    })
   }
 
   // Filter menu items based on subscription permissions AND business type

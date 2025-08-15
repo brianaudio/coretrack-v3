@@ -1,14 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { MessageBubble } from './MessageBubble'
-import { QuickActions } from './QuickActions'
+import MessageBubble from '../AIAssistant/MessageBubble'
+import QuickActions from '../AIAssistant/QuickActions'
 import { chatService } from '@/lib/ai/chatService'
 
 interface Message {
   id: string
   content: string
-  type: 'user' | 'assistant'
+  sender: 'user' | 'ai'
   timestamp: Date
 }
 
@@ -30,7 +30,7 @@ export function ChatPanel({ onClose, onNewMessage }: ChatPanelProps) {
     const welcomeMessage: Message = {
       id: 'welcome',
       content: "👋 Hi! I'm your CoreTrack AI Assistant. I can help you with:\n\n• How to use CoreTrack features\n• Inventory management\n• POS operations\n• Team management\n• Reports and analytics\n\nWhat would you like to know?",
-      type: 'assistant',
+      sender: 'ai',
       timestamp: new Date()
     }
     setMessages([welcomeMessage])
@@ -54,7 +54,7 @@ export function ChatPanel({ onClose, onNewMessage }: ChatPanelProps) {
     const userMessage: Message = {
       id: Date.now().toString(),
       content: message.trim(),
-      type: 'user',
+      sender: 'user',
       timestamp: new Date()
     }
 
@@ -65,12 +65,18 @@ export function ChatPanel({ onClose, onNewMessage }: ChatPanelProps) {
     try {
       // Get current page context for better responses
       const currentPage = window.location.pathname
-      const response = await chatService.sendMessage(message, currentPage)
+      const context = {
+        userRole: 'staff',
+        businessType: 'general',
+        currentPage: currentPage,
+        tenantId: ''
+      }
+      const response = await chatService.sendMessage(message, context)
       
       const assistantMessage: Message = {
         id: Date.now().toString() + '_assistant',
         content: response,
-        type: 'assistant',
+        sender: 'ai',
         timestamp: new Date()
       }
 
@@ -81,7 +87,7 @@ export function ChatPanel({ onClose, onNewMessage }: ChatPanelProps) {
       const errorMessage: Message = {
         id: Date.now().toString() + '_error',
         content: "Sorry, I'm having trouble connecting right now. Please try again in a moment, or check our help documentation.",
-        type: 'assistant',
+        sender: 'ai',
         timestamp: new Date()
       }
       setMessages(prev => [...prev, errorMessage])
@@ -182,7 +188,7 @@ export function ChatPanel({ onClose, onNewMessage }: ChatPanelProps) {
       {/* Quick Actions */}
       {messages.length === 1 && (
         <div className="px-4 py-2 bg-gray-50 border-t border-gray-100">
-          <QuickActions onAction={handleQuickAction} />
+          <QuickActions onActionClick={handleQuickAction} />
         </div>
       )}
 

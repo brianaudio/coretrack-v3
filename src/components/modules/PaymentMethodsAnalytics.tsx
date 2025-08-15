@@ -46,7 +46,6 @@ export default function PaymentMethodsAnalytics() {
 
   // Clear analytics data when shift resets
   const clearAnalyticsData = useCallback(() => {
-    console.log('🔄 Clearing payment analytics data due to shift reset')
     setPaymentData(null)
     setLoading(true)
     setIsResetting(true)
@@ -57,10 +56,6 @@ export default function PaymentMethodsAnalytics() {
     if (currentShift?.id !== lastShiftId) {
       if (lastShiftId !== null && currentShift?.id) {
         // Shift has changed - clear data and show fresh analytics
-        console.log('🔄 Shift changed detected:', { 
-          previous: lastShiftId, 
-          current: currentShift.id 
-        })
         clearAnalyticsData()
       }
       setLastShiftId(currentShift?.id || null)
@@ -70,7 +65,6 @@ export default function PaymentMethodsAnalytics() {
   // Listen for shift reset events from localStorage or custom events
   useEffect(() => {
     const handleShiftReset = (event: CustomEvent) => {
-      console.log('🔄 Shift reset event received:', event.detail)
       clearAnalyticsData()
       // Delay refetch to allow reset to complete
       setTimeout(() => {
@@ -123,11 +117,6 @@ export default function PaymentMethodsAnalytics() {
 
     const fetchPaymentData = async () => {
     if (!selectedBranch || !profile?.uid) {
-      console.log('📊 [PaymentMethodsAnalytics] Missing requirements:', {
-        branch: selectedBranch?.id,
-        tenantId: (profile as any)?.tenantId || 'not-set',
-        profileUid: profile?.uid
-      })
       setPaymentData(null)
       setLoading(false)
       return
@@ -136,13 +125,7 @@ export default function PaymentMethodsAnalytics() {
     try {
       setLoading(true)
       const effectiveTenantId = (profile as any).tenantId || profile.uid // Use same pattern as EnhancedAnalytics
-      console.log('📊 [PaymentMethodsAnalytics] Starting payment data fetch:', {
-        tenantId: effectiveTenantId,
-        branch: selectedBranch.id,
-        profileUid: profile.uid,
-        timeFilter
-      })
-
+      
       // Calculate start date based on filter
       const now = new Date()
       const startDate = new Date()
@@ -151,12 +134,7 @@ export default function PaymentMethodsAnalytics() {
         case 'shift':
           if (currentShift?.startTime) {
             startDate.setTime(currentShift.startTime.toDate().getTime())
-            console.log('📊 Fetching payment data for current shift:', {
-              shiftId: currentShift.id,
-              startTime: startDate.toISOString()
-            })
           } else {
-            console.log('📊 No active shift, using today as fallback')
             startDate.setHours(0, 0, 0, 0)
           }
           break
@@ -196,39 +174,6 @@ export default function PaymentMethodsAnalytics() {
         const matchesDate = orderDate >= startDate
         return matchesStatus && matchesLocation && matchesDate
       })
-
-      console.log(`📊 Retrieved ${orders.length} orders for payment analytics (after filtering)`, {
-        timeFilter,
-        locationId,
-        startDate: startDate.toISOString(),
-        now: now.toISOString(),
-        effectiveTenantId,
-        tenantIdFromProfile: (profile as any).tenantId,
-        profileUid: profile.uid,
-        queryPath: `tenants/${effectiveTenantId}/orders`,
-        totalOrdersBeforeFilter: allOrders.length,
-        filteredOrdersCount: orders.length,
-        sampleOrder: orders[0] || 'No orders found',
-        samplePaymentStructure: orders[0] ? {
-          paymentMethod: (orders[0] as any).paymentMethod,
-          paymentMethods: (orders[0] as any).paymentMethods,
-          total: (orders[0] as any).total
-        } : 'No orders to analyze'
-      })
-
-      // Debug: Show what orders were filtered out by time/location
-      if (orders.length === 0) {
-        console.log('📊 DEBUG: All orders (before filtering):', {
-          count: allOrders.length,
-          orders: allOrders.slice(0, 10).map((o: any) => ({
-            id: o.id,
-            createdAt: o.createdAt?.toDate?.()?.toISOString() || 'No date',
-            locationId: o.locationId,
-            total: o.total,
-            status: o.status
-          }))
-        })
-      }
 
       // Initialize payment totals
       const totals = {
@@ -297,13 +242,6 @@ export default function PaymentMethodsAnalytics() {
         }
       })
 
-      console.log('📊 [PaymentMethodsAnalytics] Payment processing complete:', {
-        totalOrders: orders.length,
-        totalAmount,
-        totals,
-        breakdown: 'Building final structure...'
-      })
-
       // Build final data structure
       const breakdown: PaymentBreakdown = {
         cash: {
@@ -333,15 +271,6 @@ export default function PaymentMethodsAnalytics() {
         total: totalAmount,
         totalTransactions
       }
-
-      console.log('📊 [PaymentMethodsAnalytics] Final payment breakdown created:', {
-        totalAmount,
-        totalTransactions,
-        cash: { amount: totals.cash.amount, count: totals.cash.count },
-        maya: { amount: totals.maya.amount, count: totals.maya.count },
-        gcash: { amount: totals.gcash.amount, count: totals.gcash.count },
-        card: { amount: totals.card.amount, count: totals.card.count }
-      })
 
       setPaymentData(breakdown)
       setIsResetting(false) // Clear reset state when data is loaded

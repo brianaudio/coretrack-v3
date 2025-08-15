@@ -65,9 +65,6 @@ export default function ShiftResetManager({ onResetComplete, className = '' }: S
   const handleManualReset = async () => {
     try {
       setIsManualResetting(true)
-      console.log('🔄 Starting manual reset...')
-      console.log('Profile:', profile?.tenantId)
-      console.log('Branch:', selectedBranch?.id)
       
       if (!profile?.tenantId || !selectedBranch?.id) {
         throw new Error('Missing tenant or branch information')
@@ -90,10 +87,8 @@ export default function ShiftResetManager({ onResetComplete, className = '' }: S
         preserveInventoryLevels: false
       }
       
-      console.log('🔧 Performing manual reset with data:', manualShiftData)
       const summary = await resetService.performShiftReset(manualShiftData)
       
-      console.log('✅ Manual reset completed:', summary)
       alert(`✅ Manual reset completed successfully!\n\nSummary:\n• Total Sales: ₱${summary.totalSales.toLocaleString()}\n• Total Orders: ${summary.totalOrders}\n• Archive ID: ${summary.archiveId}\n\nCheck console for full details.`)
       
       // Update the state with the summary

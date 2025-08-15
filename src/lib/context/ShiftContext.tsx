@@ -65,6 +65,7 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
   const [currentShift, setCurrentShift] = useState<ShiftData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isResetting, setIsResetting] = useState(false) // Add reset protection
 
   // Helper to generate shift names
   const generateShiftName = () => {
@@ -232,7 +233,18 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
   }
 
   const resetDailyData = async () => {
+    // Prevent concurrent reset operations
+    if (isResetting) {
+      console.warn('Reset operation already in progress, skipping...')
+      return null
+    }
+
     try {
+      setIsResetting(true) // Set reset flag
+      
+      // Small delay to prevent rapid successive calls in Strict Mode
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
       if (!profile?.tenantId || !selectedBranch) {
         throw new Error('Missing tenant or branch information for daily reset')
       }
@@ -244,7 +256,11 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       const resetService = new ShiftResetService(profile.tenantId, selectedBranch.id)
       
       // Create a daily reset with unique timestamp and random component
-      const uniqueId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      // Use high-resolution timer and multiple random sources for maximum uniqueness
+      const timestamp = Date.now()
+      const highResTime = performance.now().toString().replace('.', '')
+      const randomSuffix = Math.random().toString(36).substr(2, 9)
+      const uniqueId = `${timestamp}-${highResTime}-${randomSuffix}`
       const dailyResetData = {
         tenantId: profile.tenantId,
         branchId: selectedBranch.id,
@@ -267,6 +283,8 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error('Error resetting daily data:', err)
       throw err
+    } finally {
+      setIsResetting(false) // Clear reset flag
     }
   }
 

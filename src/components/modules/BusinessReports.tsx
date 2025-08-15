@@ -112,64 +112,29 @@ export default function BusinessReports() {
 
     const { startDate, endDate } = calculateDateRange()
     
-    console.log('� DEEP DIVE: Complete context analysis')
-    console.log('👤 USER CONTEXT:', {
-      tenantId: profile.tenantId,
-      userId: profile.uid,
-      email: profile.email
-    })
-    console.log('🏪 BRANCH CONTEXT:', {
-      selectedBranchId: selectedBranch.id,
-      selectedBranchName: selectedBranch.name,
-      selectedBranchObject: selectedBranch
-    })
-    console.log('📅 DATE RANGE CONTEXT:', {
-      dateRangeSelection: dateRange,
-      calculatedStartDate: startDate.toISOString(),
-      calculatedEndDate: endDate.toISOString(),
-      customStartDate,
-      customEndDate,
-      todayForComparison: new Date().toISOString()
-    })
-
     const timeRangeLabel = dateRange === 'custom' 
       ? `${customStartDate} to ${customEndDate}`
       : dateRange.charAt(0).toUpperCase() + dateRange.slice(1)
 
     // Get branch location ID for filtering
     const branchLocationId = getBranchLocationId(selectedBranch.id)
-    console.log('🔑 BRANCH IDENTIFIER ANALYSIS:', {
-      originalBranchId: selectedBranch.id,
-      processedBranchLocationId: branchLocationId,
-      branchUtilsFunction: 'getBranchLocationId'
-    })
 
     try {
       // Fetch Orders with comprehensive debugging
-      console.log('� STARTING ORDER INVESTIGATION...')
       const ordersData = await fetchOrdersData(profile.tenantId, branchLocationId, startDate, endDate)
-      console.log(`✅ ORDER INVESTIGATION COMPLETE: Found ${ordersData.length} orders`)
 
       // Quick analysis of found orders
       if (ordersData.length > 0) {
         const totalSales = ordersData.reduce((sum, order: any) => sum + (order.total || 0), 0)
-        console.log(`💰 SALES SUMMARY: ₱${totalSales} from ${ordersData.length} orders`)
-        console.log('📋 ORDER DETAILS:')
-        ordersData.forEach((order: any, index) => {
-          console.log(`  ${index + 1}. Order ${order.id}: ₱${order.total}`)
-        })
       }
 
       // Fetch Inventory
-      console.log('📦 Fetching inventory...')
       const inventoryRef = collection(db, 'tenants', profile.tenantId, 'inventory')
       const inventoryQuery = query(inventoryRef, where('locationId', '==', branchLocationId))
       const inventorySnapshot = await getDocs(inventoryQuery)
       const inventoryData = inventorySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-      console.log(`✅ Found ${inventoryData.length} inventory items`)
 
       // Fetch Expenses (simplified to avoid composite index)
-      console.log('💸 Fetching expenses...')
       const expensesRef = collection(db, 'tenants', profile.tenantId, 'expenses')
       const expensesQuery = query(expensesRef, where('locationId', '==', branchLocationId))
       const expensesSnapshot = await getDocs(expensesQuery)
@@ -179,10 +144,8 @@ export default function BusinessReports() {
           const expenseDate = expense.date?.toDate() || new Date(expense.dateString || 0)
           return expenseDate >= startDate && expenseDate <= endDate
         })
-      console.log(`✅ Found ${expensesData.length} expenses`)
 
       // Fetch Purchase Orders (simplified to avoid composite index)
-      console.log('🛒 Fetching purchase orders...')
       const poRef = collection(db, 'tenants', profile.tenantId, 'purchaseOrders')
       const poQuery = query(poRef, where('locationId', '==', branchLocationId))
       const poSnapshot = await getDocs(poQuery)
@@ -192,15 +155,6 @@ export default function BusinessReports() {
           const poDate = po.createdAt?.toDate() || new Date(po.dateString || 0)
           return poDate >= startDate && poDate <= endDate
         })
-      console.log(`✅ Found ${poData.length} purchase orders`)
-
-      console.log('🎯 FINAL DATA SUMMARY:', {
-        orders: ordersData.length,
-        inventory: inventoryData.length,
-        expenses: expensesData.length,
-        purchaseOrders: poData.length,
-        timeRange: timeRangeLabel
-      })
 
       return {
         orders: ordersData,

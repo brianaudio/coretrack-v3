@@ -127,7 +127,6 @@ export default function BranchSelector() {
       // Refresh branches to show the new one
       await refreshBranches();
       
-      console.log(`✅ Branch "${newBranchData.name}" created successfully`);
       alert(`Branch "${newBranchData.name}" created successfully!`);
       
     } catch (error) {
@@ -137,12 +136,8 @@ export default function BranchSelector() {
   };
 
   const handleBranchSelect = async (branch: typeof branches[0]) => {
-    console.log('🔄 Branch selection clicked:', branch.name, branch.id)
-    console.log('🔄 Current selected branch before switch:', selectedBranch?.name, selectedBranch?.id)
-    
     // Skip if selecting the same branch
     if (selectedBranch?.id === branch.id) {
-      console.log('✅ Already selected this branch, closing dropdown')
       setIsOpen(false)
       return
     }
@@ -151,21 +146,17 @@ export default function BranchSelector() {
     setIsOpen(false)
     
     try {
-      console.log('🔄 Starting branch switch process...')
-      
       // Update local state immediately for instant UI feedback
       setLocalSelectedBranch(branch)
       
       // Update Firebase user profile FIRST to prevent auto-selection override
       if (profile?.uid) {
-        console.log('🔄 Updating Firebase user profile FIRST...')
         try {
           const userDocRef = doc(db, 'users', profile.uid)
           await updateDoc(userDocRef, {
             selectedBranchId: branch.id,
             lastSwitched: new Date()
           })
-          console.log('✅ Firebase user profile updated FIRST')
         } catch (firebaseError) {
           console.error('❌ Firebase update failed:', firebaseError)
           throw firebaseError // Stop if Firebase update fails
@@ -177,19 +168,12 @@ export default function BranchSelector() {
       
       // Now use the context method (which should read the updated Firebase value)
       if (setSelectedBranch) {
-        console.log('🔄 Calling setSelectedBranch...')
         setSelectedBranch(branch)
-        console.log('✅ setSelectedBranch called')
       } else if (switchBranch) {
-        console.log('🔄 Using switchBranch method...')
         await switchBranch(branch.id)
-        console.log('✅ switchBranch completed')
       }
       
-      console.log('✅ Branch switch completed successfully')
-      
       // Auto-refresh the app after branch switch (perfect for PWA mode)
-      console.log('🔄 Refreshing app after branch switch for clean state...')
       setIsRefreshing(true) // Show refreshing state
       setTimeout(() => {
         window.location.reload()
@@ -197,17 +181,7 @@ export default function BranchSelector() {
       
       // Verify the switch after a longer delay (after auto-selection timeout)
       setTimeout(() => {
-        console.log('🔄 Final verification after auto-selection period:', {
-          selectedBranch: selectedBranch?.name,
-          selectedBranchId: selectedBranch?.id,
-          localBranch: localSelectedBranch?.name,
-          targetBranch: branch.name,
-          targetBranchId: branch.id,
-          switchSuccessful: selectedBranch?.id === branch.id
-        })
-        
         if (selectedBranch?.id !== branch.id) {
-          console.log('⚠️ Branch switch was overridden, forcing local state update')
           // Keep the local state showing the intended branch
           setLocalSelectedBranch(branch)
         }
@@ -236,33 +210,13 @@ export default function BranchSelector() {
 
   // Force component re-render when selectedBranch changes
   useEffect(() => {
-    console.log('🔄 BranchSelector: selectedBranch changed to:', selectedBranch?.name, selectedBranch?.id)
     setLocalSelectedBranch(selectedBranch)
   }, [selectedBranch])
-
-  // Debug the branches data
-  useEffect(() => {
-    console.log('🏪 BranchSelector: branches data updated:', {
-      branchesCount: branches.length,
-      branches: branches.map(b => ({ id: b.id, name: b.name, status: b.status })),
-      loading,
-      selectedBranchId: selectedBranch?.id,
-      selectedBranchName: selectedBranch?.name
-    })
-  }, [branches, loading, selectedBranch])
 
   // Use local state if available, fallback to context state
   const displayBranch = localSelectedBranch || selectedBranch
 
-  console.log('🎯 BranchSelector render state:', {
-    loading,
-    branchesCount: branches.length,
-    displayBranch: displayBranch ? { id: displayBranch.id, name: displayBranch.name } : null,
-    hasSetSelectedBranch: !!setSelectedBranch
-  })
-
   if (loading) {
-    console.log('⏳ BranchSelector: Still loading...')
     return (
       <div className="flex items-center space-x-2 bg-surface-50 border border-surface-200 rounded-lg px-3 py-2">
         <div className="w-4 h-4 bg-surface-300 rounded animate-pulse"></div>
@@ -272,7 +226,6 @@ export default function BranchSelector() {
   }
 
   if (!displayBranch) {
-    console.log('❌ BranchSelector: No display branch available')
     return (
       <div className="flex items-center space-x-2 bg-surface-50 border border-surface-200 rounded-lg px-3 py-2">
         <div className="text-sm text-red-600">No branch selected</div>
@@ -281,7 +234,6 @@ export default function BranchSelector() {
   }
 
   if (branches.length === 0) {
-    console.log('❌ BranchSelector: No branches available')
     return (
       <div className="flex items-center space-x-2 bg-surface-50 border border-surface-200 rounded-lg px-3 py-2">
         <div className="text-sm text-red-600">No branches found</div>

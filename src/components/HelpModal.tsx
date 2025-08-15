@@ -320,6 +320,249 @@ export default function HelpModal() {
           ]
         }
       ]
+    },
+    'capital-intelligence': {
+      title: '💎 Capital Intelligence Help',
+      sections: [
+        {
+          title: 'Overview',
+          content: 'Capital Intelligence provides advanced financial analytics and business intelligence to help you make data-driven decisions for growth and profitability.'
+        },
+        {
+          title: 'Financial Analytics',
+          items: [
+            'Track real-time cash flow and financial health',
+            'Monitor profit margins and cost analysis',
+            'Analyze revenue trends and growth patterns',
+            'Generate comprehensive financial forecasts'
+          ]
+        },
+        {
+          title: 'Business Intelligence',
+          items: [
+            'Identify top-performing products and categories',
+            'Analyze customer behavior and purchasing patterns',
+            'Monitor seasonal trends and market demands',
+            'Track key performance indicators (KPIs)'
+          ]
+        },
+        {
+          title: 'Investment Insights',
+          items: [
+            'Evaluate ROI on inventory investments',
+            'Analyze cost-benefit of new equipment or locations',
+            'Track capital allocation efficiency',
+            'Generate investment opportunity reports'
+          ]
+        },
+        {
+          title: 'Strategic Planning',
+          items: [
+            'Set and monitor business growth targets',
+            'Plan budget allocations and resource distribution',
+            'Identify optimization opportunities',
+            'Create data-driven business strategies'
+          ]
+        }
+      ]
+    },
+    'discrepancy-monitoring': {
+      title: '🔍 Discrepancy Monitor Help',
+      sections: [
+        {
+          title: 'Overview',
+          content: 'Discrepancy Monitor helps you identify and track inventory discrepancies, wastage patterns, and potential issues in your business operations.'
+        },
+        {
+          title: 'Inventory Discrepancies',
+          items: [
+            'Track differences between expected and actual inventory',
+            'Monitor stock count variations and adjustments',
+            'Identify patterns in inventory shrinkage',
+            'Generate discrepancy reports by product and category'
+          ]
+        },
+        {
+          title: 'Wastage Tracking',
+          items: [
+            'Record and categorize food wastage incidents',
+            'Monitor wastage trends and patterns',
+            'Set wastage thresholds and alerts',
+            'Track wastage costs and impact on profitability'
+          ]
+        },
+        {
+          title: 'Alert System',
+          items: [
+            'Receive notifications for unusual discrepancies',
+            'Set up automated alerts for high wastage',
+            'Monitor theft or loss indicators',
+            'Track employee-related discrepancy patterns'
+          ]
+        },
+        {
+          title: 'Analysis & Reporting',
+          items: [
+            'Generate comprehensive discrepancy reports',
+            'Analyze root causes of inventory losses',
+            'Track improvement over time',
+            'Export data for further investigation'
+          ]
+        }
+      ]
+    },
+    'location-management': {
+      title: '📍 Location Management Help',
+      sections: [
+        {
+          title: 'Overview',
+          content: 'Location Management allows you to manage multiple business locations, configure branch-specific settings, and coordinate operations across all sites.'
+        },
+        {
+          title: 'Branch Setup',
+          items: [
+            'Add and configure new business locations',
+            'Set location-specific business hours and settings',
+            'Configure branch contact information and details',
+            'Assign managers and staff to specific locations'
+          ]
+        },
+        {
+          title: 'Multi-Location Operations',
+          items: [
+            'Switch between different branch contexts',
+            'Sync inventory and menu data across locations',
+            'Manage branch-specific pricing and promotions',
+            'Coordinate purchase orders and suppliers'
+          ]
+        },
+        {
+          title: 'Performance Tracking',
+          items: [
+            'Compare performance across multiple locations',
+            'Track branch-specific sales and profitability',
+            'Monitor location-based customer preferences',
+            'Generate consolidated and branch-specific reports'
+          ]
+        },
+        {
+          title: 'Access Control',
+          items: [
+            'Set branch-specific user permissions',
+            'Control data access by location',
+            'Manage branch administrator privileges',
+            'Configure location-based security settings'
+          ]
+        }
+      ]
+    },
+    'team-management': {
+      title: '👥 Team Management Help',
+      sections: [
+        {
+          title: 'Overview',
+          content: 'Team Management helps you organize staff, track performance, and manage work schedules efficiently.'
+        },
+        {
+          title: 'Staff Management',
+          items: [
+            'Add and manage employee profiles',
+            'Set roles and permission levels',
+            'Track employee contact information',
+            'Monitor staff performance metrics'
+          ]
+        },
+        {
+          title: 'Scheduling & Shifts',
+          items: [
+            'Create and manage work schedules',
+            'Track clock-in and clock-out times',
+            'Monitor shift coverage and availability',
+            'Generate payroll and hour reports'
+          ]
+        },
+        {
+          title: 'Permissions & Access',
+          items: [
+            'Set role-based access controls',
+            'Manage module permissions',
+            'Control sensitive data access',
+            'Monitor user activity logs'
+          ]
+        }
+      ]
+    },
+    'business-reports': {
+      title: '📊 Business Reports Help',
+      sections: [
+        {
+          title: 'Overview',
+          content: 'Business Reports provide comprehensive insights into your business performance with detailed analytics and custom reporting.'
+        },
+        {
+          title: 'Sales Reports',
+          items: [
+            'View detailed sales summaries by period',
+            'Analyze top-performing products and categories',
+            'Track payment method preferences',
+            'Monitor hourly and daily sales patterns'
+          ]
+        },
+        {
+          title: 'Financial Reports',
+          items: [
+            'Generate profit and loss statements',
+            'Track expenses vs revenue trends',
+            'Monitor cash flow and payment timing',
+            'Export financial data for accounting'
+          ]
+        },
+        {
+          title: 'Custom Reports',
+          items: [
+            'Create custom date range reports',
+            'Filter by specific products or categories',
+            'Compare performance across locations',
+            'Schedule automated report generation'
+          ]
+        }
+      ]
+    },
+    'settings': {
+      title: '⚙️ Settings Help',
+      sections: [
+        {
+          title: 'Overview',
+          content: 'Settings allow you to configure your business preferences, manage locations, and customize CoreTrack for your needs.'
+        },
+        {
+          title: 'Business Configuration',
+          items: [
+            'Update business information and branding',
+            'Configure tax rates and payment methods',
+            'Set up printing and receipt preferences',
+            'Manage business hours and holidays'
+          ]
+        },
+        {
+          title: 'Location Management',
+          items: [
+            'Add and manage multiple locations',
+            'Set location-specific settings',
+            'Configure branch permissions',
+            'Sync data across locations'
+          ]
+        },
+        {
+          title: 'Account & Security',
+          items: [
+            'Update profile and password',
+            'Manage subscription and billing',
+            'Configure security settings',
+            'Review activity and access logs'
+          ]
+        }
+      ]
     }
   }
 

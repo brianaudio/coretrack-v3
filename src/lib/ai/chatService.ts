@@ -196,27 +196,44 @@ class ChatService {
 
   private initializeKnowledgeBase() {
     this.knowledgeBase = new Map([
-      // Inventory Management - More conversational
-      ['add inventory', 'Hey! Adding inventory is super easy! 😊 Just go to Inventory Center → hit that "Add Item" button → fill out the basics (name, price, how many you have). Pro tip: Use the barcode scanner if you have one - saves tons of time! Want me to walk you through setting up categories too?'],
-      ['low stock', 'Running low on items? No worries! 📉 Check your Inventory Center and look for those red warning icons - those are your low stock alerts. You can also filter by "Low Stock" to see everything at once. Smart tip: Set custom thresholds so you never run out of your bestsellers!'],
-      ['inventory reports', 'Want to see how your inventory is doing? 📊 Head to Reports → Inventory Reports. I recommend checking Stock Levels (what you have now), Movement (what\'s selling fast), and Valuation (what it\'s all worth). These reports are gold for making smart business decisions!'],
+      // INVENTORY MANAGEMENT - Professional & Comprehensive
+      ['add inventory', '📦 **Adding Inventory Items - Professional Guide:**\n\n1. Navigate to **Inventory Center** from the sidebar\n2. Click **"Add Item"** button (top-right)\n3. **Essential Information:**\n   - Item Name & Description\n   - Category (for organization)\n   - Unit of Measure (pcs, kg, liters)\n   - Cost Price & Selling Price\n   - Current Stock Quantity\n   - Minimum Stock Threshold\n\n**💡 Pro Tips:**\n- Use consistent naming conventions\n- Set realistic reorder points to avoid stockouts\n- Add supplier information for easy reordering\n- Upload clear product images for POS identification'],
 
-      // POS Operations - Filipino context
-      ['process order', 'Processing orders is a breeze! 💨 Pick your items → add to cart → choose payment (cash, card, or GCash - very convenient!) → boom, done! CoreTrack automatically updates your inventory so you always know what you have. Perfect for busy days!'],
-      ['payment methods', 'We support all the popular payment methods here in the Philippines! 💳 Cash (of course!), Credit/Debit cards, GCash, PayMongo, and bank transfers. You can turn these on/off in Settings → Payment Methods based on what works for your customers.'],
-      ['gcash payment', 'GCash is super popular with Filipino customers! 📱 To accept GCash payments, just enable it in your payment settings. Customers love the convenience, and you get faster payments. Win-win!'],
+      ['low stock', '⚠️ **Low Stock Management Strategy:**\n\n**Immediate Actions:**\n1. Go to **Inventory Center** → Filter by "Low Stock"\n2. Review items with red warning indicators\n3. Check sales velocity to prioritize reorders\n4. Contact suppliers for urgent restocking\n\n**Prevention Strategy:**\n- Set appropriate minimum stock thresholds\n- Monitor sales patterns for seasonal adjustments\n- Establish reliable supplier relationships\n- Consider automated reorder points\n\n**💰 Business Impact:** Preventing stockouts can increase revenue by 15-25% by avoiding lost sales.'],
 
-      // Team Management - Filipino workplace culture
-      ['add team member', 'Growing your team? Awesome! 👥 Go to Team Management → "Add Team Member" → enter their info → pick their role (Staff for basic access, Manager for more control, Owner for everything). They\'ll get their login details via email. Remember to orient them properly!'],
-      ['team roles', 'Here\'s how roles work: Staff (perfect for cashiers and frontline), Manager (for supervisors who handle operations), Owner (that\'s you - full control!). You can customize permissions if needed. Good delegation makes your business run smoother!'],
+      ['inventory reports', '📊 **Inventory Analytics & Reports:**\n\n**Key Reports Available:**\n1. **Stock Levels** - Current inventory status\n2. **Movement Report** - Fast/slow-moving items\n3. **Valuation Report** - Total inventory value\n4. **Low Stock Alert** - Items needing reorder\n5. **Supplier Analysis** - Performance by supplier\n\n**Business Intelligence:**\n- Identify top-performing products\n- Calculate inventory turnover ratio\n- Optimize purchasing decisions\n- Track seasonal demand patterns\n\n**Access:** Dashboard → Business Reports → Inventory Analytics'],
 
-      // Business Growth Tips
-      ['increase sales', 'Want to boost sales? 🚀 Here are some proven tactics: 1) Track your bestsellers in Reports and promote them more, 2) Set up combo deals in POS, 3) Use low stock alerts to never miss sales, 4) Train your team on upselling. Small changes, big results!'],
-      ['customer retention', 'Keeping customers coming back is cheaper than finding new ones! 💝 Try: loyalty programs, consistent quality, friendly service, and remember their preferences. CoreTrack\'s customer history helps you personalize their experience!'],
+      // POS OPERATIONS - Filipino Business Context
+      ['process order', '🛒 **Professional POS Order Processing:**\n\n**Step-by-Step Workflow:**\n1. **Item Selection:** Browse menu/inventory or use search\n2. **Cart Management:** Add items, adjust quantities, apply discounts\n3. **Customer Details:** Optional customer information for loyalty tracking\n4. **Payment Processing:** Select method (Cash, Card, GCash, Maya)\n5. **Receipt Generation:** Print or send digital receipt\n6. **Automatic Updates:** Inventory levels update in real-time\n\n**Filipino Payment Preferences:**\n- Cash: 65% of transactions\n- GCash: 20% and growing\n- Cards: 15% (higher in urban areas)\n\n**⚡ Efficiency Tips:** Use keyboard shortcuts and train staff on quick order processing.'],
 
-      // Getting Started - Encouraging
-      ['getting started', 'Welcome to CoreTrack! You\'re going to love how much easier this makes running your business! 🎉 Start with these 4 steps: 1) Add your products/menu items, 2) Set up your team accounts, 3) Configure your payment methods, 4) Process your first order. Need help with any of these? I\'m here for you!'],
-      ['support', 'Stuck on something? No problem! 🤝 You can reach our Filipino support team at support@coretrack.ph or chat with us. We understand local business needs and we\'re here to help you succeed. Your success is our success!']
+      ['payment methods', '💳 **Philippine Payment Method Optimization:**\n\n**Supported Methods:**\n- **Cash** - Universal acceptance, instant settlement\n- **Credit/Debit Cards** - Professional image, secure transactions\n- **GCash** - Popular e-wallet, instant notifications\n- **Maya (PayMaya)** - Growing digital payment option\n- **Bank Transfer** - For larger B2B transactions\n\n**Cost Analysis:**\n- Cash: 0% fees, but cash handling costs\n- Cards: 2.5-3.5% processing fee\n- GCash: 1.5-2.5% fee, faster settlement\n- Maya: Similar to GCash, competitive rates\n\n**Configuration:** Settings → Payment Methods → Enable/Disable as needed'],
+
+      ['gcash payment', '📱 **GCash Integration Benefits:**\n\n**Why GCash is Essential:**\n- 65M+ Filipino users (2024)\n- Instant payment confirmation\n- Reduced cash handling\n- Appeals to younger demographics\n- No physical change required\n\n**Business Advantages:**\n- Faster transaction processing\n- Automatic digital receipts\n- Real-time payment tracking\n- Reduced theft risk\n- Better cash flow management\n\n**Setup:** Settings → Payment Methods → Enable GCash → Enter merchant details\n\n**💡 Marketing Tip:** Display GCash acceptance prominently to attract digital-savvy customers.'],
+
+      // TEAM MANAGEMENT - Philippine Work Culture
+      ['add team member', '👥 **Professional Team Onboarding:**\n\n**Step-by-Step Process:**\n1. **Team Management** → "Add Team Member"\n2. **Required Information:**\n   - Full Name & Contact Details\n   - Position/Role Title\n   - Email Address (for login access)\n   - Phone Number\n   - Emergency Contact\n\n**Role Assignment:**\n- **Staff:** Basic POS and inventory access\n- **Supervisor:** Team oversight and reports\n- **Manager:** Full operational control\n- **Owner:** Complete system administration\n\n**📋 Philippine Employment Best Practices:**\n- Proper documentation (201 files)\n- SSS, PhilHealth, Pag-IBIG registration\n- Clear job descriptions and expectations\n- Regular performance reviews'],
+
+      ['team roles', '🎯 **Role-Based Access Control (RBAC):**\n\n**Staff Level:**\n- Process POS transactions\n- View assigned inventory\n- Basic reporting access\n- Time tracking\n\n**Supervisor Level:**\n- All staff permissions\n- Team scheduling\n- Performance monitoring\n- Inventory adjustments\n\n**Manager Level:**\n- All supervisor permissions\n- Financial reports\n- Supplier management\n- Staff hiring/termination\n\n**Owner Level:**\n- Complete system access\n- Business settings\n- User management\n- Financial controls\n\n**💼 Management Tip:** Delegate appropriately but maintain oversight of critical business functions.'],
+
+      // BUSINESS INTELLIGENCE - Growth Strategies
+      ['increase sales', '🚀 **Data-Driven Sales Growth Strategies:**\n\n**Immediate Actions (Week 1-2):**\n1. **Analyze Top Performers:** Business Reports → Sales Analytics\n2. **Promote Bestsellers:** Feature high-margin items prominently\n3. **Bundle Products:** Create attractive combo offers\n4. **Staff Training:** Improve upselling techniques\n\n**Medium-term Strategy (Month 1-3):**\n- **Customer Segmentation:** Track preferences and buying patterns\n- **Seasonal Planning:** Prepare for holidays and events\n- **Inventory Optimization:** Focus on fast-moving, profitable items\n- **Marketing Integration:** Use sales data for targeted promotions\n\n**📈 Expected Results:** Businesses typically see 10-30% sales increase with proper data utilization.'],
+
+      ['customer retention', '💝 **Philippine Customer Loyalty Strategies:**\n\n**Cultural Considerations:**\n- **Personal Relationships:** Filipinos value personal connections\n- **Family-Oriented:** Consider family packages and deals\n- **Value-Conscious:** Emphasize quality and fair pricing\n- **Social Influence:** Word-of-mouth is powerful\n\n**Retention Tactics:**\n1. **Loyalty Programs:** Points-based rewards system\n2. **Personalized Service:** Remember customer preferences\n3. **Quality Consistency:** Maintain high standards\n4. **Community Engagement:** Participate in local events\n5. **Digital Engagement:** Social media and mobile apps\n\n**💰 ROI:** Increasing retention by 5% can boost profits by 25-95%'],
+
+      // FINANCIAL MANAGEMENT - Philippine Business Context
+      ['financial reports', '💰 **Comprehensive Financial Analytics:**\n\n**Essential Reports:**\n1. **Daily Sales Summary** - Track daily performance\n2. **Profit & Loss Statement** - Monthly profitability\n3. **Cash Flow Analysis** - Monitor liquidity\n4. **Expense Breakdown** - Control operational costs\n5. **Tax Preparation Reports** - BIR compliance ready\n\n**Philippine Tax Considerations:**\n- VAT Registration (₱3M+ annual sales)\n- Quarterly Tax Returns\n- Annual Income Tax\n- Withholding Tax obligations\n\n**📊 KPI Monitoring:**\n- Gross Profit Margin: Target 60-70%\n- Inventory Turnover: 6-12x annually\n- Customer Acquisition Cost vs. Lifetime Value'],
+
+      ['bir compliance', '🏛️ **BIR Compliance & Tax Management:**\n\n**Required Documents:**\n- Official Receipts (OR)\n- Sales Invoices (SI)\n- Delivery Receipts (DR)\n- Monthly Sales Reports\n- Quarterly VAT Returns\n\n**CoreTrack BIR Features:**\n- BIR-compliant receipt formatting\n- Automatic VAT calculations\n- Digital record keeping\n- Export capabilities for accountants\n- Audit trail maintenance\n\n**💡 Compliance Tips:**\n- Keep detailed transaction records\n- Regular backup of sales data\n- Consult with licensed accountants\n- Stay updated on BIR requirements'],
+
+      // SYSTEM HELP & TROUBLESHOOTING
+      ['getting started', '🎉 **Welcome to CoreTrack - Your Success Roadmap:**\n\n**Phase 1: Foundation (Days 1-3)**\n1. **Business Setup:** Configure company information\n2. **Payment Methods:** Enable preferred payment options\n3. **User Accounts:** Add team members with appropriate roles\n4. **Basic Training:** Familiarize staff with core functions\n\n**Phase 2: Inventory & Menu (Days 4-7)**\n1. **Product Catalog:** Add all inventory items\n2. **Menu Creation:** Build your POS menu\n3. **Pricing Strategy:** Set competitive yet profitable prices\n4. **Supplier Setup:** Configure vendor information\n\n**Phase 3: Operations (Week 2)**\n1. **Test Transactions:** Process sample orders\n2. **Staff Training:** Comprehensive system training\n3. **Go Live:** Start actual operations\n4. **Monitor & Optimize:** Track performance and adjust\n\n**🎯 Success Metrics:** Target 100% staff adoption within 2 weeks.'],
+
+      ['support', '🤝 **Professional Support & Resources:**\n\n**Direct Support Channels:**\n- **Live Chat:** Available 24/7 for urgent issues\n- **Email Support:** support@coretrack.ph\n- **Phone Support:** +63 (02) 8XXX-XXXX\n- **Video Calls:** Scheduled technical assistance\n\n**Self-Service Resources:**\n- **Help Documentation:** Comprehensive guides\n- **Video Tutorials:** Step-by-step walkthroughs\n- **Community Forum:** Connect with other users\n- **Feature Requests:** Submit enhancement ideas\n\n**Enterprise Support:**\n- Dedicated account manager\n- Priority technical support\n- Custom training sessions\n- Implementation assistance\n\n**🌟 Commitment:** Your success is our priority. We understand Philippine business challenges and provide localized solutions.'],
+
+      // ADVANCED FEATURES
+      ['capital intelligence', '💎 **Capital Intelligence - Advanced Analytics:**\n\n**Financial Intelligence Features:**\n- **Cash Flow Forecasting:** Predict future liquidity needs\n- **Profitability Analysis:** Product and service margin analysis\n- **Investment ROI:** Evaluate equipment and expansion decisions\n- **Cost Optimization:** Identify expense reduction opportunities\n\n**Business Intelligence Insights:**\n- **Customer Lifetime Value:** Calculate long-term customer worth\n- **Market Trend Analysis:** Seasonal and demographic patterns\n- **Competitive Positioning:** Performance benchmarking\n- **Growth Opportunity Mapping:** Data-driven expansion strategies\n\n**Strategic Decision Support:**\n- **Scenario Planning:** Model different business scenarios\n- **Risk Assessment:** Identify potential business risks\n- **Resource Allocation:** Optimize staff and inventory deployment'],
+
+      ['discrepancy monitoring', '🔍 **Discrepancy Monitor - Loss Prevention:**\n\n**Inventory Discrepancy Tracking:**\n- **Real-time Variance Detection:** Automatic alerts for stock differences\n- **Theft Prevention:** Monitor unusual transaction patterns\n- **Waste Tracking:** Categorize and analyze product waste\n- **Audit Trail:** Complete transaction history for investigation\n\n**Alert System:**\n- **High-Value Item Monitoring:** Special attention to expensive products\n- **Employee Activity Tracking:** Monitor staff transaction patterns\n- **Supplier Delivery Verification:** Compare received vs. ordered quantities\n- **Customer Return Analysis:** Track return patterns and reasons\n\n**Loss Prevention Strategies:**\n- **Regular Stock Counts:** Scheduled inventory audits\n- **Staff Training:** Proper handling and recording procedures\n- **Security Protocols:** Access control and surveillance integration']
     ])
   }
 
@@ -228,43 +245,79 @@ class ChatService {
       `User: ${h.user}\nAI: ${h.ai}`
     ).join('\n\n')
 
-    let systemPrompt = `You are CoreTrack AI - I'm your dedicated business assistant for CoreTrack, an inventory and POS system designed for Filipino businesses.
+    let systemPrompt = `You are CoreTrack AI Assistant - a professional business intelligence expert specializing in Philippine business operations and inventory management systems.
 
-I'm here to help you succeed with professional guidance and insights based on your actual business data.
+🎯 MY CORE MISSION:
+I provide expert guidance for CoreTrack, the leading business management platform designed specifically for Filipino entrepreneurs. I deliver actionable insights, professional advice, and data-driven recommendations to help businesses thrive.
 
-ABOUT ME:
-- I understand the unique challenges of Filipino businesses across all industries
-- I provide clear, professional guidance without unnecessary casualness
-- I give specific, actionable advice based on your real business data
-- I maintain a helpful yet professional tone at all times
+👤 USER PROFILE:
+- Role: ${userRole === 'owner' ? 'Business Owner & Decision Maker' : userRole === 'manager' ? 'Operations Manager' : 'Team Member'}
+- Business Type: ${businessType === 'restaurant' ? 'Restaurant/Food Service Operations' : businessType === 'retail' ? 'Retail & Commerce' : 'Multi-Industry Business'}
+- Current Module: ${currentPage?.replace('/', '').replace('-', ' ').toUpperCase() || 'DASHBOARD'}
 
-YOUR BUSINESS CONTEXT:
-- Role: ${userRole === 'owner' ? 'Business Owner' : userRole === 'manager' ? 'Manager' : 'Team Member'}
-- Business Type: ${businessType === 'restaurant' ? 'Restaurant/Food Service' : businessType === 'retail' ? 'Retail Store' : 'Business'}
-- Current Location: ${currentPage || 'CoreTrack Dashboard'}
+🏢 PHILIPPINE BUSINESS EXPERTISE:
+I understand the unique challenges and opportunities in the Philippine market:
+- BIR compliance and tax regulations (VAT, withholding tax, quarterly returns)
+- DTI business registration and permit requirements  
+- Local payment methods (GCash, Maya, Bank transfers, Cash)
+- Supply chain challenges and seasonal variations
+- Staff management and labor law compliance (13th month pay, SSS, PhilHealth, Pag-IBIG)
+- Cultural business practices and customer preferences
 
-MY CAPABILITIES:
-🏪 Inventory Management - Item tracking, stock levels, supplier management, preventing stockouts
-📱 POS Operations - Order processing, payment handling (cash, card, GCash), customer management  
-👥 Team Management - Staff coordination, role assignments, performance tracking
-� Financial Analytics - Revenue analysis, expense tracking, profit/loss insights
-� Business Intelligence - Data-driven insights, growth recommendations, market analysis
-� System Support - Feature guidance, troubleshooting, workflow optimization
+💼 MY COMPREHENSIVE CAPABILITIES:
 
-MY PROFESSIONAL APPROACH:
-- I provide clear, step-by-step guidance when needed
-- I give context-aware recommendations based on your actual data
-- I share relevant insights for the Filipino business environment
-- I maintain a professional but approachable communication style
-- I remember our conversation context for better assistance
-- I focus on actionable solutions that drive business results
+📦 INVENTORY MASTERY:
+- Stock level optimization and automated reorder points
+- Supplier relationship management and cost negotiation
+- Wastage reduction strategies and loss prevention
+- Product categorization and pricing strategies
+- Seasonal demand forecasting and procurement planning
 
-RECENT CONVERSATION:
-${recentHistory}
+💰 FINANCIAL INTELLIGENCE:
+- Real-time cash flow analysis and projection
+- Profit margin optimization per product/service
+- Expense categorization and budget management
+- ROI analysis for business investments
+- Tax planning and compliance guidance
 
-${realData ? `CURRENT BUSINESS DATA:\n${realData}\n\n` : ''}CURRENT QUESTION: "${message}"
+📊 POS & SALES OPERATIONS:
+- Efficient order processing workflows
+- Payment method optimization (reducing transaction costs)
+- Customer loyalty program strategies
+- Sales performance analysis and staff productivity
+- Peak hour management and queue optimization
 
-I'm ready to provide you with professional guidance and actionable insights. How can I assist you today?`
+👥 TEAM & OPERATIONS:
+- Staff scheduling and productivity tracking
+- Role-based access control and security
+- Performance metrics and KPI monitoring
+- Training protocols and standard operating procedures
+- Multi-location coordination and branch management
+
+📈 BUSINESS INTELLIGENCE:
+- Data-driven decision making support
+- Market trend analysis and competitive positioning
+- Customer behavior insights and segmentation
+- Growth opportunity identification
+- Risk assessment and mitigation strategies
+
+🎯 MY COMMUNICATION STYLE:
+- Professional yet approachable - I provide expert advice without unnecessary jargon
+- Action-oriented - Every response includes specific, implementable recommendations
+- Data-driven - I reference actual business metrics when available
+- Context-aware - I consider your specific role, business type, and current situation
+- Solution-focused - I identify problems and provide clear resolution paths
+
+CONVERSATION CONTEXT:
+${recentHistory ? `Previous Discussion:\n${recentHistory}\n` : 'New conversation started.'}
+
+${realData ? `📊 LIVE BUSINESS DATA:\n${realData}\n` : ''}
+
+🔍 CURRENT INQUIRY: "${message}"
+
+I'm ready to provide expert business guidance tailored to your specific needs. Whether you need operational advice, financial insights, system help, or strategic recommendations, I'm here to help you succeed.
+
+How can I assist you in optimizing your business operations today?`
 
     return systemPrompt
   }

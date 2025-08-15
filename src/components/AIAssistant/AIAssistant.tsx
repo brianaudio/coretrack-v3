@@ -19,8 +19,12 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ className = '' }) => {
   const { user, profile, loading } = useAuth()
   const { subscription, loading: subscriptionLoading } = useSubscription()
 
-  // Debug logging
-  console.log('✦ AI Assistant Loading:', { user: !!user, profile: !!profile, loading })
+  // Reduce console logging spam
+  useEffect(() => {
+    if (user && profile && !loading) {
+      console.log('✦ AI Assistant ready for:', profile.email)
+    }
+  }, [user, profile, loading])
 
   // Derive user context from your existing auth
   const userContext = {
@@ -59,16 +63,16 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ className = '' }) => {
     }
   }, [user, loading])
 
-  // Always show for testing - remove this later
-  console.log('✦ AI Assistant Debug:', { user: !!user, profile: !!profile, loading })
-  
-  // For now, let's show the button even without authentication for testing
+  // Development mode - reduce logging and fix infinite loading
   if (loading || subscriptionLoading) {
-    console.log('✦ AI Assistant waiting for auth and subscription...')
+    // Reduce console spam in development
     return null
   }
 
-  console.log('✦ AI Assistant RENDERING!')
+  // Only log once when component is ready
+  if (user && profile) {
+    console.log('✦ AI Assistant Ready for:', profile.email)
+  }
 
   return (
     <div className={`fixed z-50 ${className}`} style={{ zIndex: 99999 }}>

@@ -174,64 +174,26 @@ export default function BusinessReports() {
   // DEEP INVESTIGATION: Enhanced order fetching with extensive debugging
   const fetchOrdersData = async (tenantId: string, branchLocationId: string, startDate: Date, endDate: Date) => {
     try {
-      console.log('� DEEP INVESTIGATION: Starting comprehensive order search...')
-      console.log('📋 Search Parameters:', {
-        tenantId,
-        branchLocationId,
-        selectedBranchId: selectedBranch?.id,
-        selectedBranchName: selectedBranch?.name,
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-        dateRange
-      })
-
       const ordersRef = collection(db, 'tenants', tenantId, 'orders')
       
       // INVESTIGATION 1: Get ALL orders first to understand the data structure
-      console.log('🔍 INVESTIGATION 1: Fetching ALL orders to analyze structure...')
       let allOrdersSnapshot = await getDocs(query(ordersRef, limit(50)))
       let allOrders = allOrdersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
       
-      console.log(`📊 Found ${allOrders.length} total orders in database`)
-      
       if (allOrders.length > 0) {
-        console.log('🔬 ANALYZING FIRST FEW ORDERS:')
-        allOrders.slice(0, 3).forEach((order: any, index) => {
-          console.log(`Order ${index + 1}:`, {
-            id: order.id,
-            branchId: order.branchId,
-            branchLocationId: order.branchLocationId,
-            total: order.total,
-            createdAt: order.createdAt,
-            orderDate: order.orderDate,
-            timestamp: order.timestamp,
-            date: order.date,
-            allFields: Object.keys(order)
-          })
-        })
-        
         // Check what branch identifiers exist
         const branchIds = Array.from(new Set((allOrders as any[]).map(o => o.branchId).filter(Boolean)))
         const branchLocationIds = Array.from(new Set((allOrders as any[]).map(o => o.branchLocationId).filter(Boolean)))
-        
-        console.log('🏪 BRANCH IDENTIFIERS FOUND:')
-        console.log('branchIds:', branchIds)
-        console.log('branchLocationIds:', branchLocationIds)
-        console.log('Looking for branchId:', selectedBranch?.id)
-        console.log('Looking for branchLocationId:', branchLocationId)
       }
 
       // INVESTIGATION 2: Try different branch matching strategies
-      console.log('🔍 INVESTIGATION 2: Trying multiple branch matching strategies...')
       
       // Strategy 2a: Exact branchLocationId match
       let ordersData = (allOrders as any[]).filter(order => order.branchLocationId === branchLocationId)
-      console.log(`Strategy 2a (branchLocationId === "${branchLocationId}"): Found ${ordersData.length} orders`)
       
       // Strategy 2b: Exact branchId match
       if (ordersData.length === 0) {
         ordersData = (allOrders as any[]).filter(order => order.branchId === selectedBranch?.id)
-        console.log(`Strategy 2b (branchId === "${selectedBranch?.id}"): Found ${ordersData.length} orders`)
       }
       
       // Strategy 2c: Partial match on any branch field
@@ -250,12 +212,10 @@ export default function BusinessReports() {
       
       // Strategy 2d: If still no results, try without branch filtering
       if (ordersData.length === 0) {
-        console.log('🚨 NO BRANCH MATCHES - Using all orders for debugging')
         ordersData = allOrders as any[]
       }
 
       // INVESTIGATION 3: Date range analysis
-      console.log('🔍 INVESTIGATION 3: Analyzing dates in found orders...')
       
       const dateAnalysis = (ordersData as any[]).map(order => {
         const dates = {
@@ -274,14 +234,6 @@ export default function BusinessReports() {
             .filter(([key, date]) => date && !isNaN(date.getTime()))
             .map(([key, date]) => ({ field: key, date: date.toISOString() }))
         }
-      })
-      
-      console.log('📅 DATE ANALYSIS:')
-      dateAnalysis.slice(0, 3).forEach(analysis => {
-        console.log(`Order ${analysis.id}:`, {
-          total: analysis.total,
-          validDates: analysis.validDates
-        })
       })
 
       // INVESTIGATION 4: Apply date filtering with multiple date fields

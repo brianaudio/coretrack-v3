@@ -108,10 +108,7 @@ const helpContent: Record<string, { title: string; content: string[] }> = {
 export default function HelpModal() {
   const { isHelpVisible, currentModule, hideHelp } = useHelp()
   
-  console.log('🔍 HelpModal render:', { isHelpVisible, currentModule })
-
   if (!isHelpVisible) {
-    console.log('❌ Help modal not visible, returning null')
     return null
   }
 

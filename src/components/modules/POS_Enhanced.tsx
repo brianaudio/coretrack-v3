@@ -161,7 +161,6 @@ export default function POSEnhanced() {
   useEffect(() => {
     // Auto-sync when online and there are pending items
     if (isOnline && pendingSync > 0) {
-      console.log(`🔄 Auto-syncing ${pendingSync} pending items...`)
       forceSyncAll().catch(console.error)
     }
   }, [isOnline, pendingSync, forceSyncAll])
@@ -264,7 +263,6 @@ export default function POSEnhanced() {
     try {
       setLoadingOrders(true)
       const locationId = getBranchLocationId(selectedBranch.id)
-      console.log('📋 Loading recent orders...')
       
       const orders = await getPOSOrders(profile.tenantId, locationId)
       
@@ -274,7 +272,6 @@ export default function POSEnhanced() {
         .slice(0, 20) // Get last 20 orders
       
       setRecentOrders(sortedOrders)
-      console.log('✅ Loaded recent orders:', sortedOrders.length)
     } catch (error) {
       console.error('❌ Error loading recent orders:', error)
     } finally {
@@ -284,9 +281,6 @@ export default function POSEnhanced() {
 
   const printEnhancedReceipt = (order: any, paymentData: any) => {
     try {
-      console.log('🖨️ Printing receipt for order:', order)
-      console.log('🖨️ Payment data:', paymentData)
-
       const printWindow = window.open('', '_blank')
       if (!printWindow) {
         console.error('❌ Could not open print window')
@@ -301,11 +295,9 @@ export default function POSEnhanced() {
       }
 
       const orderId = getOrderId()
-      console.log('🔢 Generated order ID:', orderId)
 
       // Safe cart data extraction
       const orderItems = order?.items || cart || []
-      console.log('📝 Order items for receipt:', orderItems)
 
       const receiptHTML = `
         <!DOCTYPE html>
@@ -472,8 +464,6 @@ export default function POSEnhanced() {
   // Non-intrusive print function that doesn't redirect focus
   const printReceiptToHiddenFrame = (order: any, paymentData: any) => {
     try {
-      console.log('🖨️ Printing receipt (non-intrusive) for order:', order)
-      
       // Create a hidden iframe for printing
       const iframe = document.createElement('iframe')
       iframe.style.display = 'none'
@@ -755,8 +745,6 @@ export default function POSEnhanced() {
       
       // If document doesn't exist at new path, try the old path (if we have a branch ID)
       if (!documentExists) {
-        console.log('Order not found in new path, trying legacy path...');
-        
         if (!branchId) {
           console.error('Missing branch ID. Cannot check legacy path.');
           alert('Error: Missing branch information. Please select a branch and try again.');
@@ -865,8 +853,6 @@ export default function POSEnhanced() {
       
       // If document doesn't exist at new path, try the old path (if we have a branch ID)
       if (!documentExists) {
-        console.log('Order not found in new path, trying legacy path...');
-        
         if (!branchId) {
           console.error('Missing branch ID. Cannot check legacy path.');
           alert('Error: Missing branch information. Please select a branch and try again.');
@@ -995,21 +981,6 @@ export default function POSEnhanced() {
           getAddons(profile.tenantId, locationId)
         ])
 
-        console.log('📊 Data loaded:', {
-          posItems: posItems.length,
-          menuBuilderItems: menuBuilderItems.length,
-          standAloneAddons: standAloneAddons.length
-        })
-
-        // Debug: Log the first few menu builder items to see their structure
-        console.log('🔍 Menu Builder items sample:', menuBuilderItems.slice(0, 3).map(item => ({
-          id: item.id,
-          name: item.name,
-          description: item.description,
-          hasDescription: !!item.description,
-          descriptionLength: item.description?.length || 0
-        })))
-
         // Convert Menu Builder add-ons to POS add-ons format (from menuItems collection)
         const menuAddons: AddOn[] = menuBuilderItems
           .filter(item => item.isAddonOnly)
@@ -1058,23 +1029,6 @@ export default function POSEnhanced() {
         const finalAllMenuBuilderAddons = Array.from(uniqueAddons.values())
         setMenuBuilderAddons(finalAllMenuBuilderAddons)
 
-        console.log('🔗 Loaded Menu Builder add-ons:', {
-          fromMenuItems: menuAddons.length,
-          fromAddonsCollection: standAloneAddonsPOS.length,
-          total: finalAllMenuBuilderAddons.length,
-          addons: finalAllMenuBuilderAddons.map(addon => ({
-            id: addon.id,
-            name: addon.name,
-            price: addon.price,
-            hasOriginalData: !!addon._originalData,
-            originalDataPreview: addon._originalData ? {
-              hasIngredients: !!(addon._originalData.ingredients && addon._originalData.ingredients.length > 0),
-              hasSingleInventory: !!addon._originalData.inventoryItemId,
-              ingredientCount: addon._originalData.ingredients?.length || 0
-            } : null
-          }))
-        })
-
         // 🍕 Prioritize Menu Builder items over POS items (they have better descriptions)
         const menuBuilderPOSItems: POSItem[] = menuBuilderItems
           .filter(item => !item.isAddonOnly) // Exclude addon-only items
@@ -1092,7 +1046,6 @@ export default function POSEnhanced() {
             // Use POS item ID if found, otherwise use menu item ID
             const actualPOSItemId = correspondingPOSItem?.id || item.id || `menu-${item.name}`;
             
-            console.log(`🔄 Converting Menu Builder item: ${item.name}, description: "${item.description || 'NONE'}", hasValidDescription: ${hasValidDescription}, POS ID: ${actualPOSItemId}`)
             return {
               id: actualPOSItemId, // 🎯 Use actual POS item ID
               name: item.name,
@@ -1126,7 +1079,6 @@ export default function POSEnhanced() {
             const hasValidDescription = item.description && item.description.trim().length > 0
             const fallbackDescription = `Delicious ${item.name} - a customer favorite`
             
-            console.log(`🔄 Including POS item: ${item.name}, description: "${item.description || 'NONE'}", hasValidDescription: ${hasValidDescription}`)
             return {
               ...item,
               description: hasValidDescription ? item.description : fallbackDescription, // Enhanced fallback for POS items
@@ -1137,24 +1089,6 @@ export default function POSEnhanced() {
 
         // Combine Menu Builder items (priority) with unique POS items
         const enhancedItems: POSItem[] = [...menuBuilderPOSItems, ...posItemsNotInMenuBuilder]
-
-        console.log('🍽️ Final menu items:', {
-          menuBuilderItems: menuBuilderPOSItems.length,
-          uniquePOSItems: posItemsNotInMenuBuilder.length,
-          total: enhancedItems.length,
-          itemsWithDescriptions: enhancedItems.filter(item => item.description && item.description.trim()).length,
-          itemsWithoutDescriptions: enhancedItems.filter(item => !item.description || !item.description.trim()).length
-        })
-
-        // Debug: Log sample final items with enhanced description info
-        console.log('🔍 Final items sample with descriptions:', enhancedItems.slice(0, 3).map(item => ({
-          id: item.id,
-          name: item.name,
-          description: item.description,
-          descriptionLength: item.description?.length || 0,
-          hasDescription: !!(item.description && item.description.trim()),
-          source: menuBuilderPOSItems.some(mb => mb.id === item.id) ? 'MenuBuilder' : 'POS'
-        })))
 
         setMenuItems(enhancedItems)
         
@@ -1316,16 +1250,12 @@ export default function POSEnhanced() {
         }
 
         // Create the order
-        console.log('🚨 ABOUT TO CREATE POS ORDER WITH ENHANCED PAYMENT DATA:', firestoreOrder)
         const createdOrder = await createPOSOrder(firestoreOrder)
 
         // 📦 Deduct add-ons from inventory (only if there are add-ons)
         const hasAddons = cart.some(item => item.selectedAddons && item.selectedAddons.length > 0)
         if (hasAddons) {
-          console.log('🔗 Cart has add-ons, deducting from inventory...')
           await deductAddonsFromInventory()
-        } else {
-          console.log('📝 No add-ons in cart, skipping add-on inventory deduction')
         }
 
         // Handle receipt options
@@ -1338,8 +1268,6 @@ export default function POSEnhanced() {
         }
 
         // Show success feedback without blocking navigation
-        console.log('✅ Payment successful! Order completed and inventory updated.')
-        
         // Use a non-blocking notification instead of alert
         if (typeof window !== 'undefined') {
           // Create a temporary success notification
@@ -1407,8 +1335,6 @@ export default function POSEnhanced() {
         addToSyncQueue('pos-order', orderData, 5)
         
         // Show offline success feedback without blocking navigation
-        console.log('📱 Payment successful! Order queued for sync when online.')
-        
         // Use a non-blocking notification instead of alert
         if (typeof window !== 'undefined') {
           const notification = document.createElement('div')
@@ -1508,7 +1434,6 @@ export default function POSEnhanced() {
                     user?.email || 'POS System'
                   )
                 }
-                console.log(`✅ Deducted Menu Builder add-on "${addon.name}" ingredients for ${cartItem.quantity} servings`)
               } else if (originalAddon.inventoryItemId) {
                 // Single inventory item deduction
                 const quantityToDeduct = (originalAddon.inventoryQuantity || 1) * cartItem.quantity
@@ -1522,7 +1447,6 @@ export default function POSEnhanced() {
                   user?.uid,
                   user?.email || 'POS System'
                 )
-                console.log(`✅ Deducted Menu Builder add-on "${addon.name}" - ${quantityToDeduct} ${originalAddon.inventoryItemName}`)
               } else {
                 console.warn(`⚠️ Menu Builder add-on "${addon.name}" has no inventory linkage`)
               }
@@ -1541,7 +1465,6 @@ export default function POSEnhanced() {
                   user?.uid,
                   user?.email || 'POS System'
                 )
-                console.log(`✅ Deducted custom inventory add-on "${addon.name}" - ${quantityToDeduct} ${addon.unit} for ${cartItem.quantity} servings`)
               } else {
                 // Legacy custom add-on: Find by name (existing behavior)
                 const inventoryItem = await findInventoryItemByName(profile.tenantId, addon.name)
@@ -1558,7 +1481,6 @@ export default function POSEnhanced() {
                     user?.uid,
                     user?.email || 'POS System'
                   )
-                  console.log(`✅ Deducted legacy custom add-on "${addon.name}" for ${cartItem.quantity} servings`)
                 } else {
                   console.warn(`⚠️ Inventory item not found for add-on: ${addon.name}`)
                 }
@@ -2090,7 +2012,6 @@ export default function POSEnhanced() {
                         onClick={() => {
                           // Apply quick discount
                           // This would integrate with a discount system
-                          console.log('Apply quick discount')
                         }}
                         className="px-3 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1"
                       >
@@ -2193,7 +2114,6 @@ export default function POSEnhanced() {
                         }
                         localStorage.setItem(`draft_order_${draftOrder.id}`, JSON.stringify(draftOrder))
                         setCart([])
-                        console.log('Order saved as draft:', draftOrder.id)
                       }}
                       className="px-4 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
                     >
@@ -2214,7 +2134,6 @@ export default function POSEnhanced() {
                         }
                         localStorage.setItem(`hold_order_${holdOrder.id}`, JSON.stringify(holdOrder))
                         setCart([])
-                        console.log('Order put on hold:', holdOrder.id)
                       }}
                       className="px-4 py-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
                     >

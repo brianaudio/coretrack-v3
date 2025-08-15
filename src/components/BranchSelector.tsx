@@ -53,7 +53,6 @@ export default function BranchSelector() {
         setIsOpen(false);
       }
       
-      console.log(`✅ Branch "${branch.name}" deleted successfully`);
     } catch (error) {
       console.error('Error deleting branch:', error);
       alert('Error deleting branch. Please try again.');

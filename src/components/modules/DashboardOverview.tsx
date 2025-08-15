@@ -65,7 +65,6 @@ export default function DashboardOverview() {
         ])
         
       // Current branch and inventory analytics loaded
-        console.log('Dashboard Debug - Total Value:', inventory?.totalValue, 'Type:', typeof inventory?.totalValue)
         
         setDashboardStats(stats)
         setInventoryAnalytics(inventory)

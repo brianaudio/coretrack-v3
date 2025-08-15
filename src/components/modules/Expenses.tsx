@@ -198,15 +198,6 @@ export default function Expenses() {
       // Calculate net profit (gross profit minus expenses)
       const netProfit = grossProfit - totalExpenses
 
-      console.log('Profit Calculation Debug:', {
-        totalRevenue,
-        totalCOGS,
-        grossProfit,
-        totalExpenses,
-        netProfit,
-        filteredExpensesCount: filteredExpenses.length
-      })
-
       setProfitData({
         totalRevenue,
         totalCOGS,

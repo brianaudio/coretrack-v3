@@ -202,10 +202,6 @@ const CreateMenuItemModal: React.FC<CreateMenuItemModalProps> = ({
       setSelectedCategoryIcon('')
       setActiveSection('basic')
       setIsSubmitting(false)
-    } else {
-      console.log('🎯 ADVANCED 5-SECTION WIZARD MODAL OPENED!')
-      console.log('📂 Available categories:', categories)
-      console.log('📦 Available inventory items:', inventory.length)
     }
   }, [isOpen, categories, inventory])
 

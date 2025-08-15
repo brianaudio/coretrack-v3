@@ -79,16 +79,6 @@ export default function CapitalIntelligence() {
         const totalCapitalDeployed = purchases.reduce((sum, purchase) => {
           // Use the correct field name from purchase order structure
           const amount = purchase.total || purchase.totalAmount || purchase.amount || purchase.grandTotal || 0
-          console.log('Purchase for capital calculation:', {
-            id: purchase.id,
-            supplierName: purchase.supplierName,
-            total: purchase.total,
-            subtotal: purchase.subtotal,
-            tax: purchase.tax,
-            orderNumber: purchase.orderNumber,
-            status: purchase.status,
-            finalAmount: amount
-          })
           return sum + amount
         }, 0)
         
@@ -140,17 +130,6 @@ export default function CapitalIntelligence() {
           recentPurchases: purchases.slice(0, 5).map((p, index) => {
             // Use the correct field name from purchase order structure
             const amount = p.total || p.totalAmount || p.amount || p.grandTotal || 0
-            
-            console.log('Purchase data for display:', {
-              id: p.id,
-              supplierName: p.supplierName,
-              orderNumber: p.orderNumber,
-              total: p.total,
-              subtotal: p.subtotal,
-              tax: p.tax,
-              status: p.status,
-              finalAmount: amount
-            })
             
             return {
               id: p.id || `purchase-${index}`,

@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { useAuth } from './AuthContext'
 import { useBranch } from './BranchContext'
 import { getBranchLocationId } from '../utils/branchUtils'
+import { generateUniqueReactKey } from '../utils/reactKeyUtils'
 import { Timestamp } from 'firebase/firestore'
 import {
   createShift,
@@ -257,14 +258,19 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       
       // Create a daily reset with unique timestamp and random component
       // Use high-resolution timer and multiple random sources for maximum uniqueness
+      // Add React Strict Mode protection with crypto random
       const timestamp = Date.now()
-      const highResTime = performance.now().toString().replace('.', '')
+      const highResTime = Math.floor(performance.now() * 1000).toString() // Convert to integer to avoid decimals
       const randomSuffix = Math.random().toString(36).substr(2, 9)
-      const uniqueId = `${timestamp}-${highResTime}-${randomSuffix}`
+      const cryptoRandom = typeof crypto !== 'undefined' && crypto.getRandomValues 
+        ? crypto.getRandomValues(new Uint32Array(1))[0].toString(36)
+        : Math.floor(Math.random() * 999999).toString(36)
+      const strictModeCounter = Math.floor(Math.random() * 10000).toString(36)
+      const uniqueId = `${timestamp}-${highResTime}-${randomSuffix}-${cryptoRandom}-${strictModeCounter}`
       const dailyResetData = {
         tenantId: profile.tenantId,
         branchId: selectedBranch.id,
-        shiftId: `daily-reset-${uniqueId}`,
+        shiftId: `daily-reset-${generateUniqueReactKey('shift-reset')}`,
         shiftName: `Daily Reset ${new Date().toLocaleDateString()}`,
         startTime: Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000)), // 24 hours ago
         resetBy: profile.uid || profile.email || 'system',

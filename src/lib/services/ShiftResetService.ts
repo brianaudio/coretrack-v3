@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { getBranchLocationId } from '../utils/branchUtils'
+import { generateUniqueReactKey } from '../utils/reactKeyUtils'
 
 // Types for shift reset operations
 interface ShiftResetSummary {

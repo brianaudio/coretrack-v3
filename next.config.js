@@ -20,7 +20,7 @@ const withPWA = require('next-pwa')({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
+  reactStrictMode: true, // Re-enabled with duplicate key fixes in place
   eslint: {
     ignoreDuringBuilds: true, // Temporarily disable ESLint during builds
   },

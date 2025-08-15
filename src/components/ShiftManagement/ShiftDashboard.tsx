@@ -7,6 +7,7 @@ import { useToast } from '../ui/Toast'
 import { collection, query, where, getDocs, orderBy, limit, updateDoc, doc, Timestamp } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { getBranchLocationId } from '../../lib/utils/branchUtils'
+import { generateUniqueReactKey } from '../../lib/utils/reactKeyUtils'
 
 interface ShiftData {
   id: string
@@ -416,7 +417,7 @@ export default function ShiftDashboard() {
                         <div className="flex -space-x-1">
                           {shift.staffOnDuty.slice(0, 3).map((staff, index) => (
                             <div
-                              key={`${shift.id}-staff-${index}-${staff}`}
+                              key={generateUniqueReactKey(`staff-${shift.id}-${index}-${staff}`)}
                               className="w-6 h-6 bg-primary-500 rounded-full flex items-center justify-center text-xs font-medium text-white border border-white"
                               title={staff}
                             >

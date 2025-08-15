@@ -95,28 +95,13 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
   const loadCurrentShift = async () => {
     try {
       setLoading(true)
-      console.log('🚀 [SHIFT-CONTEXT] Loading current shift...', {
-        tenantId: profile?.tenantId,
-        selectedBranch: selectedBranch?.id,
-        locationId: selectedBranch ? getBranchLocationId(selectedBranch.id) : 'none'
-      })
       
       if (!profile?.tenantId || !selectedBranch) {
-        console.log('🚨 [SHIFT-CONTEXT] Missing required data for shift loading')
         return
       }
       
       const locationId = getBranchLocationId(selectedBranch.id)
-      console.log('🔍 [SHIFT-CONTEXT] Getting active shift for location:', locationId)
       const activeShift = await getActiveShift(profile.tenantId, locationId)
-      
-      console.log('📋 [SHIFT-CONTEXT] Active shift result:', {
-        found: !!activeShift,
-        shiftId: activeShift?.id,
-        shiftStatus: activeShift?.status,
-        shiftName: activeShift?.name,
-        createdBy: activeShift?.createdBy
-      })
       
       setCurrentShift(activeShift)
       setError(null)
@@ -126,7 +111,6 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       setCurrentShift(null)
     } finally {
       setLoading(false)
-      console.log('✅ [SHIFT-CONTEXT] Shift loading completed')
     }
   }
 
@@ -171,7 +155,6 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       setCurrentShift(createdShift)
       setError(null)
       
-      console.log('New shift started:', createdShift)
     } catch (err) {
       console.error('Error starting shift:', err)
       setError('Failed to start new shift')
@@ -216,8 +199,6 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       await updateShift(profile.tenantId, currentShift.id, endedShift)
       setCurrentShift(endedShift)
       
-      console.log('Shift ended:', endedShift)
-      
       // Archive the shift data
       await archiveShift(endedShift.id)
       
@@ -236,8 +217,6 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
     try {
       const locationId = getBranchLocationId(selectedBranch.id)
       await archiveShiftData(profile.tenantId, locationId, shiftId)
-      
-      console.log('Shift archived:', shiftId)
       
       // Mark shift as archived in local state
       if (currentShift?.id === shiftId) {
@@ -258,7 +237,6 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
         throw new Error('Missing tenant or branch information for daily reset')
       }
 
-      console.log('🔄 Starting daily data reset...')
       const locationId = getBranchLocationId(selectedBranch.id)
       
       // Import and use the ShiftResetService for proper reset
@@ -284,7 +262,6 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       // Update last reset timestamp
       localStorage.setItem('lastDailyReset', new Date().toISOString())
       
-      console.log('✅ Daily reset completed:', summary)
       return summary
     } catch (err) {
       console.error('Error resetting daily data:', err)
@@ -333,18 +310,10 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Debug log the shift state whenever it changes
+  // Load current shift when auth or branch changes
   useEffect(() => {
-    console.log('🔄 [SHIFT-CONTEXT] Shift state updated:', {
-      currentShift: currentShift ? {
-        id: currentShift.id,
-        status: currentShift.status,
-        name: currentShift.name
-      } : null,
-      isShiftActive: currentShift?.status === 'active',
-      loading
-    })
-  }, [currentShift, loading])
+    loadCurrentShift()
+  }, [profile?.tenantId, selectedBranch?.id])
 
   const value: ShiftContextType = {
     currentShift,

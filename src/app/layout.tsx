@@ -16,6 +16,7 @@ import TrialExpirationHandler from '../components/TrialExpirationHandler'
 import AIAssistant from '../components/AIAssistant'
 import SimpleOnboarding from '../components/onboarding/SimpleOnboarding'
 import HelpModal from '../components/HelpModal'
+import ReactKeyErrorMonitor from '../components/debug/ReactKeyErrorMonitor'
 
 export const metadata: Metadata = {
   title: 'CoreTrack - Business Inventory Management',
@@ -584,6 +585,7 @@ export default function RootLayout({
         }} />
       </head>
       <body className="h-full bg-surface-50">
+        <ReactKeyErrorMonitor />
         <DataInitializer />
         <ErrorBoundary>
           <AuthProvider>

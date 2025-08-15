@@ -8,6 +8,7 @@ import { collection, query, where, getDocs, orderBy, limit, updateDoc, doc, Time
 import { db } from '../../lib/firebase'
 import { getBranchLocationId } from '../../lib/utils/branchUtils'
 import { generateUniqueReactKey } from '../../lib/utils/reactKeyUtils'
+import { generateDebuggedShiftKey } from '../../lib/utils/shiftKeyDebugger'
 
 interface ShiftData {
   id: string
@@ -396,7 +397,7 @@ export default function ShiftDashboard() {
                 </tr>
               ) : (
                 shifts.map((shift) => (
-                  <tr key={shift.id} className="hover:bg-surface-50 transition-colors duration-200">
+                  <tr key={generateDebuggedShiftKey(`shift-row-${shift.id}`)} className="hover:bg-surface-50 transition-colors duration-200">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-semibold text-surface-900">

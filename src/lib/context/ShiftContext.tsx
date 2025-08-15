@@ -5,6 +5,7 @@ import { useAuth } from './AuthContext'
 import { useBranch } from './BranchContext'
 import { getBranchLocationId } from '../utils/branchUtils'
 import { generateUniqueReactKey } from '../utils/reactKeyUtils'
+import { generateDailyResetKey } from '../utils/shiftKeyDebugger'
 import { Timestamp } from 'firebase/firestore'
 import {
   createShift,
@@ -270,7 +271,7 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       const dailyResetData = {
         tenantId: profile.tenantId,
         branchId: selectedBranch.id,
-        shiftId: `daily-reset-${generateUniqueReactKey('shift-reset')}`,
+        shiftId: generateDailyResetKey(),
         shiftName: `Daily Reset ${new Date().toLocaleDateString()}`,
         startTime: Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000)), // 24 hours ago
         resetBy: profile.uid || profile.email || 'system',

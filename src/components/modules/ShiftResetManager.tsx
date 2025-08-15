@@ -7,6 +7,7 @@ import { useBranch } from '../../lib/context/BranchContext'
 import { useShiftReset } from '../../lib/hooks/useShiftReset'
 import { useShift } from '../../lib/context/ShiftContext'
 import type { ShiftResetSummary } from '../../lib/services/ShiftResetService'
+import { generateUniqueReactKey } from '../../lib/utils/reactKeyUtils'
 
 interface ShiftResetManagerProps {
   onResetComplete?: (summary: ShiftResetSummary) => void
@@ -161,7 +162,7 @@ export default function ShiftResetManager({ onResetComplete, className = '' }: S
                 disabled={isManualResetting}
                 className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium text-sm transition-colors"
               >
-                {isManualResetting ? 'Resetting...' : 'Manual Data Reset'}
+                {isManualResetting ? 'Ending Shift...' : 'End Shift'}
               </button>
             )}
           </div>
@@ -252,7 +253,7 @@ export default function ShiftResetManager({ onResetComplete, className = '' }: S
           <h3 className="text-lg font-semibold text-surface-900 mb-4">Recent Resets</h3>
           <div className="space-y-3">
             {resetHistory.slice(0, 5).map((reset, index) => (
-              <div key={reset.archiveId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div key={generateUniqueReactKey(`shift-reset-history-${reset.archiveId}-${index}-${reset.resetAt?.toMillis?.() || Date.now()}`)} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div>
                   <div className="font-medium text-sm">{reset.shiftName}</div>
                   <div className="text-xs text-gray-500">
@@ -281,7 +282,7 @@ export default function ShiftResetManager({ onResetComplete, className = '' }: S
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">
-                  {currentShift ? 'End Shift & Reset Data' : 'Manual Data Reset'}
+                  {currentShift ? 'End Shift & Reset Data' : 'End Shift'}
                 </h3>
                 <p className="text-sm text-gray-600">This action cannot be undone</p>
               </div>

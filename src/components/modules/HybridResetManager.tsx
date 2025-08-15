@@ -54,12 +54,10 @@ export default function HybridResetManager() {
     if ('serviceWorker' in navigator) {
       try {
         const registration = await navigator.serviceWorker.register('/reset-worker.js')
-        console.log('✅ Reset Service Worker registered')
         
         // Listen for messages from service worker
         navigator.serviceWorker.addEventListener('message', (event) => {
           if (event.data.type === 'PERFORM_RESET') {
-            console.log('📨 Received reset command from service worker')
             handleAutoReset()
           }
         })
@@ -74,7 +72,6 @@ export default function HybridResetManager() {
           
           // If reset was needed and it's been more than 1 hour
           if (now.getTime() - resetTime.getTime() > 60 * 60 * 1000) {
-            console.log('🚨 Found pending background reset, executing now...')
             handleAutoReset()
             cache.delete('/reset-needed')
           }
@@ -120,22 +117,18 @@ export default function HybridResetManager() {
       const now = new Date()
       
       if (!lastDailyReset) {
-        console.log('🔄 No previous reset found, may need initial reset')
         return
       }
       
       const lastResetDate = new Date(lastDailyReset)
       const hoursSinceReset = Math.floor((now.getTime() - lastResetDate.getTime()) / (1000 * 60 * 60))
       
-      console.log(`⏰ Hours since last reset: ${hoursSinceReset}`)
-      
       // If more than 25 hours since last reset (allowing 1 hour buffer), perform catch-up reset
       if (hoursSinceReset > 25) {
-        console.log('🚨 Missed reset detected, performing catch-up reset...')
         if (!isShiftActive) {
           await handleAutoReset()
         } else {
-          console.log('⚠️ Missed reset detected but shift is active - will reset when shift ends')
+          // Will reset when shift ends
         }
       }
     } catch (error) {
@@ -190,15 +183,12 @@ export default function HybridResetManager() {
   const handleAutoReset = async () => {
     if (isShiftActive) {
       // Don't auto-reset if shift is active, just notify
-      console.log('Auto-reset skipped: Active shift detected')
       return
     }
 
     try {
-      console.log('🔄 Performing automatic reset...')
       await resetDailyData()
       localStorage.setItem('lastDailyReset', new Date().toISOString())
-      console.log('✅ Auto-reset completed at', new Date().toLocaleString())
     } catch (error) {
       console.error('❌ Auto-reset failed:', error)
     }
@@ -206,11 +196,9 @@ export default function HybridResetManager() {
 
   const handleManualReset = async () => {
     try {
-      console.log('🔄 Performing manual reset...')
       await resetDailyData()
       localStorage.setItem('lastDailyReset', new Date().toISOString())
       setShowConfirmReset(false)
-      console.log('✅ Manual reset completed at', new Date().toLocaleString())
     } catch (error) {
       console.error('❌ Manual reset failed:', error)
     }

@@ -7,13 +7,6 @@ export default function QuickSubscriptionFixer() {
   const { subscription, refreshSubscription } = useSubscription();
   const { user, profile } = useAuth();
 
-  console.log('🔍 QuickSubscriptionFixer DEBUG:', {
-    subscription,
-    userUid: user?.uid,
-    subscriptionTier: subscription?.tier,
-    shouldShow: subscription?.tier !== 'enterprise'
-  });
-
   const handleUpgradeToEnterprise = async () => {
     const tenantId = user?.uid;
     if (!tenantId) {
@@ -22,7 +15,6 @@ export default function QuickSubscriptionFixer() {
     }
 
     try {
-      console.log('🚀 Upgrading to Enterprise...');
       await forceUpgradeToEnterprise(tenantId);
       
       // Refresh subscription data

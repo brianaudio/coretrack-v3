@@ -52,7 +52,6 @@ const UserManagement: React.FC<UserManagementProps> = ({
         });
 
         setUsers(fetchedUsers);
-        console.log(`✅ Loaded ${fetchedUsers.length} users for tenant ${tenantId}`);
       } catch (error) {
         console.error('Error loading users:', error);
         // Fall back to empty array on error

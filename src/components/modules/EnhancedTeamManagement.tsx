@@ -7,8 +7,6 @@ import { collection, doc, addDoc, updateDoc, deleteDoc, getDocs, setDoc } from '
 import { db } from '../../lib/firebase'
 import { createStaffAccount } from '../../lib/auth/roleBasedAuth'
 import { UserRole } from '../../lib/rbac/permissions'
-import ShiftResetManager from './ShiftResetManager'
-import HybridResetManager from './HybridResetManager'
 
 // Platform administration - crucial for SaaS scalability
 const PLATFORM_ADMINS = [
@@ -83,7 +81,7 @@ export default function EnhancedTeamManagement() {
 
   // Coordinated loading state - team loading OR auth still loading
   const isFullyLoading = loading || authLoading
-  const [activeTab, setActiveTab] = useState<'team' | 'roles' | 'reset' | 'activity'>('team')
+  const [activeTab, setActiveTab] = useState<'team' | 'roles' | 'activity'>('team')
   
   // Data mode toggle
   const [useRealData, setUseRealData] = useState(false)
@@ -843,7 +841,6 @@ export default function EnhancedTeamManagement() {
             {[
               { id: 'team', label: 'Team Members', icon: '👥' },
               { id: 'roles', label: 'Role Permissions', icon: '🔑' },
-              { id: 'reset', label: 'Shift Management', icon: '🔄' },
               { id: 'activity', label: 'Recent Activity', icon: '📊' }
             ].map(tab => (
               <button
@@ -984,167 +981,6 @@ export default function EnhancedTeamManagement() {
                   </div>
                 </div>
               ))}
-            </div>
-          </div>
-        )}
-
-        {/* Shift Management Tab */}
-        {activeTab === 'reset' && (
-          <div className="p-6 space-y-6">
-            {/* Clean Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <h3 className="text-2xl font-semibold text-surface-900">Shift Management</h3>
-                <p className="text-surface-600 mt-1">Manage shifts and team operations</p>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="bg-white rounded-lg px-4 py-2 border border-surface-200 shadow-sm">
-                  <div className="text-xs font-medium text-surface-600">Team Size</div>
-                  <div className="text-lg font-semibold text-surface-900">{teamMembers.length}</div>
-                </div>
-                <div className="bg-white rounded-lg px-4 py-2 border border-surface-200 shadow-sm">
-                  <div className="text-xs font-medium text-surface-600">Active</div>
-                  <div className="text-lg font-semibold text-surface-900">{teamMembers.filter(m => m.status === 'active').length}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Minimalistic Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Active Shifts Card */}
-              <div className="bg-white rounded-xl border border-surface-200 p-6 shadow-sm hover:shadow-md transition-shadow duration-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-surface-600">Active Shifts</p>
-                    <p className="text-2xl font-semibold text-surface-900 mt-1">0</p>
-                    <p className="text-xs text-surface-500 mt-1">Currently running</p>
-                  </div>
-                  <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center">
-                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-
-              {/* Team Members Card */}
-              <div className="bg-white rounded-xl border border-surface-200 p-6 shadow-sm hover:shadow-md transition-shadow duration-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-surface-600">Team Members</p>
-                    <p className="text-2xl font-semibold text-surface-900 mt-1">{teamMembers.length}</p>
-                    <p className="text-xs text-surface-500 mt-1">Available staff</p>
-                  </div>
-                  <div className="w-10 h-10 bg-primary-50 rounded-lg flex items-center justify-center">
-                    <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-
-              {/* Efficiency Card */}
-              <div className="bg-white rounded-xl border border-surface-200 p-6 shadow-sm hover:shadow-md transition-shadow duration-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-surface-600">Efficiency</p>
-                    <p className="text-2xl font-semibold text-surface-900 mt-1">98%</p>
-                    <p className="text-xs text-surface-500 mt-1">Team performance</p>
-                  </div>
-                  <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center">
-                    <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Shift Operations */}
-            <div className="space-y-4">
-              {/* Manual Shift Close-Out */}
-              <div className="bg-white rounded-xl border border-surface-200 shadow-sm">
-                <div className="px-6 py-4 border-b border-surface-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-lg font-semibold text-surface-900">Manual Shift Close-Out</h4>
-                      <p className="text-sm text-surface-600 mt-1">End current shift and archive daily data safely</p>
-                    </div>
-                    <div className="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center">
-                      <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-                <div className="p-6">
-                  <ShiftResetManager />
-                </div>
-              </div>
-
-              {/* Automatic Reset Schedule */}
-              <div className="bg-white rounded-xl border border-surface-200 shadow-sm">
-                <div className="px-6 py-4 border-b border-surface-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-lg font-semibold text-surface-900">Automatic Reset Schedule</h4>
-                      <p className="text-sm text-surface-600 mt-1">Configure automatic daily data resets and shift automation</p>
-                    </div>
-                    <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center">
-                      <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-                <div className="p-6">
-                  <HybridResetManager />
-                </div>
-              </div>
-            </div>
-
-            {/* Features Overview */}
-            <div className="bg-white rounded-xl border border-surface-200 p-6 shadow-sm">
-              <div className="flex items-start space-x-4">
-                <div className="w-10 h-10 bg-primary-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <h4 className="text-lg font-semibold text-surface-900 mb-3">Enterprise Features</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-1.5 h-1.5 bg-primary-500 rounded-full"></div>
-                        <span className="text-surface-700"><span className="font-medium">Data Archival:</span> Safe backup of all shift data</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-1.5 h-1.5 bg-primary-500 rounded-full"></div>
-                        <span className="text-surface-700"><span className="font-medium">Auto Reset:</span> Scheduled daily operations</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-1.5 h-1.5 bg-primary-500 rounded-full"></div>
-                        <span className="text-surface-700"><span className="font-medium">Team Analytics:</span> Performance tracking</span>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-1.5 h-1.5 bg-primary-500 rounded-full"></div>
-                        <span className="text-surface-700"><span className="font-medium">Role Management:</span> Access control</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-1.5 h-1.5 bg-primary-500 rounded-full"></div>
-                        <span className="text-surface-700"><span className="font-medium">Real-time Updates:</span> Live dashboard</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-1.5 h-1.5 bg-primary-500 rounded-full"></div>
-                        <span className="text-surface-700"><span className="font-medium">Comprehensive Reports:</span> Detailed insights</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         )}

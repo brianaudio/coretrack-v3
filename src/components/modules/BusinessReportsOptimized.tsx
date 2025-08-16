@@ -374,6 +374,13 @@ export default function BusinessReports() {
     ]
     
     yPos = addSimpleMetrics(pdf, salesMetrics, yPos)
+
+    // Add a short connective sentence for smoother flow
+    pdf.setTextColor(99, 99, 102)
+    pdf.setFontSize(10)
+    pdf.setFont('helvetica', 'normal')
+    pdf.text('Below is a concise breakdown of daily sales and the products that are driving revenue for this period.', 20, yPos)
+    yPos += 12
     
     // Daily Sales Breakdown
     if (data.salesData.length > 0) {

@@ -13,6 +13,50 @@ import { sessionManager } from '../lib/auth/sessionManager'
 
 type AppMode = 'landing' | 'checkout' | 'signup' | 'payment' | 'login' | 'onboarding' | 'dashboard'
 
+// Helper function to determine if user needs onboarding
+const checkIfUserNeedsOnboarding = (user: any): boolean => {
+  // Don't show onboarding if no user
+  if (!user) return false
+  
+  // Check localStorage with standardized key (prioritize the 'completed' version)
+  const onboardingCompletedNew = localStorage.getItem('coretrack_onboarding_completed')
+  const onboardingCompletedOld = localStorage.getItem('coretrack_onboarding_complete')
+  
+  // If either version exists, consider onboarding completed
+  if (onboardingCompletedNew || onboardingCompletedOld) {
+    // Standardize to the new key if old key exists
+    if (onboardingCompletedOld && !onboardingCompletedNew) {
+      localStorage.setItem('coretrack_onboarding_completed', 'true')
+      localStorage.removeItem('coretrack_onboarding_complete') // Clean up old key
+    }
+    return false // Don't show onboarding
+  }
+  
+  // For existing users who never had the localStorage flag set,
+  // check if they're created recently (less than 3 days ago)
+  // This prevents existing users from seeing onboarding every time
+  if (user.metadata?.creationTime) {
+    const creationTime = new Date(user.metadata.creationTime).getTime()
+    const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000) // 3 days in milliseconds
+    
+    // Only show onboarding for users created in the last 3 days
+    const isRecentUser = creationTime > threeDaysAgo
+    
+    if (!isRecentUser) {
+      // Auto-mark old users as onboarded to prevent future prompts
+      localStorage.setItem('coretrack_onboarding_completed', 'true')
+      return false
+    }
+    
+    return true // Show onboarding for new users
+  }
+  
+  // Fallback: don't show onboarding if we can't determine user age
+  // This prevents existing users from being stuck in onboarding
+  localStorage.setItem('coretrack_onboarding_completed', 'true')
+  return false
+}
+
 export default function Home() {
   const { user, loading: authLoading } = useAuth()
   const { setCurrentRole, setCurrentUser, loading: userLoading, setLoading: setUserLoading } = useUser()
@@ -55,9 +99,9 @@ export default function Home() {
       
       // Only change mode if we're not already in a user-specific mode
       if (mode === 'landing' || mode === 'login' || mode === 'signup' || mode === 'checkout') {
-        // Check onboarding status synchronously to avoid race conditions
-        const onboardingCompleted = localStorage.getItem('coretrack_onboarding_completed')
-        if (!onboardingCompleted) {
+        // Check onboarding status with better logic for existing users
+        const shouldShowOnboarding = checkIfUserNeedsOnboarding(user)
+        if (shouldShowOnboarding) {
           setMode('onboarding')
         } else {
           setMode('dashboard')

@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '@/lib/context/AuthContext'
 import { useBranch } from '@/lib/context/BranchContext'
+import { useShift } from '@/lib/context/ShiftContext'
 import { getPOSItems, createPOSOrder, getPOSOrders, type POSItem as FirebasePOSItem, type POSOrder } from '@/lib/firebase/pos'
 import { getMenuItems, type MenuItem } from '@/lib/firebase/menuBuilder'
 import { getAddons, type Addon as MenuBuilderAddon } from '@/lib/firebase/addons'
@@ -14,6 +15,7 @@ import CoreTrackLogo from '@/components/CoreTrackLogo'
 import EnhancedPaymentModal from './EnhancedPaymentModal'
 import { useOfflineStatus } from '@/hooks/useOfflineStatus'
 import OfflineIndicator from '@/components/ui/OfflineIndicator'
+import ShiftGate from '@/components/ShiftGate'
 
 // 🚀 Enhanced Interfaces with Add-ons Support
 interface AddOn {
@@ -81,8 +83,15 @@ interface OfflineOrder {
 }
 
 export default function POSEnhanced() {
-  const { user, profile } = useAuth()
+  const { user, profile, signOut } = useAuth()
   const { selectedBranch } = useBranch()
+  const { 
+    currentShift,
+    isShiftActive,
+    startNewShift,
+    endCurrentShift,
+    loading: shiftLoading 
+  } = useShift()
   
   // 🚀 Enhanced Offline Status Management
   const { 
@@ -1166,6 +1175,12 @@ export default function POSEnhanced() {
 
   // 🛒 Add to Cart Function
   const addToCart = (item: POSItem, addons: CartItemAddOn[] = [], customizationText = '') => {
+    // 🛡️ Shift Protection - Can't add items without active shift
+    if (!isShiftActive) {
+      alert('Please start a shift before adding items to cart')
+      return
+    }
+
     const cartItemId = `${item.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     const addonsTotal = addons.reduce((sum, addon) => sum + addon.price, 0)
     const totalPrice = item.price + addonsTotal
@@ -1527,7 +1542,16 @@ export default function POSEnhanced() {
   }
 
   return (
-    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
+    <>
+      {/* 🏛️ Shift Gate - Professional Access Control */}
+      {!isShiftActive ? (
+        <ShiftGate 
+          moduleName="the Point of Sale system"
+          customMessage="Start your shift to begin processing orders and accepting payments"
+          showStartShiftButton={false}
+        />
+      ) : (
+        <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
       {/* 🎯 Minimalist Enterprise Header */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
         <div className="px-6 py-3">
@@ -1589,9 +1613,9 @@ export default function POSEnhanced() {
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden min-h-0">
         {/* 📋 Left Panel - Menu */}
-        <div className="flex-1 flex flex-col bg-white">
+        <div className="flex-1 flex flex-col bg-white min-w-0">
           {/* Ultra-Compact Category Filter */}
           <div className="bg-white border-b border-gray-200 px-6 py-3">
             <div className="flex items-center justify-between mb-2">
@@ -1845,7 +1869,7 @@ export default function POSEnhanced() {
         </div>
 
         {/* 🛒 Right Panel - Compact Cart */}
-        <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
+        <div className="w-80 bg-white border-l border-gray-200 flex flex-col min-h-0 relative z-10" style={{minWidth: '320px'}}>
           {/* Minimalist Cart Header */}
           <div className="bg-white border-b border-gray-200 px-6 py-4">
             <div className="flex items-center justify-between">
@@ -2666,6 +2690,8 @@ export default function POSEnhanced() {
         </div>
       )}
 
-    </div>
+        </div>
+      )}
+    </>
   )
 }

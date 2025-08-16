@@ -474,129 +474,178 @@ export default function BusinessReports() {
     }
   }
 
-  const generateSpecificReport = async (reportType: string, data: ReportData) => {
-    const doc = new jsPDF()
-    const pageHeight = doc.internal.pageSize.height
-    const pageWidth = doc.internal.pageSize.width
-    let yPos = 20
-
-    // Header
-    doc.setFontSize(20)
-    doc.text('Reports Centre', 20, yPos)
-    yPos += 10
-
-    doc.setFontSize(12)
-    doc.text(`Branch: ${selectedBranch?.name || 'All Branches'}`, 20, yPos)
-    yPos += 8
-    doc.text(`Period: ${data.timeRange}`, 20, yPos)
-    yPos += 8
-    doc.text(`Generated: ${new Date().toLocaleString()}`, 20, yPos)
-    yPos += 15
-
-    // Add a line
-    doc.line(20, yPos, pageWidth - 20, yPos)
-    yPos += 10
-
-    switch (reportType) {
-      case 'daily_sales':
-        await generateSalesReport(doc, data, yPos)
-        break
-      case 'profit_loss':
-        await generateProfitLossReport(doc, data, yPos)
-        break
-      case 'inventory_summary':
-        await generateInventoryReport(doc, data, yPos)
-        break
-      case 'menu_performance':
-        await generateMenuPerformanceReport(doc, data, yPos)
-        break
-      case 'payment_methods':
-        await generatePaymentMethodsReport(doc, data, yPos)
-        break
-      case 'executive_summary':
-        await generateExecutiveSummaryReport(doc, data, yPos)
-        break
-      case 'purchase_summary':
-        await generatePurchaseSummaryReport(doc, data, yPos)
-        break
-      case 'supplier_analysis':
-        await generateSupplierAnalysisReport(doc, data, yPos)
-        break
-      case 'cost_tracking':
-        await generateCostTrackingReport(doc, data, yPos)
-        break
-    }
-
-    // Save the PDF
-    const reportName = reportOptions.find(r => r.id === reportType)?.name || 'Business Report'
-    const fileName = `${reportName.replace(/\s+/g, '_')}_${data.timeRange.replace(/\s+/g, '_')}.pdf`
-    doc.save(fileName)
+  // Apple Design System Colors
+  const APPLE_COLORS = {
+    BLUE: '#007AFF',      // Apple Blue
+    GREEN: '#34C759',     // Apple Green  
+    ORANGE: '#FF9500',    // Apple Orange
+    RED: '#FF3B30',       // Apple Red
+    PURPLE: '#AF52DE',    // Apple Purple
+    GRAY: '#8E8E93',      // Apple Gray
+    GRAY2: '#AEAEB2',     // Light Gray
+    GRAY3: '#C7C7CC',     // Lighter Gray
+    BLACK: '#000000',     // Pure Black
+    DARK_GRAY: '#1C1C1E'  // Dark Gray
   }
 
-  // Report generators
-  const generateSalesReport = async (doc: jsPDF, data: ReportData, startY: number) => {
+  // Apple-inspired PDF helper functions
+  const addReportHeader = (pdf: jsPDF, title: string, data: ReportData): number => {
+    const pageWidth = pdf.internal.pageSize.width
+    let yPos = 40
+
+    // Apple-style large title
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(32)
+    pdf.setTextColor(APPLE_COLORS.BLACK)
+    pdf.text(title, 40, yPos)
+    yPos += 20
+
+    // Subtitle with business info in Apple gray
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(13)
+    pdf.setTextColor(APPLE_COLORS.GRAY)
+    pdf.text(`${selectedBranch?.name || 'All Branches'} • ${data.timeRange}`, 40, yPos)
+    yPos += 10
+    pdf.text(`Generated ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, 40, yPos)
+    yPos += 30
+
+    return yPos
+  }
+
+  const addSectionTitle = (pdf: jsPDF, title: string, yPos: number): number => {
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(18)
+    pdf.setTextColor(APPLE_COLORS.BLACK)
+    pdf.text(title, 40, yPos)
+    return yPos + 20
+  }
+
+  const addMetricCard = (pdf: jsPDF, label: string, value: string, color: string, x: number, y: number): void => {
+    // Apple-style metric card with colored accent
+    pdf.setFillColor(color)
+    pdf.rect(x, y - 5, 3, 60, 'F') // Colored left accent bar
+
+    pdf.setFillColor('#F9F9F9')
+    pdf.rect(x + 3, y - 5, 130, 60, 'F') // Light background
+
+    // Metric value in large, bold text
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(24)
+    pdf.setTextColor(APPLE_COLORS.BLACK)
+    pdf.text(value, x + 15, y + 20)
+
+    // Label in smaller gray text
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(13)
+    pdf.setTextColor(APPLE_COLORS.GRAY)
+    pdf.text(label, x + 15, y + 40)
+  }
+
+  const addDataTable = (pdf: jsPDF, headers: string[], rows: string[][], startY: number): number => {
+    let yPos = startY
+    const colWidth = 40
+    
+    // Headers with Apple blue background
+    pdf.setFillColor(APPLE_COLORS.BLUE)
+    pdf.rect(40, yPos - 5, headers.length * colWidth, 20, 'F')
+    
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(13)
+    pdf.setTextColor('#FFFFFF')
+    headers.forEach((header, i) => {
+      pdf.text(header, 45 + (i * colWidth), yPos + 8)
+    })
+    yPos += 20
+
+    // Rows with alternating backgrounds (very subtle)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(12)
+    pdf.setTextColor(APPLE_COLORS.BLACK)
+    
+    rows.forEach((row, rowIndex) => {
+      if (rowIndex % 2 === 1) {
+        pdf.setFillColor('#FAFAFA')
+        pdf.rect(40, yPos - 3, headers.length * colWidth, 16, 'F')
+      }
+      
+      row.forEach((cell, colIndex) => {
+        pdf.text(cell, 45 + (colIndex * colWidth), yPos + 8)
+      })
+      yPos += 16
+    })
+
+    return yPos + 10
+  }
+
+  // Apple-inspired report generators
+  const generateAppleSalesReport = async (pdf: jsPDF, data: ReportData, startY: number) => {
     let yPos = startY
     
-    doc.setFontSize(16)
-    doc.text('Sales Report', 20, yPos)
-    yPos += 15
-
     if (data.orders.length === 0) {
-      doc.setFontSize(12)
-      doc.text('No sales data available for the selected period.', 20, yPos)
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(16)
+      pdf.setTextColor(APPLE_COLORS.GRAY)
+      pdf.text('No sales data available for the selected period.', 40, yPos)
       return
     }
 
-    // Sales Summary
+    // Calculate metrics
     const totalSales = data.orders.reduce((sum, order) => sum + (order.total || 0), 0)
     const totalOrders = data.orders.length
     const averageOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0
 
-    doc.setFontSize(14)
-    doc.text('Sales Summary:', 20, yPos)
-    yPos += 10
-
-    doc.setFontSize(12)
-    doc.text(`Total Sales: ₱${totalSales.toFixed(2)}`, 30, yPos)
-    yPos += 8
-    doc.text(`Total Orders: ${totalOrders}`, 30, yPos)
-    yPos += 8
-    doc.text(`Average Order Value: ₱${averageOrderValue.toFixed(2)}`, 30, yPos)
-    yPos += 15
-
-    // Daily breakdown if we have multiple days
-    doc.setFontSize(14)
-    doc.text('Daily Breakdown:', 20, yPos)
-    yPos += 10
-
-    const dailySales = new Map()
+    // Payment method breakdown
+    const paymentMethods: Record<string, number> = {}
     data.orders.forEach(order => {
-      const date = order.createdAt?.toDate()?.toDateString() || new Date(order.orderDate || 0).toDateString()
-      const current = dailySales.get(date) || { sales: 0, orders: 0 }
-      dailySales.set(date, {
-        sales: current.sales + (order.total || 0),
-        orders: current.orders + 1
-      })
+      const method = order.paymentMethod || 'Unknown'
+      paymentMethods[method] = (paymentMethods[method] || 0) + (order.total || 0)
     })
 
-    doc.setFontSize(12)
-    dailySales.forEach((summary, date) => {
-      if (yPos > 250) { // New page if needed
-        doc.addPage()
-        yPos = 20
-      }
-      doc.text(`${date}: ₱${summary.sales.toFixed(2)} (${summary.orders} orders)`, 30, yPos)
-      yPos += 8
-    })
+    // Sales Overview Cards
+    yPos = addSectionTitle(pdf, 'Sales Overview', yPos)
+    
+    // Row 1: Total Sales and Orders
+    addMetricCard(pdf, 'Total Sales', `₱${totalSales.toLocaleString()}`, APPLE_COLORS.GREEN, 40, yPos)
+    addMetricCard(pdf, 'Total Orders', totalOrders.toString(), APPLE_COLORS.BLUE, 190, yPos)
+    yPos += 80
+
+    // Row 2: Average Order Value
+    addMetricCard(pdf, 'Average Order Value', `₱${averageOrderValue.toFixed(2)}`, APPLE_COLORS.ORANGE, 40, yPos)
+    yPos += 80
+
+    // Payment Methods Section
+    yPos = addSectionTitle(pdf, 'Payment Methods', yPos)
+    
+    const paymentData = Object.entries(paymentMethods).map(([method, amount]) => [
+      method,
+      `₱${amount.toFixed(2)}`,
+      `${((amount / totalSales) * 100).toFixed(1)}%`
+    ])
+
+    if (paymentData.length > 0) {
+      yPos = addDataTable(pdf, ['Method', 'Amount', 'Percentage'], paymentData, yPos)
+    }
+
+    // Recent Orders Section
+    yPos = addSectionTitle(pdf, 'Recent Orders', yPos + 20)
+    
+    const recentOrders = data.orders
+      .slice(0, 10)
+      .map(order => [
+        new Date(order.timestamp?.toDate?.() || order.createdAt?.toDate?.() || Date.now()).toLocaleDateString(),
+        `₱${(order.total || 0).toFixed(2)}`,
+        order.paymentMethod || 'N/A',
+        order.status || 'Completed'
+      ])
+
+    if (recentOrders.length > 0) {
+      addDataTable(pdf, ['Date', 'Amount', 'Payment', 'Status'], recentOrders, yPos)
+    }
   }
 
-  const generateProfitLossReport = async (doc: jsPDF, data: ReportData, startY: number) => {
+  const generateAppleProfitLossReport = async (pdf: jsPDF, data: ReportData, startY: number) => {
     let yPos = startY
     
-    doc.setFontSize(16)
-    doc.text('Profit & Loss Report', 20, yPos)
-    yPos += 15
-
     const totalRevenue = data.orders.reduce((sum, order) => sum + (order.total || 0), 0)
     const totalExpenses = data.expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0)
     
@@ -614,321 +663,293 @@ export default function BusinessReports() {
     
     // If no COGS data available, estimate based on typical food service margins
     if (totalCOGS === 0 && totalRevenue > 0) {
-      // Estimate COGS as 30-35% of revenue (typical for food service)
       totalCOGS = totalRevenue * 0.33 // 33% estimated COGS
-      console.log(`⚠️ No COGS data found. Estimating COGS at 33% of revenue: ₱${totalCOGS}`)
     }
     
     const grossProfit = totalRevenue - totalCOGS
     const netProfit = grossProfit - totalExpenses
 
-    doc.setFontSize(14)
-    doc.text('Financial Summary:', 20, yPos)
-    yPos += 10
+    // Financial Overview Cards
+    yPos = addSectionTitle(pdf, 'Financial Overview', yPos)
+    
+    // Row 1: Revenue and Expenses
+    addMetricCard(pdf, 'Total Revenue', `₱${totalRevenue.toLocaleString()}`, APPLE_COLORS.GREEN, 40, yPos)
+    addMetricCard(pdf, 'Total Expenses', `₱${totalExpenses.toLocaleString()}`, APPLE_COLORS.RED, 190, yPos)
+    yPos += 80
 
-    doc.setFontSize(12)
-    doc.text(`Total Revenue: ₱${totalRevenue.toFixed(2)}`, 30, yPos)
-    yPos += 8
-    doc.text(`Cost of Goods Sold (COGS): ₱${totalCOGS.toFixed(2)}`, 30, yPos)
-    yPos += 8
-    doc.text(`Gross Profit: ₱${grossProfit.toFixed(2)}`, 30, yPos)
-    yPos += 8
-    doc.text(`Operating Expenses: ₱${totalExpenses.toFixed(2)}`, 30, yPos)
-    yPos += 8
-    doc.text(`Net Profit: ₱${netProfit.toFixed(2)}`, 30, yPos)
-    yPos += 8
-    doc.text(`Gross Margin: ${totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100).toFixed(2) : '0.00'}%`, 30, yPos)
-    yPos += 8
-    doc.text(`Net Margin: ${totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(2) : '0.00'}%`, 30, yPos)
-    yPos += 15
+    // Row 2: Gross and Net Profit
+    addMetricCard(pdf, 'Gross Profit', `₱${grossProfit.toLocaleString()}`, APPLE_COLORS.BLUE, 40, yPos)
+    addMetricCard(pdf, 'Net Profit', `₱${netProfit.toLocaleString()}`, 
+      netProfit >= 0 ? APPLE_COLORS.GREEN : APPLE_COLORS.RED, 190, yPos)
+    yPos += 80
 
-    // COGS breakdown if available
-    if (totalCOGS > 0) {
-      doc.setFontSize(14)
-      doc.text('Cost Analysis:', 20, yPos)
-      yPos += 10
+    // Margin Analysis
+    yPos = addSectionTitle(pdf, 'Margin Analysis', yPos)
+    
+    const grossMargin = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100).toFixed(1) : '0.0'
+    const netMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : '0.0'
+    
+    addMetricCard(pdf, 'Gross Margin', `${grossMargin}%`, APPLE_COLORS.BLUE, 40, yPos)
+    addMetricCard(pdf, 'Net Margin', `${netMargin}%`, APPLE_COLORS.ORANGE, 190, yPos)
+    yPos += 80
 
-      doc.setFontSize(12)
-      if (totalCOGS === totalRevenue * 0.33) {
-        doc.text('* COGS estimated at 33% of revenue (no cost data available)', 30, yPos)
-        yPos += 8
-        doc.text('  Configure menu item costs for accurate profit calculation', 30, yPos)
-        yPos += 15
-      } else {
-        doc.text('COGS calculated from menu item costs', 30, yPos)
-        yPos += 15
-      }
-    }
+    // Cost Breakdown
+    yPos = addSectionTitle(pdf, 'Cost Breakdown', yPos)
+    
+    const costData = [
+      ['Cost of Goods Sold', `₱${totalCOGS.toLocaleString()}`, `${totalRevenue > 0 ? ((totalCOGS / totalRevenue) * 100).toFixed(1) : '0'}%`],
+      ['Operating Expenses', `₱${totalExpenses.toLocaleString()}`, `${totalRevenue > 0 ? ((totalExpenses / totalRevenue) * 100).toFixed(1) : '0'}%`]
+    ]
+    
+    yPos = addDataTable(pdf, ['Category', 'Amount', '% of Revenue'], costData, yPos)
 
-    // Expense breakdown
-    if (data.expenses.length > 0) {
-      doc.setFontSize(14)
-      doc.text('Expense Categories:', 20, yPos)
-      yPos += 10
-
-      const expenseCategories = new Map()
-      data.expenses.forEach(expense => {
-        const category = expense.category || 'Other'
-        const current = expenseCategories.get(category) || 0
-        expenseCategories.set(category, current + (expense.amount || 0))
-      })
-
-      doc.setFontSize(12)
-      expenseCategories.forEach((amount, category) => {
-        if (yPos > 250) {
-          doc.addPage()
-          yPos = 20
-        }
-        doc.text(`${category}: ₱${amount.toFixed(2)}`, 30, yPos)
-        yPos += 8
-      })
+    // Add note if COGS is estimated
+    if (totalCOGS === totalRevenue * 0.33 && totalCOGS > 0) {
+      yPos += 20
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(11)
+      pdf.setTextColor(APPLE_COLORS.GRAY)
+      pdf.text('* COGS estimated at 33% of revenue. Configure menu item costs for accuracy.', 40, yPos)
     }
   }
 
-  const generateInventoryReport = async (doc: jsPDF, data: ReportData, startY: number) => {
+  const generateAppleInventoryReport = async (pdf: jsPDF, data: ReportData, startY: number) => {
     let yPos = startY
     
-    doc.setFontSize(16)
-    doc.text('Inventory Report', 20, yPos)
-    yPos += 15
-
     if (data.inventory.length === 0) {
-      doc.setFontSize(12)
-      doc.text('No inventory data available.', 20, yPos)
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(16)
+      pdf.setTextColor(APPLE_COLORS.GRAY)
+      pdf.text('No inventory data available.', 40, yPos)
       return
     }
-
-    doc.setFontSize(14)
-    doc.text('Current Stock Levels:', 20, yPos)
-    yPos += 10
 
     const totalItems = data.inventory.length
     const lowStockItems = data.inventory.filter(item => (item.quantity || 0) < (item.minimumStock || 5))
     const outOfStockItems = data.inventory.filter(item => (item.quantity || 0) === 0)
+    const totalValue = data.inventory.reduce((sum, item) => sum + ((item.quantity || 0) * (item.price || 0)), 0)
 
-    doc.setFontSize(12)
-    doc.text(`Total Items: ${totalItems}`, 30, yPos)
-    yPos += 8
-    doc.text(`Low Stock Items: ${lowStockItems.length}`, 30, yPos)
-    yPos += 8
-    doc.text(`Out of Stock: ${outOfStockItems.length}`, 30, yPos)
-    yPos += 15
+    // Inventory Overview Cards
+    yPos = addSectionTitle(pdf, 'Inventory Overview', yPos)
+    
+    // Row 1: Total Items and Value
+    addMetricCard(pdf, 'Total Items', totalItems.toString(), APPLE_COLORS.BLUE, 40, yPos)
+    addMetricCard(pdf, 'Total Value', `₱${totalValue.toLocaleString()}`, APPLE_COLORS.GREEN, 190, yPos)
+    yPos += 80
 
-    // Low stock items detail
+    // Row 2: Stock Alerts
+    addMetricCard(pdf, 'Low Stock', lowStockItems.length.toString(), APPLE_COLORS.ORANGE, 40, yPos)
+    addMetricCard(pdf, 'Out of Stock', outOfStockItems.length.toString(), APPLE_COLORS.RED, 190, yPos)
+    yPos += 80
+
+    // Items Requiring Attention
     if (lowStockItems.length > 0) {
-      doc.setFontSize(14)
-      doc.text('Items Requiring Attention:', 20, yPos)
-      yPos += 10
+      yPos = addSectionTitle(pdf, 'Items Requiring Attention', yPos)
+      
+      const alertData = lowStockItems.slice(0, 15).map(item => [
+        item.name || 'Unknown Item',
+        `${item.quantity || 0}`,
+        (item.quantity || 0) === 0 ? 'OUT OF STOCK' : 'LOW STOCK',
+        `₱${((item.quantity || 0) * (item.price || 0)).toFixed(2)}`
+      ])
+      
+      yPos = addDataTable(pdf, ['Item Name', 'Quantity', 'Status', 'Value'], alertData, yPos)
+    }
 
-      doc.setFontSize(12)
-      lowStockItems.forEach(item => {
-        if (yPos > 250) {
-          doc.addPage()
-          yPos = 20
-        }
-        const status = (item.quantity || 0) === 0 ? 'OUT OF STOCK' : 'LOW STOCK'
-        doc.text(`${item.name}: ${item.quantity || 0} units (${status})`, 30, yPos)
-        yPos += 8
-      })
+    // Top Value Items
+    if (data.inventory.length > 0) {
+      yPos = addSectionTitle(pdf, 'Top Value Items', yPos + 20)
+      
+      const topItems = data.inventory
+        .map(item => ({
+          ...item,
+          totalValue: (item.quantity || 0) * (item.price || 0)
+        }))
+        .sort((a, b) => b.totalValue - a.totalValue)
+        .slice(0, 10)
+        .map(item => [
+          item.name || 'Unknown Item',
+          `${item.quantity || 0}`,
+          `₱${(item.price || 0).toFixed(2)}`,
+          `₱${item.totalValue.toFixed(2)}`
+        ])
+      
+      addDataTable(pdf, ['Item Name', 'Quantity', 'Unit Price', 'Total Value'], topItems, yPos)
     }
   }
 
-  const generateMenuPerformanceReport = async (doc: jsPDF, data: ReportData, startY: number) => {
+  const generateAppleMenuPerformanceReport = async (pdf: jsPDF, data: ReportData, startY: number) => {
     let yPos = startY
     
-    doc.setFontSize(16)
-    doc.text('Menu Performance Report', 20, yPos)
-    yPos += 15
-
     if (data.orders.length === 0) {
-      doc.setFontSize(12)
-      doc.text('No order data available for menu analysis.', 20, yPos)
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(16)
+      pdf.setTextColor(APPLE_COLORS.GRAY)
+      pdf.text('No order data available for menu performance analysis.', 40, yPos)
       return
     }
 
-    // Analyze menu items from orders
-    const itemSales = new Map()
+    // Analyze menu performance
+    const itemSales: Record<string, { quantity: number, revenue: number }> = {}
     data.orders.forEach(order => {
       if (order.items && Array.isArray(order.items)) {
         order.items.forEach((item: any) => {
-          const itemName = item.name || 'Unknown Item'
+          const name = item.name || 'Unknown Item'
           const quantity = item.quantity || 1
           const price = item.price || 0
-          const current = itemSales.get(itemName) || { quantity: 0, revenue: 0 }
-          itemSales.set(itemName, {
-            quantity: current.quantity + quantity,
-            revenue: current.revenue + (quantity * price)
-          })
+          
+          if (!itemSales[name]) {
+            itemSales[name] = { quantity: 0, revenue: 0 }
+          }
+          itemSales[name].quantity += quantity
+          itemSales[name].revenue += quantity * price
         })
       }
     })
 
-    if (itemSales.size === 0) {
-      doc.setFontSize(12)
-      doc.text('No detailed item data available in orders.', 20, yPos)
-      return
+    const totalRevenue = Object.values(itemSales).reduce((sum, item) => sum + item.revenue, 0)
+    const totalQuantity = Object.values(itemSales).reduce((sum, item) => sum + item.quantity, 0)
+
+    // Performance Overview
+    yPos = addSectionTitle(pdf, 'Menu Performance Overview', yPos)
+    
+    addMetricCard(pdf, 'Unique Items Sold', Object.keys(itemSales).length.toString(), APPLE_COLORS.BLUE, 40, yPos)
+    addMetricCard(pdf, 'Total Items Sold', totalQuantity.toString(), APPLE_COLORS.GREEN, 190, yPos)
+    yPos += 80
+
+    // Top Performers
+    yPos = addSectionTitle(pdf, 'Top Performing Items', yPos)
+    
+    const topPerformers = Object.entries(itemSales)
+      .sort((a, b) => b[1].revenue - a[1].revenue)
+      .slice(0, 10)
+      .map(([name, data]) => [
+        name,
+        data.quantity.toString(),
+        `₱${data.revenue.toFixed(2)}`,
+        `${((data.revenue / totalRevenue) * 100).toFixed(1)}%`
+      ])
+    
+    if (topPerformers.length > 0) {
+      addDataTable(pdf, ['Item Name', 'Qty Sold', 'Revenue', '% of Total'], topPerformers, yPos)
     }
-
-    // Sort by quantity sold
-    const sortedItems = Array.from(itemSales.entries())
-      .sort((a, b) => b[1].quantity - a[1].quantity)
-      .slice(0, 10) // Top 10 items
-
-    doc.setFontSize(14)
-    doc.text('Top Selling Items:', 20, yPos)
-    yPos += 10
-
-    doc.setFontSize(12)
-    sortedItems.forEach(([itemName, stats], index) => {
-      if (yPos > 250) {
-        doc.addPage()
-        yPos = 20
-      }
-      doc.text(`${index + 1}. ${itemName}: ${stats.quantity} sold, ₱${stats.revenue.toFixed(2)}`, 30, yPos)
-      yPos += 8
-    })
   }
 
-  const generatePaymentMethodsReport = async (doc: jsPDF, data: ReportData, startY: number) => {
+  const generateApplePaymentMethodsReport = async (pdf: jsPDF, data: ReportData, startY: number) => {
     let yPos = startY
     
-    doc.setFontSize(16)
-    doc.text('Payment Methods Analysis', 20, yPos)
-    yPos += 15
-
     if (data.orders.length === 0) {
-      doc.setFontSize(12)
-      doc.text('No payment data available.', 20, yPos)
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(16)
+      pdf.setTextColor(APPLE_COLORS.GRAY)
+      pdf.text('No payment data available.', 40, yPos)
       return
     }
 
-    const paymentMethods = new Map()
+    // Analyze payment methods
+    const paymentMethods: Record<string, { count: number, amount: number }> = {}
     data.orders.forEach(order => {
-      const method = order.paymentMethod || 'Cash'
+      const method = order.paymentMethod || 'Unknown'
       const amount = order.total || 0
-      const current = paymentMethods.get(method) || { count: 0, amount: 0 }
-      paymentMethods.set(method, {
-        count: current.count + 1,
-        amount: current.amount + amount
-      })
-    })
-
-    const totalAmount = data.orders.reduce((sum, order) => sum + (order.total || 0), 0)
-
-    doc.setFontSize(14)
-    doc.text('Payment Method Breakdown:', 20, yPos)
-    yPos += 10
-
-    doc.setFontSize(12)
-    paymentMethods.forEach((stats, method) => {
-      if (yPos > 250) {
-        doc.addPage()
-        yPos = 20
+      
+      if (!paymentMethods[method]) {
+        paymentMethods[method] = { count: 0, amount: 0 }
       }
-      const percentage = totalAmount > 0 ? ((stats.amount / totalAmount) * 100).toFixed(1) : '0.0'
-      doc.text(`${method}: ₱${stats.amount.toFixed(2)} (${stats.count} transactions, ${percentage}%)`, 30, yPos)
-      yPos += 8
+      paymentMethods[method].count += 1
+      paymentMethods[method].amount += amount
     })
+
+    const totalAmount = Object.values(paymentMethods).reduce((sum, pm) => sum + pm.amount, 0)
+    const totalTransactions = Object.values(paymentMethods).reduce((sum, pm) => sum + pm.count, 0)
+
+    // Payment Overview
+    yPos = addSectionTitle(pdf, 'Payment Method Analysis', yPos)
+    
+    addMetricCard(pdf, 'Total Transactions', totalTransactions.toString(), APPLE_COLORS.BLUE, 40, yPos)
+    addMetricCard(pdf, 'Total Amount', `₱${totalAmount.toLocaleString()}`, APPLE_COLORS.GREEN, 190, yPos)
+    yPos += 80
+
+    // Payment Method Breakdown
+    yPos = addSectionTitle(pdf, 'Payment Method Breakdown', yPos)
+    
+    const paymentData = Object.entries(paymentMethods)
+      .sort((a, b) => b[1].amount - a[1].amount)
+      .map(([method, data]) => [
+        method,
+        data.count.toString(),
+        `₱${data.amount.toFixed(2)}`,
+        `${((data.amount / totalAmount) * 100).toFixed(1)}%`
+      ])
+    
+    addDataTable(pdf, ['Payment Method', 'Transactions', 'Amount', '% of Total'], paymentData, yPos)
   }
 
-  const generateExecutiveSummaryReport = async (doc: jsPDF, data: ReportData, startY: number) => {
+  const generateAppleExecutiveSummaryReport = async (pdf: jsPDF, data: ReportData, startY: number) => {
     let yPos = startY
     
-    doc.setFontSize(16)
-    doc.text('Executive Summary', 20, yPos)
-    yPos += 15
-
-    // Calculate proper profit metrics
-    const totalRevenue = data.orders.reduce((sum, order) => sum + (order.total || 0), 0)
-    const totalExpenses = data.expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0)
-    const totalPurchaseSpending = data.purchaseOrders.reduce((sum, po) => sum + (po.totalAmount || po.total || 0), 0)
-    
-    // Calculate COGS
-    let totalCOGS = 0
-    data.orders.forEach(order => {
-      if (order.items && Array.isArray(order.items)) {
-        order.items.forEach((item: any) => {
-          const quantity = item.quantity || 1
-          const costPrice = item.costPrice || item.cost || 0
-          totalCOGS += quantity * costPrice
-        })
-      }
-    })
-    
-    // Estimate COGS if no data available
-    if (totalCOGS === 0 && totalRevenue > 0) {
-      totalCOGS = totalRevenue * 0.33 // 33% estimated COGS
-    }
-    
-    const grossProfit = totalRevenue - totalCOGS
-    const netProfit = grossProfit - totalExpenses
-    const totalBusinessCosts = totalExpenses + totalPurchaseSpending
+    // Calculate key metrics
+    const totalSales = data.orders.reduce((sum, order) => sum + (order.total || 0), 0)
     const totalOrders = data.orders.length
+    const totalExpenses = data.expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0)
+    const netProfit = totalSales - totalExpenses
+    const lowStockItems = data.inventory.filter(item => (item.quantity || 0) < (item.minimumStock || 5)).length
 
-    doc.setFontSize(14)
-    doc.text('Key Performance Indicators:', 20, yPos)
-    yPos += 10
-
-    doc.setFontSize(12)
-    doc.text(`Total Revenue: ₱${totalRevenue.toFixed(2)}`, 30, yPos)
-    yPos += 8
-    doc.text(`Cost of Goods Sold: ₱${totalCOGS.toFixed(2)}`, 30, yPos)
-    yPos += 8
-    doc.text(`Gross Profit: ₱${grossProfit.toFixed(2)}`, 30, yPos)
-    yPos += 8
-    doc.text(`Operating Expenses: ₱${totalExpenses.toFixed(2)}`, 30, yPos)
-    yPos += 8
-    doc.text(`Purchase Orders: ₱${totalPurchaseSpending.toFixed(2)}`, 30, yPos)
-    yPos += 8
-    doc.text(`Net Profit: ₱${netProfit.toFixed(2)}`, 30, yPos)
-    yPos += 8
-    doc.text(`Total Orders: ${totalOrders}`, 30, yPos)
-    yPos += 8
-    doc.text(`Purchase Orders: ${data.purchaseOrders.length}`, 30, yPos)
-    yPos += 8
-    doc.text(`Average Order Value: ₱${totalOrders > 0 ? (totalRevenue / totalOrders).toFixed(2) : '0.00'}`, 30, yPos)
-    yPos += 15
-
-    // Business insights
-    doc.setFontSize(14)
-    doc.text('Business Insights:', 20, yPos)
-    yPos += 10
-
-    doc.setFontSize(12)
-    const grossMargin = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100).toFixed(1) : '0.0'
-    const netMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : '0.0'
+    // Executive Overview
+    yPos = addSectionTitle(pdf, 'Executive Summary', yPos)
     
-    doc.text(`• Gross Profit Margin: ${grossMargin}%`, 30, yPos)
-    yPos += 8
-    doc.text(`• Net Profit Margin: ${netMargin}%`, 30, yPos)
-    yPos += 8
+    // Row 1: Sales and Orders
+    addMetricCard(pdf, 'Total Sales', `₱${totalSales.toLocaleString()}`, APPLE_COLORS.GREEN, 40, yPos)
+    addMetricCard(pdf, 'Total Orders', totalOrders.toString(), APPLE_COLORS.BLUE, 190, yPos)
+    yPos += 80
 
-    const lowStockCount = data.inventory.filter(item => (item.quantity || 0) < (item.minimumStock || 5)).length
-    if (lowStockCount > 0) {
-      doc.text(`• ${lowStockCount} items need restocking`, 30, yPos)
-      yPos += 8
-    }
+    // Row 2: Profit and Alerts
+    addMetricCard(pdf, 'Net Profit', `₱${netProfit.toLocaleString()}`, 
+      netProfit >= 0 ? APPLE_COLORS.GREEN : APPLE_COLORS.RED, 40, yPos)
+    addMetricCard(pdf, 'Low Stock Alerts', lowStockItems.toString(), APPLE_COLORS.ORANGE, 190, yPos)
+    yPos += 80
 
-    const cogsRatio = totalRevenue > 0 ? ((totalCOGS / totalRevenue) * 100).toFixed(1) : '0.0'
-    doc.text(`• Cost of Goods Sold ratio: ${cogsRatio}%`, 30, yPos)
-    yPos += 8
+    // Key Insights
+    yPos = addSectionTitle(pdf, 'Key Business Insights', yPos)
     
-    if (totalCOGS === totalRevenue * 0.33) {
-      doc.text(`• Note: COGS estimated (configure menu costs for accuracy)`, 30, yPos)
-      yPos += 8
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(13)
+    pdf.setTextColor(APPLE_COLORS.BLACK)
+    
+    const insights = []
+    
+    if (totalOrders > 0) {
+      const avgOrderValue = totalSales / totalOrders
+      insights.push(`• Average order value: ₱${avgOrderValue.toFixed(2)}`)
     }
+    
+    if (totalSales > 0) {
+      const profitMargin = ((netProfit / totalSales) * 100).toFixed(1)
+      insights.push(`• Profit margin: ${profitMargin}% (${netProfit >= 0 ? 'Profitable' : 'Loss-making'})`)
+    }
+    
+    if (lowStockItems > 0) {
+      insights.push(`• ${lowStockItems} items need restocking`)
+    }
+    
+    if (data.purchaseOrders.length > 0) {
+      const purchaseSpending = data.purchaseOrders.reduce((sum, po) => sum + (po.totalAmount || po.total || 0), 0)
+      insights.push(`• Purchase orders: ₱${purchaseSpending.toLocaleString()}`)
+    }
+    
+    insights.forEach(insight => {
+      pdf.text(insight, 40, yPos)
+      yPos += 16
+    })
   }
 
-  const generatePurchaseSummaryReport = async (doc: jsPDF, data: ReportData, startY: number) => {
+  const generateApplePurchaseSummaryReport = async (pdf: jsPDF, data: ReportData, startY: number) => {
     let yPos = startY
     
-    doc.setFontSize(16)
-    doc.text('Purchase Order Summary', 20, yPos)
-    yPos += 15
-
     if (data.purchaseOrders.length === 0) {
-      doc.setFontSize(12)
-      doc.text('No purchase order data available for the selected period.', 20, yPos)
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(16)
+      pdf.setTextColor(APPLE_COLORS.GRAY)
+      pdf.text('No purchase order data available.', 40, yPos)
       return
     }
 
@@ -937,67 +958,51 @@ export default function BusinessReports() {
     const completedOrders = data.purchaseOrders.filter(po => 
       po.status === 'completed' || po.status === 'delivered' || po.status === 'received'
     )
-    const pendingOrders = data.purchaseOrders.filter(po => 
-      po.status === 'pending' || po.status === 'ordered' || po.status === 'draft'
-    )
-    const averageOrderValue = totalOrders > 0 ? totalSpending / totalOrders : 0
+    const avgOrderValue = totalOrders > 0 ? totalSpending / totalOrders : 0
 
-    doc.setFontSize(14)
-    doc.text('Purchase Overview:', 20, yPos)
-    yPos += 10
+    // Purchase Overview
+    yPos = addSectionTitle(pdf, 'Purchase Order Summary', yPos)
+    
+    addMetricCard(pdf, 'Total Orders', totalOrders.toString(), APPLE_COLORS.BLUE, 40, yPos)
+    addMetricCard(pdf, 'Total Spending', `₱${totalSpending.toLocaleString()}`, APPLE_COLORS.ORANGE, 190, yPos)
+    yPos += 80
 
-    doc.setFontSize(12)
-    doc.text(`Total Purchase Orders: ${totalOrders}`, 30, yPos)
-    yPos += 8
-    doc.text(`Total Spending: ₱${totalSpending.toFixed(2)}`, 30, yPos)
-    yPos += 8
-    doc.text(`Completed Orders: ${completedOrders.length}`, 30, yPos)
-    yPos += 8
-    doc.text(`Pending Orders: ${pendingOrders.length}`, 30, yPos)
-    yPos += 8
-    doc.text(`Average Order Value: ₱${averageOrderValue.toFixed(2)}`, 30, yPos)
-    yPos += 15
+    addMetricCard(pdf, 'Completed Orders', completedOrders.length.toString(), APPLE_COLORS.GREEN, 40, yPos)
+    addMetricCard(pdf, 'Average Order Value', `₱${avgOrderValue.toFixed(2)}`, APPLE_COLORS.PURPLE, 190, yPos)
+    yPos += 80
 
     // Status breakdown
-    if (totalOrders > 0) {
-      doc.setFontSize(14)
-      doc.text('Status Breakdown:', 20, yPos)
-      yPos += 10
+    yPos = addSectionTitle(pdf, 'Order Status Breakdown', yPos)
+    
+    const statusSummary: Record<string, { count: number, amount: number }> = {}
+    data.purchaseOrders.forEach(po => {
+      const status = po.status || 'unknown'
+      const amount = po.totalAmount || po.total || 0
+      if (!statusSummary[status]) {
+        statusSummary[status] = { count: 0, amount: 0 }
+      }
+      statusSummary[status].count += 1
+      statusSummary[status].amount += amount
+    })
 
-      const statusSummary: Record<string, { count: number, amount: number }> = {}
-      data.purchaseOrders.forEach(po => {
-        const status = po.status || 'unknown'
-        const amount = po.totalAmount || po.total || 0
-        if (!statusSummary[status]) {
-          statusSummary[status] = { count: 0, amount: 0 }
-        }
-        statusSummary[status].count += 1
-        statusSummary[status].amount += amount
-      })
+    const statusData = Object.entries(statusSummary).map(([status, stats]) => [
+      status.toUpperCase(),
+      stats.count.toString(),
+      `₱${stats.amount.toFixed(2)}`,
+      `${totalSpending > 0 ? ((stats.amount / totalSpending) * 100).toFixed(1) : '0'}%`
+    ])
 
-      doc.setFontSize(12)
-      Object.entries(statusSummary).forEach(([status, stats]) => {
-        if (yPos > 250) {
-          doc.addPage()
-          yPos = 20
-        }
-        const percentage = totalSpending > 0 ? ((stats.amount / totalSpending) * 100).toFixed(1) : '0.0'
-        doc.text(`${status.toUpperCase()}: ${stats.count} orders - ₱${stats.amount.toFixed(2)} (${percentage}%)`, 30, yPos)
-        yPos += 8
-      })
-    }
+    addDataTable(pdf, ['Status', 'Count', 'Amount', '% of Total'], statusData, yPos)
   }
 
-  const generateSupplierAnalysisReport = async (doc: jsPDF, data: ReportData, startY: number) => {
+  const generateAppleSupplierAnalysisReport = async (pdf: jsPDF, data: ReportData, startY: number) => {
     let yPos = startY
     
-    doc.setFontSize(16)
-    doc.text('Supplier Analysis', 20, yPos)
-    yPos += 15
-
     if (data.purchaseOrders.length === 0) {
-      doc.setFontSize(12)
-      doc.text('No purchase order data available for supplier analysis.', 20, yPos)
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(16)
+      pdf.setTextColor(APPLE_COLORS.GRAY)
+      pdf.text('No purchase order data available for supplier analysis.', 40, yPos)
       return
     }
 
@@ -1015,88 +1020,142 @@ export default function BusinessReports() {
     })
 
     const totalSpending = data.purchaseOrders.reduce((sum, po) => sum + (po.totalAmount || po.total || 0), 0)
+    const uniqueSuppliers = Object.keys(supplierSummary).length
+
+    // Supplier Overview
+    yPos = addSectionTitle(pdf, 'Supplier Analysis', yPos)
+    
+    addMetricCard(pdf, 'Unique Suppliers', uniqueSuppliers.toString(), APPLE_COLORS.BLUE, 40, yPos)
+    addMetricCard(pdf, 'Total Spending', `₱${totalSpending.toLocaleString()}`, APPLE_COLORS.GREEN, 190, yPos)
+    yPos += 80
+
+    // Top Suppliers
+    yPos = addSectionTitle(pdf, 'Top Suppliers by Spending', yPos)
+    
     const sortedSuppliers = Object.entries(supplierSummary)
       .sort((a, b) => b[1].spending - a[1].spending)
-      .slice(0, 10) // Top 10 suppliers
+      .slice(0, 10)
+      .map(([supplier, stats]) => [
+        supplier,
+        stats.orders.toString(),
+        `₱${stats.spending.toFixed(2)}`,
+        `${totalSpending > 0 ? ((stats.spending / totalSpending) * 100).toFixed(1) : '0'}%`
+      ])
 
-    doc.setFontSize(14)
-    doc.text('Top Suppliers by Spending:', 20, yPos)
-    yPos += 10
-
-    doc.setFontSize(12)
-    sortedSuppliers.forEach(([supplier, stats], index) => {
-      if (yPos > 250) {
-        doc.addPage()
-        yPos = 20
-      }
-      const percentage = totalSpending > 0 ? ((stats.spending / totalSpending) * 100).toFixed(1) : '0.0'
-      const avgOrder = stats.orders > 0 ? (stats.spending / stats.orders).toFixed(2) : '0.00'
-      doc.text(`${index + 1}. ${supplier}`, 30, yPos)
-      yPos += 6
-      doc.text(`   ${stats.orders} orders - ₱${stats.spending.toFixed(2)} (${percentage}%) - Avg: ₱${avgOrder}`, 35, yPos)
-      yPos += 10
-    })
+    addDataTable(pdf, ['Supplier', 'Orders', 'Total Spending', '% of Total'], sortedSuppliers, yPos)
   }
 
-  const generateCostTrackingReport = async (doc: jsPDF, data: ReportData, startY: number) => {
+  const generateAppleCostTrackingReport = async (pdf: jsPDF, data: ReportData, startY: number) => {
     let yPos = startY
     
-    doc.setFontSize(16)
-    doc.text('Cost Tracking Report', 20, yPos)
-    yPos += 15
-
     const totalPurchaseSpending = data.purchaseOrders.reduce((sum, po) => sum + (po.totalAmount || po.total || 0), 0)
     const totalExpenses = data.expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0)
     const totalCosts = totalPurchaseSpending + totalExpenses
 
-    doc.setFontSize(14)
-    doc.text('Cost Summary:', 20, yPos)
-    yPos += 10
+    // Cost Overview
+    yPos = addSectionTitle(pdf, 'Cost Tracking Overview', yPos)
+    
+    addMetricCard(pdf, 'Purchase Orders', `₱${totalPurchaseSpending.toLocaleString()}`, APPLE_COLORS.BLUE, 40, yPos)
+    addMetricCard(pdf, 'Operating Expenses', `₱${totalExpenses.toLocaleString()}`, APPLE_COLORS.ORANGE, 190, yPos)
+    yPos += 80
 
-    doc.setFontSize(12)
-    doc.text(`Purchase Orders: ₱${totalPurchaseSpending.toFixed(2)}`, 30, yPos)
-    yPos += 8
-    doc.text(`Operating Expenses: ₱${totalExpenses.toFixed(2)}`, 30, yPos)
-    yPos += 8
-    doc.text(`Total Business Costs: ₱${totalCosts.toFixed(2)}`, 30, yPos)
-    yPos += 15
+    addMetricCard(pdf, 'Total Business Costs', `₱${totalCosts.toLocaleString()}`, APPLE_COLORS.RED, 40, yPos)
+    yPos += 80
 
-    // Cost breakdown by category
+    // Cost breakdown
     if (totalCosts > 0) {
-      doc.setFontSize(14)
-      doc.text('Cost Categories:', 20, yPos)
-      yPos += 10
-
-      doc.setFontSize(12)
+      yPos = addSectionTitle(pdf, 'Cost Categories', yPos)
+      
       const purchasePercentage = ((totalPurchaseSpending / totalCosts) * 100).toFixed(1)
       const expensePercentage = ((totalExpenses / totalCosts) * 100).toFixed(1)
       
-      doc.text(`Inventory Purchases: ${purchasePercentage}%`, 30, yPos)
-      yPos += 8
-      doc.text(`Operating Expenses: ${expensePercentage}%`, 30, yPos)
-      yPos += 15
+      const costData = [
+        ['Inventory Purchases', `₱${totalPurchaseSpending.toLocaleString()}`, `${purchasePercentage}%`],
+        ['Operating Expenses', `₱${totalExpenses.toLocaleString()}`, `${expensePercentage}%`]
+      ]
+      
+      yPos = addDataTable(pdf, ['Category', 'Amount', 'Percentage'], costData, yPos)
     }
 
-    // Low stock alerts from inventory
+    // Low stock alerts
     const lowStockItems = data.inventory.filter(item => (item.quantity || 0) < (item.minimumStock || 5))
     if (lowStockItems.length > 0) {
-      doc.setFontSize(14)
-      doc.text('Reorder Alerts:', 20, yPos)
-      yPos += 10
+      yPos = addSectionTitle(pdf, 'Reorder Alerts', yPos + 20)
+      
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(13)
+      pdf.setTextColor(APPLE_COLORS.BLACK)
+      pdf.text(`${lowStockItems.length} items need restocking:`, 40, yPos)
+      yPos += 20
 
-      doc.setFontSize(12)
-      doc.text(`${lowStockItems.length} items need restocking:`, 30, yPos)
-      yPos += 8
+      const reorderData = lowStockItems.slice(0, 10).map(item => [
+        item.name || 'Unknown Item',
+        `${item.quantity || 0}`,
+        `${item.minimumStock || 5}`,
+        'REORDER'
+      ])
 
-      lowStockItems.slice(0, 10).forEach(item => {
-        if (yPos > 250) {
-          doc.addPage()
-          yPos = 20
-        }
-        doc.text(`• ${item.name}: ${item.quantity || 0} units remaining`, 35, yPos)
-        yPos += 6
-      })
+      addDataTable(pdf, ['Item Name', 'Current Stock', 'Min Stock', 'Action'], reorderData, yPos)
     }
+  }
+
+  const generateSpecificReport = async (reportType: string, data: ReportData) => {
+    const pdf = new jsPDF()
+    
+    // Get report title
+    const getReportTitle = (type: string): string => {
+      const titles: Record<string, string> = {
+        daily_sales: 'Sales Report',
+        profit_loss: 'Profit & Loss Statement', 
+        inventory_summary: 'Inventory Summary',
+        menu_performance: 'Menu Performance',
+        payment_methods: 'Payment Analysis',
+        executive_summary: 'Executive Summary',
+        purchase_summary: 'Purchase Order Summary',
+        supplier_analysis: 'Supplier Analysis',
+        cost_tracking: 'Cost Tracking Report'
+      }
+      return titles[type] || 'Business Report'
+    }
+
+    // Add Apple-style header
+    const contentStartY = addReportHeader(pdf, getReportTitle(reportType), data)
+    
+    // Generate content based on report type
+    switch (reportType) {
+      case 'daily_sales':
+        await generateAppleSalesReport(pdf, data, contentStartY)
+        break
+      case 'profit_loss':
+        await generateAppleProfitLossReport(pdf, data, contentStartY)
+        break
+      case 'inventory_summary':
+        await generateAppleInventoryReport(pdf, data, contentStartY)
+        break
+      case 'menu_performance':
+        await generateAppleMenuPerformanceReport(pdf, data, contentStartY)
+        break
+      case 'payment_methods':
+        await generateApplePaymentMethodsReport(pdf, data, contentStartY)
+        break
+      case 'executive_summary':
+        await generateAppleExecutiveSummaryReport(pdf, data, contentStartY)
+        break
+      case 'purchase_summary':
+        await generateApplePurchaseSummaryReport(pdf, data, contentStartY)
+        break
+      case 'supplier_analysis':
+        await generateAppleSupplierAnalysisReport(pdf, data, contentStartY)
+        break
+      case 'cost_tracking':
+        await generateAppleCostTrackingReport(pdf, data, contentStartY)
+        break
+    }
+
+    // Save with Apple-style filename
+    const reportName = reportOptions.find(r => r.id === reportType)?.name || 'Business Report'
+    const fileName = `CoreTrack_${reportName.replace(/\s+/g, '_')}_${data.timeRange.replace(/\s+/g, '_')}.pdf`
+    pdf.save(fileName)
   }
 
   return (
@@ -1193,4 +1252,5 @@ export default function BusinessReports() {
       </div>
     </div>
   )
+
 }

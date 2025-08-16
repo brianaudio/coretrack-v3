@@ -170,108 +170,41 @@ export default function ShiftGate({
     )
   }
 
-  // If shift is active, show the actual content
-  if (isShiftActive && currentShift && children) {
+    // If shift is active, render children
+  if (isShiftActive) {
     return <>{children}</>
   }
 
-  // Show shift gate notification when no active shift or no children provided
+  // Show minimalist, Apple-inspired lock screen
   return (
-    <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 p-8">
-      <div className="bg-white rounded-3xl shadow-2xl p-12 max-w-2xl w-full text-center border border-orange-200/50">
-        
-        {/* Animated Icon */}
-        <div className="relative mb-8">
-          <div className="w-32 h-32 mx-auto bg-gradient-to-br from-orange-500 to-red-500 rounded-full flex items-center justify-center shadow-2xl animate-pulse">
-            <svg className="w-16 h-16 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-          </div>
-          
-          {/* Floating rings animation */}
-          <div className="absolute inset-0 animate-ping">
-            <div className="w-32 h-32 border-4 border-orange-400 rounded-full opacity-20"></div>
-          </div>
-          <div className="absolute inset-2 animate-ping" style={{ animationDelay: '0.5s' }}>
-            <div className="w-28 h-28 border-2 border-orange-300 rounded-full opacity-30"></div>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white flex items-center justify-center p-8">
+      <div className="max-w-md w-full text-center">
+        {/* Icon */}
+        <div className="w-20 h-20 mx-auto mb-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
+          <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
         </div>
 
-        {/* Main Message */}
-        <h2 className="text-4xl font-bold text-gray-800 mb-4">
-          🚀 Ready to Start Working?
-        </h2>
-        
-        <p className="text-xl text-gray-600 mb-2">
-          {customMessage || `You need to start your shift first to access ${moduleName}`}
-        </p>
-        
-        <p className="text-lg text-gray-500 mb-8">
-          Click the <strong className="text-green-600">"Start Shift"</strong> button in the header to begin your work session
+        {/* Title */}
+        <h1 className="text-3xl font-semibold text-gray-900 mb-3 tracking-tight">
+          Start Your Shift
+        </h1>
+
+        {/* Subtitle */}
+        <p className="text-lg text-gray-500 mb-8 leading-relaxed">
+          Begin your work session to access {moduleName.replace('the ', '')}
         </p>
 
-        {/* User Info */}
-        {profile && (
-          <div className="bg-gray-50 rounded-2xl p-6 mb-8">
-            <div className="flex items-center justify-center gap-3 mb-2">
-              <div className="w-3 h-3 bg-orange-500 rounded-full animate-pulse"></div>
-              <span className="text-lg font-semibold text-gray-700">
-                Welcome, {profile.displayName || profile.email?.split('@')[0] || 'User'}!
-              </span>
-            </div>
-            <div className="text-gray-500 text-sm">
-              Ready to start your shift and begin {moduleName}?
-            </div>
-          </div>
-        )}
-
-        {/* Instructions */}
-        <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-              <span className="text-white font-bold text-sm">1</span>
-            </div>
-            <span className="text-green-800 font-medium">Look for the "Start Shift" button in the top-right corner</span>
-          </div>
-          
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-              <span className="text-white font-bold text-sm">2</span>
-            </div>
-            <span className="text-green-800 font-medium">Click it to create a new work shift</span>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-              <span className="text-white font-bold text-sm">3</span>
-            </div>
-            <span className="text-green-800 font-medium">Enjoy full access to all CoreTrack features!</span>
-          </div>
+        {/* CTA */}
+        <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
+          <p className="text-sm text-gray-600 mb-1">
+            Look for the <span className="font-medium text-gray-900">Start Shift</span> button
+          </p>
+          <p className="text-sm text-gray-400">
+            in the header above
+          </p>
         </div>
-
-        {/* Optional custom action button */}
-        {showStartShiftButton && (
-          <button
-            onClick={() => {
-              console.log('🚨 START SHIFT BUTTON CLICKED!')
-              alert('Start Shift button clicked - check console for details')
-              if (onStartShift) {
-                console.log('🔄 Calling custom onStartShift function...')
-                onStartShift()
-              } else {
-                console.log('🔄 Calling handleStartShiftFromGate function...')
-                handleStartShiftFromGate()
-              }
-            }}
-            className="mt-8 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-4 px-8 rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-xl flex items-center gap-3 mx-auto"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h8a2 2 0 002-2V7a2 2 0 00-2-2H8a2 2 0 00-2 2v5a2 2 0 002 2z" />
-            </svg>
-            Start My Shift Now
-          </button>
-        )}
-
       </div>
     </div>
   )

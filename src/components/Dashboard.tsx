@@ -21,7 +21,7 @@ import SettingsPage from '../app/settings/page'
 import FirebaseDebugger from './FirebaseDebugger'
 import ShiftStatusBar from './ShiftManagement/ShiftStatusBar'
 import InventoryDiscrepancy from './modules/InventoryDiscrepancy'
-import BusinessReports from './modules/BusinessReports'
+import BusinessReports from './modules/BusinessReportsOptimized'
 import CapitalIntelligence from './modules/CapitalIntelligence'
 import { useAuth } from '../lib/context/AuthContext' // Use AuthContext instead of UserContext
 import { useUser } from '../lib/rbac/UserContext' // Add UserContext for coordinated loading

@@ -11,18 +11,47 @@ export function useOnboarding() {
   useEffect(() => {
     // Only show onboarding for authenticated users with a profile
     if (user && profile) {
-      // Check if onboarding was already completed
-      const onboardingComplete = localStorage.getItem('coretrack_onboarding_complete')
+      // Check if onboarding was already completed with standardized key
+      const onboardingCompletedNew = localStorage.getItem('coretrack_onboarding_completed')
+      const onboardingCompletedOld = localStorage.getItem('coretrack_onboarding_complete')
       
-      // Also check if this is a new user (created in the last 24 hours)
-      const isNewUser = profile.createdAt && 
-        new Date().getTime() - profile.createdAt.toMillis() < 24 * 60 * 60 * 1000
-
-      // Show onboarding if:
-      // 1. Not completed AND (new user OR no completion record)
-      const shouldShowOnboarding = !onboardingComplete && (isNewUser || !onboardingComplete)
+      // If either version exists, consider onboarding completed
+      const isOnboardingCompleted = onboardingCompletedNew || onboardingCompletedOld
       
-      setShowOnboarding(shouldShowOnboarding)
+      if (isOnboardingCompleted) {
+        // Standardize to the new key if old key exists
+        if (onboardingCompletedOld && !onboardingCompletedNew) {
+          localStorage.setItem('coretrack_onboarding_completed', 'true')
+          localStorage.removeItem('coretrack_onboarding_complete') // Clean up old key
+        }
+        setShowOnboarding(false)
+        setIsLoading(false)
+        return
+      }
+      
+      // Check if this is a new user (created in the last 3 days)
+      // This prevents existing users from seeing onboarding every time
+      let isNewUser = false
+      
+      if (profile.createdAt) {
+        const creationTime = profile.createdAt.toMillis()
+        const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000) // 3 days
+        isNewUser = creationTime > threeDaysAgo
+      } else if (user.metadata?.creationTime) {
+        const creationTime = new Date(user.metadata.creationTime).getTime()
+        const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000) // 3 days
+        isNewUser = creationTime > threeDaysAgo
+      }
+      
+      if (!isNewUser) {
+        // Auto-mark old users as onboarded to prevent future prompts
+        localStorage.setItem('coretrack_onboarding_completed', 'true')
+        setShowOnboarding(false)
+      } else {
+        // Show onboarding for new users
+        setShowOnboarding(true)
+      }
+      
       setIsLoading(false)
     } else if (user === null) {
       // User is not authenticated
@@ -32,12 +61,15 @@ export function useOnboarding() {
   }, [user, profile])
 
   const completeOnboarding = () => {
-    localStorage.setItem('coretrack_onboarding_complete', 'true')
+    localStorage.setItem('coretrack_onboarding_completed', 'true')
+    // Also clean up old key if it exists
+    localStorage.removeItem('coretrack_onboarding_complete')
     setShowOnboarding(false)
   }
 
   const resetOnboarding = () => {
-    localStorage.removeItem('coretrack_onboarding_complete')
+    localStorage.removeItem('coretrack_onboarding_completed')
+    localStorage.removeItem('coretrack_onboarding_complete') // Clean up old key too
     setShowOnboarding(true)
   }
 

@@ -32,7 +32,7 @@ const moduleNames: Record<ModuleType, string> = {
 
 export default function Header({ activeModule, onSidebarToggle, onLogout }: HeaderProps) {
   const { profile, tenant, signOut, user } = useAuth()
-  const { isShiftActive, currentShift, loading } = useShift()
+  const { isShiftActive, currentShift, loading, startNewShift, endCurrentShift } = useShift()
   const { performReset, isResetting } = useShiftReset()
   const { showHelp } = useHelp()
 
@@ -44,16 +44,51 @@ export default function Header({ activeModule, onSidebarToggle, onLogout }: Head
     role: profile.role
   } : null
 
-  const handleEndShift = async () => {
+  const handleStartShift = async () => {
     try {
-      // Perform enterprise-grade shift end with automatic data reset
+      // Simple shift start - let user enter shift name
+      const shiftName = prompt('Enter shift name (optional):') || undefined
+      await startNewShift(shiftName)
+    } catch (error) {
+      console.error('Failed to start shift:', error)
+      alert('Failed to start shift. Please try again.')
+    }
+  }
+
+  const handleSignOut = async () => {
+    if (confirm('Are you sure you want to sign out?')) {
+      try {
+        if (onLogout) {
+          onLogout()
+        } else {
+          await signOut()
+        }
+      } catch (error) {
+        console.error('Sign out error:', error)
+      }
+    }
+  }
+
+  const handleEndShift = async () => {
+    if (!confirm('Are you sure you want to end the current shift?')) {
+      return
+    }
+
+    try {
+      // End the shift first through ShiftContext
+      await endCurrentShift('Ended from header')
+      
+      // Then perform enterprise-grade data reset
       await performReset({
         resetReason: 'shift_end',
         shiftId: currentShift?.id,
         shiftName: currentShift?.name
       })
+      
+      console.log('✅ Shift ended successfully')
     } catch (error) {
-      console.error('Failed to end shift with reset:', error)
+      console.error('Failed to end shift:', error)
+      alert('Failed to end shift. Please try again.')
     }
   }
 
@@ -179,51 +214,52 @@ export default function Header({ activeModule, onSidebarToggle, onLogout }: Head
                   <span className="hidden lg:inline">Help</span>
                 </button>
 
-                {/* Smart End Shift & Sign Out Button */}
+                {/* Start Shift Button - Only show when no active shift */}
+                {!isShiftActive && (
+                  <button 
+                    onClick={handleStartShift}
+                    disabled={loading}
+                    className="bg-green-600 hover:bg-green-700 text-white disabled:bg-gray-300 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
+                    title="Start New Shift"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    <span className="hidden md:inline">
+                      {loading ? 'Starting...' : 'Start Shift'}
+                    </span>
+                  </button>
+                )}
+
+                {/* End Shift Button - Only show when active shift exists and user can end it */}
+                {isShiftActive && (currentShift?.createdBy === user?.uid || currentRole === 'cashier') && (
+                  <button 
+                    onClick={handleEndShift}
+                    disabled={loading || isResetting}
+                    className="bg-red-600 hover:bg-red-700 text-white disabled:bg-gray-300 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
+                    title="End Current Shift"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10l6 6m0-6l-6 6" />
+                    </svg>
+                    <span className="hidden md:inline">
+                      {loading || isResetting ? 'Ending...' : 'End Shift'}
+                    </span>
+                  </button>
+                )}
+
+                {/* Sign Out Button - Always visible, separate from shift controls */}
                 <button 
-                  onClick={handleEndShiftAndLogout}
-                  disabled={loading || isResetting}
-                  className={`${
-                    isShiftActive 
-                      ? (currentShift?.createdBy === user?.uid || currentRole === 'cashier')
-                        ? 'bg-red-600 hover:bg-red-700 text-white' // Can end shift
-                        : 'bg-orange-500 hover:bg-orange-600 text-white' // Sign out only
-                      : 'text-surface-500 hover:text-red-600 hover:bg-red-50' // Normal sign out
-                  } disabled:bg-gray-300 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5`}
-                  title={
-                    isShiftActive
-                      ? (currentShift?.createdBy === user?.uid || currentRole === 'cashier')
-                        ? "End Shift & Sign Out"
-                        : `Sign Out Only (${currentShift?.createdBy || 'Active'} shift continues)`
-                      : "Sign Out"
-                  }
+                  onClick={handleSignOut}
+                  disabled={loading}
+                  className="text-surface-500 hover:text-red-600 hover:bg-red-50 disabled:bg-gray-300 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
+                  title="Sign Out"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    {isShiftActive ? (
-                      (currentShift?.createdBy === user?.uid || currentRole === 'cashier') ? (
-                        // End shift icon - user can end shift
-                        <>
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10l6 6m0-6l-6 6" />
-                        </>
-                      ) : (
-                        // Sign out only icon - someone else's shift
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                      )
-                    ) : (
-                      // Normal sign out icon
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    )}
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                   </svg>
-                  <span className="hidden md:inline">
-                    {loading || isResetting ? 'Ending...' : 
-                      isShiftActive
-                        ? (currentShift?.createdBy === user?.uid || currentRole === 'cashier')
-                          ? 'End Shift'
-                          : 'Sign Out'
-                        : 'Sign Out'
-                    }
-                  </span>
+                  <span className="hidden md:inline">Sign Out</span>
                 </button>
                 
                 {/* Active Shift Indicator for Non-Owners */}

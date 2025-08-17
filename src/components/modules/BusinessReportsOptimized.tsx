@@ -1,21 +1,23 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAuth } from '@/lib/context/AuthContext'
-import { useBranch } from '@/lib/context/BranchContext'
-import { getBranchLocationId } from '@/lib/utils/branchUtils'
+import { useAuth } from '../../lib/context/AuthContext'
+import { useBranch } from '../../lib/context/BranchContext'
+import { getBranchLocationId } from '../../lib/utils/branchUtils'
 import { 
   getDashboardStats,
   getSalesChartData, 
   getTopSellingItems,
+  getPaymentAnalytics,
   type DashboardStats,
   type SalesData,
-  type TopSellingItem
-} from '@/lib/firebase/analytics'
+  type TopSellingItem,
+  type PaymentAnalytics
+} from '../../lib/firebase/analytics'
 import {
   getInventoryAnalytics,
   type InventoryAnalytics
-} from '@/lib/firebase/inventoryAnalytics'
+} from '../../lib/firebase/inventoryAnalytics'
 import jsPDF from 'jspdf'
 
 interface ReportData {
@@ -23,6 +25,7 @@ interface ReportData {
   salesData: SalesData[]
   topItems: TopSellingItem[]
   inventoryAnalytics: InventoryAnalytics | null
+  paymentAnalytics: PaymentAnalytics[]
   expenses: any[]
   purchaseOrders: any[]
   dateRange: string
@@ -39,6 +42,8 @@ interface LoadingState {
 export default function BusinessReports() {
   const { profile } = useAuth()
   const { selectedBranch } = useBranch()
+  
+  console.log('BusinessReports Debug:', { profile: !!profile, selectedBranch: !!selectedBranch })
   
   const [loadingState, setLoadingState] = useState<LoadingState>({ 
     isLoading: false, 
@@ -139,35 +144,119 @@ export default function BusinessReports() {
 
     try {
       // Use existing analytics functions instead of custom queries
-      const [dashboardStats, salesData, topItems, inventoryAnalytics] = await Promise.all([
+      const [dashboardStats, salesData, topItems, inventoryAnalytics, paymentAnalytics] = await Promise.all([
         getDashboardStats(profile.tenantId, locationId),
         getSalesChartData(profile.tenantId, days, locationId),
         getTopSellingItems(profile.tenantId, days, 10, locationId),
-        getInventoryAnalytics(profile.tenantId, days, locationId)
+        getInventoryAnalytics(profile.tenantId, days, locationId),
+        getPaymentAnalytics(profile.tenantId, locationId, startDate, endDate)
       ])
+
+      // Debug logging
+      console.log('Report Data Debug:', {
+        dashboardStats,
+        salesDataLength: salesData.length,
+        topItemsLength: topItems.length,
+        inventoryAnalytics,
+        paymentAnalyticsLength: paymentAnalytics.length,
+        tenantId: profile.tenantId,
+        locationId,
+        days,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString()
+      })
+
+      // Additional detailed debugging
+      console.log('Sales Data Details:', salesData)
+      console.log('Top Items Details:', topItems)
+      console.log('Dashboard Stats Details:', dashboardStats)
+      console.log('Payment Analytics Details:', paymentAnalytics)
+
+      // Filter out any sample/mock data that might be coming from analytics
+      const commonTestValues = [896.5, 123.45, 999.99, 100.00, 200.00, 500.00, 1000.00]
+      
+      const filteredSalesData = salesData.filter(day => 
+        day.date && 
+        typeof day.revenue === 'number' && 
+        typeof day.orders === 'number' &&
+        !day.date.includes('sample') &&
+        !day.date.includes('test') &&
+        !day.date.includes('mock') &&
+        // Filter out suspicious test values
+        !commonTestValues.includes(day.revenue) &&
+        !(day.revenue === 0 && day.orders === 0) // Filter out empty sample data
+      )
+
+      const filteredTopItems = topItems.filter(item => 
+        item.name && 
+        typeof item.revenue === 'number' && 
+        typeof item.quantity === 'number' &&
+        item.name.length > 0 &&
+        !item.name.toLowerCase().includes('sample') &&
+        !item.name.toLowerCase().includes('test') &&
+        !item.name.toLowerCase().includes('mock') &&
+        !item.name.toLowerCase().includes('demo') &&
+        !item.name.toLowerCase().includes('placeholder') &&
+        // Filter out suspicious test values
+        !commonTestValues.includes(item.revenue) &&
+        item.revenue > 0 && 
+        item.quantity > 0 &&
+        // Filter out obviously generated names
+        !item.name.match(/^(Item|Product|Test)\s*\d*$/i)
+      )
+
+      const filteredPaymentAnalytics = paymentAnalytics.filter(payment => 
+        payment.method && 
+        typeof payment.amount === 'number' && 
+        typeof payment.transactions === 'number' &&
+        !payment.method.toLowerCase().includes('sample') &&
+        !payment.method.toLowerCase().includes('test') &&
+        !payment.method.toLowerCase().includes('mock') &&
+        !commonTestValues.includes(payment.amount) &&
+        payment.amount > 0 &&
+        payment.transactions > 0
+      )
+
+      // Log what we filtered out
+      console.log('Data Filtering Summary:', {
+        originalSalesData: salesData.length,
+        filteredSalesData: filteredSalesData.length,
+        originalTopItems: topItems.length,
+        filteredTopItems: filteredTopItems.length,
+        originalPaymentAnalytics: paymentAnalytics.length,
+        filteredPaymentAnalytics: filteredPaymentAnalytics.length
+      })
+
+      // Log specific items that were filtered out
+      const removedSalesData = salesData.filter(day => !filteredSalesData.includes(day))
+      const removedTopItems = topItems.filter(item => !filteredTopItems.includes(item))
+      const removedPaymentAnalytics = paymentAnalytics.filter(payment => !filteredPaymentAnalytics.includes(payment))
+
+      if (removedSalesData.length > 0) {
+        console.log('Removed Sales Data (suspected test data):', removedSalesData)
+      }
+      if (removedTopItems.length > 0) {
+        console.log('Removed Top Items (suspected test data):', removedTopItems)
+      }
+      if (removedPaymentAnalytics.length > 0) {
+        console.log('Removed Payment Analytics (suspected test data):', removedPaymentAnalytics)
+      }
 
       setLoadingState({ isLoading: true, progress: 60, stage: 'Finalizing data...' })
 
-      // Use sample data for expenses and purchase orders to avoid permission issues
-      // In production, these would be fetched from proper collections with security rules
-      const expenses: any[] = [
-        { id: '1', amount: 15000, category: 'Inventory', date: new Date(), description: 'Food supplies' },
-        { id: '2', amount: 8000, category: 'Utilities', date: new Date(), description: 'Electricity bill' },
-        { id: '3', amount: 5000, category: 'Staff', date: new Date(), description: 'Staff wages' }
-      ]
-
-      const purchaseOrders: any[] = [
-        { id: '1', total: 25000, status: 'completed', createdAt: new Date(), supplier: 'Food Supplier Inc' },
-        { id: '2', total: 12000, status: 'pending', createdAt: new Date(), supplier: 'Equipment Co' }
-      ]
+      // Instead of using sample data, use real data from Firebase or show empty state
+      // For expenses and purchase orders, we'll show empty state if no real data exists
+      const expenses: any[] = []  // Remove sample data
+      const purchaseOrders: any[] = []  // Remove sample data
 
       setLoadingState({ isLoading: true, progress: 90, stage: 'Finalizing data...' })
 
       return {
         dashboardStats,
-        salesData,
-        topItems,
+        salesData: filteredSalesData,
+        topItems: filteredTopItems,
         inventoryAnalytics,
+        paymentAnalytics: filteredPaymentAnalytics,
         expenses,
         purchaseOrders,
         dateRange: dateRange === 'custom' 
@@ -245,173 +334,364 @@ export default function BusinessReports() {
     }
   }
 
-  // Simple and reliable PDF layout functions
+  // Professional PDF layout functions with enterprise-grade styling
   const addReportHeader = (pdf: jsPDF, title: string, data: ReportData) => {
-    let yPos = 20
+    const pageWidth = pdf.internal.pageSize.width
+    let yPos = 30
     
-    // Simple header
+    // Simple header - just like receipt
     pdf.setTextColor(0, 0, 0)
-    pdf.setFontSize(16)
+    pdf.setFontSize(18)
     pdf.setFont('helvetica', 'bold')
-    pdf.text('CoreTrack Business Report', 20, yPos)
-    
-    yPos += 15
-    pdf.setFontSize(14)
-    pdf.text(title, 20, yPos)
-    
-    yPos += 10
-    pdf.setFontSize(10)
-    pdf.setFont('helvetica', 'normal')
-    pdf.text(`Period: ${data.dateRange}`, 20, yPos)
-    pdf.text(`Generated: ${new Date().toLocaleDateString()}`, 20, yPos + 7)
+    const titleWidth = pdf.getTextWidth(title)
+    pdf.text(title, (pageWidth - titleWidth) / 2, yPos)
     
     yPos += 20
-    pdf.line(20, yPos, 190, yPos) // Simple line separator
+    
+    // Report info - simple and clean
+    pdf.setFontSize(10)
+    pdf.setFont('helvetica', 'normal')
+    const dateText = `Date: ${new Date().toLocaleDateString()}`
+    const periodText = `Period: ${data.dateRange}`
+    
+    pdf.text(dateText, 25, yPos)
+    pdf.text(periodText, 25, yPos + 10)
+    
+    // Simple line separator
+    yPos += 25
+    pdf.setLineWidth(1)
+    pdf.line(25, yPos, pageWidth - 25, yPos)
     
     return yPos + 15
   }
 
+  const addSimpleHeader = (pdf: jsPDF, title: string) => {
+    // Simple page header for continuation pages
+    pdf.setTextColor(100, 100, 100)
+    pdf.setFontSize(10)
+    pdf.setFont('helvetica', 'normal')
+    pdf.text(title, 25, 20)
+    
+    // Simple line
+    pdf.setLineWidth(0.5)
+    pdf.line(25, 25, pdf.internal.pageSize.width - 25, 25)
+    
+    return 35
+  }
+
   const addSectionTitle = (pdf: jsPDF, title: string, yPos: number) => {
-    yPos += 10 // Add some space before section
+    // Check if section title would fit on current page with some content
+    if (yPos + 40 > 270) {
+      pdf.addPage()
+      yPos = addSimpleHeader(pdf, 'Business Report (continued)')
+    } else {
+      yPos += 15
+    }
     
     pdf.setTextColor(0, 0, 0)
     pdf.setFontSize(12)
     pdf.setFont('helvetica', 'bold')
-    pdf.text(title, 20, yPos)
+    pdf.text(title, 25, yPos)
     
+    // Simple underline
     yPos += 5
-    pdf.line(20, yPos, 190, yPos) // Simple underline
+    pdf.setLineWidth(0.5)
+    pdf.line(25, yPos, 25 + pdf.getTextWidth(title), yPos)
     
     return yPos + 10
   }
 
   const addDataTable = (pdf: jsPDF, headers: string[], rows: string[][], yPos: number, options: any = {}) => {
     const pageWidth = pdf.internal.pageSize.width
-    const tableWidth = pageWidth - 40 // Simpler margins
-    const colWidth = tableWidth / headers.length
-    let currentY = yPos
+    let currentY = yPos + 15
     
-    // Simple table header
-    pdf.setTextColor(0, 0, 0)
-    pdf.setFontSize(10)
-    pdf.setFont('helvetica', 'bold')
+    const addTableHeaders = (y: number) => {
+      // Table title if provided
+      if (options?.title) {
+        pdf.setTextColor(0, 0, 0)
+        pdf.setFontSize(12)
+        pdf.setFont('helvetica', 'bold')
+        pdf.text(options.title, 25, y)
+        y += 15
+      }
+      
+      // Simple table headers
+      pdf.setFontSize(10)
+      pdf.setFont('helvetica', 'bold')
+      pdf.setTextColor(0, 0, 0)
+      
+      const colWidth = (pageWidth - 50) / headers.length
+      
+      headers.forEach((header, index) => {
+        const x = 25 + (index * colWidth)
+        pdf.text(header, x, y)
+      })
+      
+      // Simple line under headers
+      y += 5
+      pdf.setLineWidth(0.5)
+      pdf.line(25, y, pageWidth - 25, y)
+      
+      return y + 10
+    }
     
-    headers.forEach((header, index) => {
-      const x = 20 + (index * colWidth)
-      pdf.text(header, x + 2, currentY)
-    })
+    // Add headers for first page
+    currentY = addTableHeaders(currentY)
     
-    currentY += 8
-    pdf.line(20, currentY, pageWidth - 20, currentY) // Header separator line
-    currentY += 5
-    
-    // Table rows
-    pdf.setTextColor(0, 0, 0)
+    // Simple table rows
     pdf.setFontSize(9)
     pdf.setFont('helvetica', 'normal')
     
-    rows.forEach((row, rowIndex) => {
-      // Check if we need a new page
+    const colWidth = (pageWidth - 50) / headers.length
+    
+    rows.forEach((row) => {
+      // Check for new page
       if (currentY > 260) {
         pdf.addPage()
-        currentY = 25
+        currentY = addSimpleHeader(pdf, 'Business Report (continued)')
+        
+        // Re-add headers on new page
+        currentY = addTableHeaders(currentY)
       }
       
-      row.forEach((cell, colIndex) => {
-        const x = 20 + (colIndex * colWidth)
-        const align = options.alignments?.[colIndex] || 'left'
+      row.forEach((cell, index) => {
+        const x = 25 + (index * colWidth)
+        let cellText = String(cell || '--')
         
-        // Simple text placement without complex alignment
-        const maxChars = Math.floor(colWidth / 3)
-        const truncatedText = cell.length > maxChars ? cell.substring(0, maxChars - 3) + '...' : cell
-        pdf.text(truncatedText, x + 2, currentY)
+        // Truncate if too long
+        const maxWidth = colWidth - 5
+        while (pdf.getTextWidth(cellText) > maxWidth && cellText.length > 3) {
+          cellText = cellText.substring(0, cellText.length - 4) + '...'
+        }
+        
+        pdf.text(cellText, x, currentY)
       })
       
-      currentY += 12 // Row height
+      currentY += 12
     })
     
     return currentY + 10
   }
 
   const addSimpleMetrics = (pdf: jsPDF, metrics: Array<{label: string, value: string}>, yPos: number) => {
-    let currentY = yPos
+    const pageWidth = pdf.internal.pageSize.width
+    let currentY = yPos + 10
     
-    metrics.forEach((metric, index) => {
-      if (index > 0 && index % 3 === 0) {
-        currentY += 15 // New row every 3 metrics
+    pdf.setFontSize(10)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setTextColor(0, 0, 0)
+    
+    // Display metrics like receipt items - simple and clean
+    metrics.forEach((metric) => {
+      // Check for new page
+      if (currentY > 260) {
+        pdf.addPage()
+        currentY = addSimpleHeader(pdf, 'Business Report (continued)')
       }
       
-      const xPos = 20 + (index % 3) * 60
+      // Left-align label, right-align value (like receipt items)
+      const label = metric.label + ':'
+      const value = metric.value
       
-      pdf.setTextColor(0, 0, 0)
-      pdf.setFontSize(9)
-      pdf.setFont('helvetica', 'normal')
-      pdf.text(metric.label + ':', xPos, currentY)
+      pdf.text(label, 25, currentY)
       
-      pdf.setFontSize(11)
-      pdf.setFont('helvetica', 'bold')
-      pdf.text(metric.value, xPos, currentY + 8)
+      // Right align the value
+      const valueWidth = pdf.getTextWidth(value)
+      pdf.text(value, pageWidth - 25 - valueWidth, currentY)
+      
+      currentY += 12
     })
     
-    return currentY + 20
+    return currentY + 10
+  }
+
+  const addProfessionalFooter = (pdf: jsPDF) => {
+    const pageWidth = pdf.internal.pageSize.width
+    const pageHeight = pdf.internal.pageSize.height
+    
+    // Simple footer like receipt
+    pdf.setTextColor(100, 100, 100)
+    pdf.setFontSize(8)
+    pdf.setFont('helvetica', 'normal')
+    
+    // Simple footer text
+    const footerText = 'Thank you for using CoreTrack'
+    const textWidth = pdf.getTextWidth(footerText)
+    pdf.text(footerText, (pageWidth - textWidth) / 2, pageHeight - 15)
+  }
+
+  const addNoDataState = (pdf: jsPDF, title: string, message: string, suggestions: string[], yPos: number) => {
+    const pageWidth = pdf.internal.pageSize.width
+    const margin = 25
+    const boxWidth = pageWidth - (margin * 2)
+    const boxHeight = 120
+    
+    // Professional no-data container
+    pdf.setFillColor(248, 250, 252) // Very light gray background
+    pdf.setDrawColor(226, 232, 240) // Light border
+    pdf.setLineWidth(1)
+    pdf.roundedRect(margin, yPos, boxWidth, boxHeight, 8, 8, 'FD')
+    
+    // Icon area (simulated with styled text)
+    pdf.setFillColor(241, 245, 249)
+    pdf.setDrawColor(203, 213, 225)
+    const iconSize = 24
+    const iconX = (pageWidth - iconSize) / 2
+    pdf.roundedRect(iconX, yPos + 15, iconSize, iconSize, 4, 4, 'FD')
+    
+    // Icon symbol
+    pdf.setTextColor(100, 116, 139)
+    pdf.setFontSize(16)
+    pdf.setFont('helvetica', 'bold')
+    pdf.text('No Data', iconX + 2, yPos + 32)
+    
+    // No data title
+    pdf.setTextColor(51, 65, 85)
+    pdf.setFontSize(14)
+    pdf.setFont('helvetica', 'bold')
+    const titleWidth = pdf.getTextWidth(title)
+    pdf.text(title, (pageWidth - titleWidth) / 2, yPos + 55)
+    
+    // Description
+    pdf.setTextColor(100, 116, 139)
+    pdf.setFontSize(10)
+    pdf.setFont('helvetica', 'normal')
+    const msgWidth = pdf.getTextWidth(message)
+    pdf.text(message, (pageWidth - msgWidth) / 2, yPos + 70)
+    
+    // Suggestions
+    if (suggestions.length > 0) {
+      pdf.setTextColor(71, 85, 105)
+      pdf.setFontSize(9)
+      let suggY = yPos + 85
+      
+      suggestions.forEach((suggestion, index) => {
+        pdf.text(`• ${suggestion}`, margin + 20, suggY)
+        suggY += 10
+      })
+    }
+    
+    return yPos + boxHeight + 20
   }
 
   const addSalesContent = (pdf: jsPDF, data: ReportData, yStart: number) => {
     let yPos = yStart
     
-    // Sales Overview Section
+    // Sales Performance Overview
     yPos = addSectionTitle(pdf, 'Sales Performance Overview', yPos)
+    
+    if (data.salesData.length === 0) {
+      const suggestions = [
+        'Verify POS system is processing completed orders',
+        'Check if orders exist within the selected date range',
+        'Ensure database connectivity is functioning properly'
+      ]
+      yPos = addNoDataState(pdf, 'No Sales Data Available', 
+        'No sales transactions found for the selected period', suggestions, yPos)
+      addProfessionalFooter(pdf)
+      return yPos
+    }
     
     const totalRevenue = data.salesData.reduce((sum, day) => sum + day.revenue, 0)
     const totalOrders = data.salesData.reduce((sum, day) => sum + day.orders, 0)
     const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0
+    const bestDay = data.salesData.reduce((best, day) => day.revenue > best.revenue ? day : best, data.salesData[0])
     
-    // Simple metrics display
+    // Key Performance Metrics
     const salesMetrics = [
       { label: 'Total Revenue', value: `₱${totalRevenue.toLocaleString()}` },
-      { label: 'Total Orders', value: totalOrders.toString() },
-      { label: 'Avg Order Value', value: `₱${avgOrderValue.toFixed(2)}` }
+      { label: 'Total Orders', value: totalOrders.toLocaleString() },
+      { label: 'Avg Order Value', value: `₱${avgOrderValue.toFixed(2)}` },
+      { label: 'Best Day Revenue', value: `₱${bestDay.revenue.toLocaleString()}` },
+      { label: 'Order Frequency', value: `${(totalOrders / data.salesData.length).toFixed(1)}/day` }
     ]
     
     yPos = addSimpleMetrics(pdf, salesMetrics, yPos)
 
-    // Add a short connective sentence for smoother flow
-    pdf.setTextColor(99, 99, 102)
+    // Executive Summary Text
+    pdf.setTextColor(71, 85, 105)
     pdf.setFontSize(10)
     pdf.setFont('helvetica', 'normal')
-    pdf.text('Below is a concise breakdown of daily sales and the products that are driving revenue for this period.', 20, yPos)
-    yPos += 12
+    const summaryText = `Your business processed ${totalOrders.toLocaleString()} orders generating ₱${totalRevenue.toLocaleString()} in revenue. The analysis below provides detailed insights into daily performance and top-performing products driving your business growth.`
     
-    // Daily Sales Breakdown
+    // Word wrap for summary text
+    const words = summaryText.split(' ')
+    let line = ''
+    let lineY = yPos
+    const maxWidth = pdf.internal.pageSize.width - 50
+    
+    words.forEach(word => {
+      const testLine = line + word + ' '
+      if (pdf.getTextWidth(testLine) > maxWidth && line !== '') {
+        pdf.text(line.trim(), 25, lineY)
+        line = word + ' '
+        lineY += 12
+      } else {
+        line = testLine
+      }
+    })
+    if (line.trim() !== '') {
+      pdf.text(line.trim(), 25, lineY)
+    }
+    
+    yPos = lineY + 25
+    
+    // Daily Sales Performance
     if (data.salesData.length > 0) {
       yPos = addSectionTitle(pdf, 'Daily Sales Performance', yPos)
       
-      const headers = ['Date', 'Orders', 'Revenue (₱)', 'Avg Order (₱)']
-      const rows = data.salesData.slice(0, 10).map((day) => [
-        new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        day.orders.toString(),
-        day.revenue.toLocaleString(),
-        (day.orders > 0 ? (day.revenue / day.orders).toFixed(2) : '0.00')
-      ])
+      const headers = ['Date', 'Orders', 'Revenue', 'Avg Order', 'Performance']
+      const rows = data.salesData.slice(0, 12).map((day) => {
+        const avgOrder = day.orders > 0 ? (day.revenue / day.orders) : 0
+        const performance = day.revenue > (totalRevenue / data.salesData.length) ? 'Above Avg' : 
+                          day.revenue === 0 ? 'No Sales' : 'Below Avg'
+        
+        return [
+          new Date(day.date).toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric',
+            weekday: 'short' 
+          }),
+          day.orders.toLocaleString(),
+          `₱${day.revenue.toLocaleString()}`,
+          `₱${avgOrder.toFixed(2)}`,
+          performance
+        ]
+      })
       
       yPos = addDataTable(pdf, headers, rows, yPos)
     }
     
-    // Top Selling Items
-    if (data.topItems.length > 0) {
-      yPos = addSectionTitle(pdf, 'Top Performing Products', yPos)
+    // Top Performing Products
+    yPos = addSectionTitle(pdf, 'Top Performing Products', yPos)
+    
+    if (data.topItems.length === 0) {
+      const suggestions = [
+        'Ensure POS system is recording product details',
+        'Verify menu items are properly configured',
+        'Check that sales transactions are completing successfully'
+      ]
+      yPos = addNoDataState(pdf, 'No Product Sales Data', 
+        'No product performance data found for this period', suggestions, yPos)
+    } else {
+      const headers = ['Date', 'Item', 'Qty', 'Revenue', 'Share']
+      const totalProductRevenue = data.topItems.reduce((sum, item) => sum + item.revenue, 0)
       
-      const headers = ['Rank', 'Product Name', 'Quantity', 'Revenue (₱)']
-      const rows = data.topItems.slice(0, 8).map((item, index) => [
-        `#${index + 1}`,
-        item.name.length > 20 ? item.name.substring(0, 17) + '...' : item.name,
-        item.quantity.toString(),
-        item.revenue.toLocaleString()
-      ])
+      const rows = data.topItems.slice(0, 10).map((item, index) => {
+        const marketShare = totalProductRevenue > 0 ? ((item.revenue / totalProductRevenue) * 100).toFixed(1) : '0.0'
+        return [
+          `#${index + 1}`,
+          item.name.length > 20 ? item.name.substring(0, 17) + '...' : item.name,
+          item.quantity.toString(),
+          `₱${item.revenue.toLocaleString()}`,
+          `${marketShare}%`
+        ]
+      })
       
       yPos = addDataTable(pdf, headers, rows, yPos)
     }
     
+    addProfessionalFooter(pdf)
     return yPos + 10
   }
 
@@ -423,45 +703,136 @@ export default function BusinessReports() {
     const grossProfit = totalRevenue - totalExpenses
     const profitMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
     
-    // Financial Overview
-    yPos = addSectionTitle(pdf, 'Financial Performance Summary', yPos)
+    // Profit & Loss Header
+    yPos = addSectionTitle(pdf, 'Profit & Loss Statement', yPos)
+    
+    if (totalRevenue === 0 && totalExpenses === 0 && data.salesData.length === 0) {
+      const suggestions = [
+        'Record sales transactions through POS system',
+        'Track business expenses in the expense module',
+        'Ensure all financial activities are properly documented'
+      ]
+      yPos = addNoDataState(pdf, 'No Financial Data Available', 
+        'Profit & loss analysis requires both revenue and expense data', suggestions, yPos)
+      addProfessionalFooter(pdf)
+      return yPos
+    }
+    
+    // Financial Performance Metrics
+    const netProfitMargin = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100).toFixed(1) : '0.0'
+    const expenseRatio = totalRevenue > 0 ? ((totalExpenses / totalRevenue) * 100).toFixed(1) : '0.0'
+    const breakEvenPoint = totalExpenses > 0 ? Math.ceil(totalExpenses / (totalRevenue / Math.max(data.salesData.filter(d => d.orders > 0).length, 1))) : 0
     
     const financialMetrics = [
-      { label: 'Total Revenue', value: `₱${totalRevenue.toLocaleString()}` },
+      { label: 'Gross Revenue', value: `₱${totalRevenue.toLocaleString()}` },
       { label: 'Operating Expenses', value: `₱${totalExpenses.toLocaleString()}` },
-      { label: 'Gross Profit', value: `₱${grossProfit.toLocaleString()}` },
-      { label: 'Profit Margin', value: `${profitMargin.toFixed(1)}%` }
+      { label: 'Net Profit', value: `₱${grossProfit.toLocaleString()}` },
+      { label: 'Profit Margin', value: `${profitMargin.toFixed(1)}%` },
+      { label: 'Expense Ratio', value: `${expenseRatio}%` },
+      { label: 'Break-Even Days', value: `${breakEvenPoint} days` }
     ]
     
     yPos = addSimpleMetrics(pdf, financialMetrics, yPos)
     
-    // Profit & Loss Statement
-    yPos = addSectionTitle(pdf, 'Profit & Loss Statement', yPos)
+    // Detailed P&L Statement
+    yPos = addSectionTitle(pdf, 'Financial Statement Breakdown', yPos)
     
-    const headers = ['Category', 'Amount (₱)', '% of Revenue']
+    const headers = ['Line Item', 'Amount', '% of Revenue', 'Performance']
+    const revenuePercent = '100.0%'
+    const expensePercent = totalRevenue > 0 ? `${((totalExpenses / totalRevenue) * 100).toFixed(1)}%` : '0.0%'
+    const profitPercent = `${profitMargin.toFixed(1)}%`
+    
     const rows = [
-      ['Gross Revenue', totalRevenue.toLocaleString(), '100.0%'],
-      ['Operating Expenses', totalExpenses.toLocaleString(), 
-       `${totalRevenue > 0 ? ((totalExpenses / totalRevenue) * 100).toFixed(1) : '0.0'}%`],
-      ['Net Profit/Loss', grossProfit.toLocaleString(), `${profitMargin.toFixed(1)}%`]
+      [
+        'Gross Revenue',
+        `₱${totalRevenue.toLocaleString()}`,
+        revenuePercent,
+        totalRevenue > 0 ? 'Active' : 'No Sales'
+      ],
+      [
+        'Operating Expenses',
+        `₱${totalExpenses.toLocaleString()}`,
+        expensePercent,
+        parseFloat(expensePercent) > 80 ? 'High' : parseFloat(expensePercent) > 60 ? 'Moderate' : 'Controlled'
+      ],
+      [
+        'Net Profit/Loss',
+        `₱${grossProfit.toLocaleString()}`,
+        profitPercent,
+        grossProfit > 0 ? 'Profitable' : grossProfit === 0 ? 'Break-even' : 'Loss'
+      ]
     ]
     
     yPos = addDataTable(pdf, headers, rows, yPos)
     
-    // Simple health assessment
-    yPos = addSectionTitle(pdf, 'Financial Health Assessment', yPos)
+    // Financial Health Assessment
+    yPos = addSectionTitle(pdf, 'Financial Health Analysis', yPos)
     
-    pdf.setTextColor(0, 0, 0)
+    const pageWidth = pdf.internal.pageSize.width
+    const margin = 25
+    const healthBoxWidth = (pageWidth - (margin * 2) - 20) / 2
+    const healthBoxHeight = 60
+    
+    // Profitability Health Card
+    const profitabilityStatus = profitMargin >= 20 ? 'Excellent' : 
+                              profitMargin >= 10 ? 'Good' : 
+                              profitMargin >= 0 ? 'Fair' : 'Critical'
+    
+    // Left health card - Profitability
+    pdf.setFillColor(255, 255, 255)
+    pdf.setDrawColor(226, 232, 240)
+    pdf.setLineWidth(1)
+    pdf.roundedRect(margin, yPos, healthBoxWidth, healthBoxHeight, 6, 6, 'FD')
+    
+    pdf.setTextColor(71, 85, 105)
     pdf.setFontSize(10)
+    pdf.setFont('helvetica', 'bold')
+    pdf.text('PROFITABILITY HEALTH', margin + 10, yPos + 15)
+    
+    if (profitMargin >= 20) pdf.setTextColor(34, 197, 94)
+    else if (profitMargin >= 10) pdf.setTextColor(251, 191, 36)
+    else if (profitMargin >= 0) pdf.setTextColor(59, 130, 246)
+    else pdf.setTextColor(239, 68, 68)
+    
+    pdf.setFontSize(18)
+    pdf.setFont('helvetica', 'bold')
+    pdf.text(profitabilityStatus.toUpperCase(), margin + 10, yPos + 35)
+    
+    pdf.setTextColor(100, 116, 139)
+    pdf.setFontSize(9)
     pdf.setFont('helvetica', 'normal')
+    pdf.text(`${profitMargin.toFixed(1)}% Profit Margin`, margin + 10, yPos + 50)
     
-    const healthStatus = profitMargin >= 20 ? 'Excellent' : 
-                        profitMargin >= 10 ? 'Good' : 
-                        profitMargin >= 0 ? 'Fair' : 'Needs Attention'
+    // Right health card - Expense Control
+    const expenseHealth = parseFloat(expensePercent) <= 60 ? 'Excellent' :
+                         parseFloat(expensePercent) <= 80 ? 'Good' : 'Needs Attention'
     
-    pdf.text(`Overall Financial Health: ${healthStatus}`, 20, yPos)
+    const rightCardX = margin + healthBoxWidth + 20
+    pdf.setFillColor(255, 255, 255)
+    pdf.roundedRect(rightCardX, yPos, healthBoxWidth, healthBoxHeight, 6, 6, 'FD')
     
-    return yPos + 20
+    pdf.setTextColor(71, 85, 105)
+    pdf.setFontSize(10)
+    pdf.setFont('helvetica', 'bold')
+    pdf.text('EXPENSE CONTROL', rightCardX + 10, yPos + 15)
+    
+    if (parseFloat(expensePercent) <= 60) pdf.setTextColor(34, 197, 94)
+    else if (parseFloat(expensePercent) <= 80) pdf.setTextColor(251, 191, 36)
+    else pdf.setTextColor(239, 68, 68)
+    
+    pdf.setFontSize(18)
+    pdf.setFont('helvetica', 'bold')
+    pdf.text(expenseHealth.toUpperCase(), rightCardX + 10, yPos + 35)
+    
+    pdf.setTextColor(100, 116, 139)
+    pdf.setFontSize(9)
+    pdf.setFont('helvetica', 'normal')
+    pdf.text(`${expensePercent} of Revenue`, rightCardX + 10, yPos + 50)
+    
+    yPos += healthBoxHeight + 20
+    
+    addProfessionalFooter(pdf)
+    return yPos
   }
 
   const addPaymentMethodsContent = (pdf: jsPDF, data: ReportData, yStart: number) => {
@@ -469,39 +840,51 @@ export default function BusinessReports() {
     
     yPos = addSectionTitle(pdf, 'Payment Methods Analysis', yPos)
     
-    // Sample payment data
-    const samplePaymentData = [
-      { method: 'Cash', amount: 45000, transactions: 120, percentage: 60.0 },
-      { method: 'Credit Card', amount: 22500, transactions: 45, percentage: 30.0 },
-      { method: 'GCash', amount: 6000, transactions: 25, percentage: 8.0 },
-      { method: 'PayMaya', amount: 1500, transactions: 10, percentage: 2.0 }
-    ]
+    if (data.paymentAnalytics.length === 0) {
+      const suggestions = [
+        'Process transactions through the POS system',
+        'Ensure payment methods are properly recorded',
+        'Verify transaction completion and data synchronization'
+      ]
+      yPos = addNoDataState(pdf, 'No Payment Data Available', 
+        'Payment analytics requires completed transactions with recorded payment methods', suggestions, yPos)
+      addProfessionalFooter(pdf)
+      return yPos
+    }
     
-    const totalAmount = samplePaymentData.reduce((sum, item) => sum + item.amount, 0)
-    const totalTransactions = samplePaymentData.reduce((sum, item) => sum + item.transactions, 0)
+    const paymentData = data.paymentAnalytics
+    const totalAmount = paymentData.reduce((sum, item) => sum + item.amount, 0)
+    const totalTransactions = paymentData.reduce((sum, item) => sum + item.transactions, 0)
+    const avgTransactionValue = totalTransactions > 0 ? totalAmount / totalTransactions : 0
+    const mostUsedMethod = paymentData.reduce((max, method) => method.transactions > max.transactions ? method : max, paymentData[0])
     
-    // Payment Summary
+    // Payment Performance Metrics
     const paymentMetrics = [
       { label: 'Total Payments', value: `₱${totalAmount.toLocaleString()}` },
-      { label: 'Transactions', value: totalTransactions.toString() },
-      { label: 'Avg Payment', value: `₱${(totalAmount / totalTransactions).toFixed(2)}` }
+      { label: 'Total Transactions', value: totalTransactions.toLocaleString() },
+      { label: 'Avg Transaction', value: `₱${avgTransactionValue.toFixed(2)}` },
+      { label: 'Most Used Method', value: mostUsedMethod.method },
+      { label: 'Method Diversity', value: `${paymentData.length} methods` },
+      { label: 'Digital Payment %', value: `${(paymentData.filter(p => p.method !== 'cash').reduce((sum, p) => sum + p.percentage, 0)).toFixed(1)}%` }
     ]
     
     yPos = addSimpleMetrics(pdf, paymentMetrics, yPos)
     
-    // Payment Methods Breakdown
+    // Payment Methods Breakdown Table
     yPos = addSectionTitle(pdf, 'Payment Method Distribution', yPos)
     
-    const paymentHeaders = ['Payment Method', 'Amount', 'Transactions', 'Percentage']
-    const paymentRows = samplePaymentData.map(payment => [
-      payment.method,
+    const paymentHeaders = ['Payment Method', 'Amount', 'Transactions', 'Market Share', 'Avg Transaction']
+    const paymentRows = paymentData.map(payment => [
+      payment.method.charAt(0).toUpperCase() + payment.method.slice(1),
       `₱${payment.amount.toLocaleString()}`,
-      payment.transactions.toString(),
-      `${payment.percentage}%`
+      payment.transactions.toLocaleString(),
+      `${payment.percentage.toFixed(1)}%`,
+      `₱${(payment.amount / payment.transactions).toFixed(2)}`
     ])
     
     yPos = addDataTable(pdf, paymentHeaders, paymentRows, yPos)
     
+    addProfessionalFooter(pdf)
     return yPos + 20
   }
 
@@ -509,12 +892,16 @@ export default function BusinessReports() {
     let yPos = yStart
     
     if (!data.inventoryAnalytics) {
+      const suggestions = [
+        'Add inventory items to your system',
+        'Update stock levels regularly',
+        'Ensure inventory data is properly synchronized'
+      ]
       yPos = addSectionTitle(pdf, 'Inventory Summary', yPos)
-      pdf.setTextColor(99, 99, 102)
-      pdf.setFontSize(11)
-      pdf.setFont('helvetica', 'normal')
-      pdf.text('No inventory data available for this period', 20, yPos)
-      return yPos + 25
+      yPos = addNoDataState(pdf, 'No Inventory Data Available', 
+        'Inventory analysis requires active inventory management', suggestions, yPos)
+      addProfessionalFooter(pdf)
+      return yPos
     }
     
     const inv = data.inventoryAnalytics
@@ -522,40 +909,82 @@ export default function BusinessReports() {
     // Inventory Overview
     yPos = addSectionTitle(pdf, 'Inventory Overview', yPos)
     
+    const inStockItems = inv.totalItems - inv.lowStockItems - inv.outOfStockItems
+    const healthScore = inv.totalItems > 0 ? ((inStockItems / inv.totalItems) * 100) : 0
+    const avgItemValue = inv.totalItems > 0 ? inv.totalValue / inv.totalItems : 0
+    
     const inventoryMetrics = [
-      { label: 'Total Items', value: inv.totalItems.toString() },
+      { label: 'Total Items', value: inv.totalItems.toLocaleString() },
       { label: 'Total Value', value: `₱${inv.totalValue.toLocaleString()}` },
-      { label: 'Low Stock', value: inv.lowStockItems.toString() }
+      { label: 'In Stock Items', value: inStockItems.toLocaleString() },
+      { label: 'Low Stock Items', value: inv.lowStockItems.toLocaleString() },
+      { label: 'Out of Stock', value: inv.outOfStockItems.toLocaleString() },
+      { label: 'Avg Item Value', value: `₱${avgItemValue.toFixed(2)}` },
+      { label: 'Stock Health', value: `${healthScore.toFixed(1)}%` },
+      { label: 'Reorder Priority', value: inv.lowStockItems > 0 ? 'HIGH' : 'LOW' }
     ]
     
     yPos = addSimpleMetrics(pdf, inventoryMetrics, yPos)
     
-    // Stock Status Overview
+    // Stock Status Analysis
     yPos = addSectionTitle(pdf, 'Stock Status Analysis', yPos)
     
-    const inStockItems = inv.totalItems - inv.lowStockItems - inv.outOfStockItems
-    const stockHeaders = ['Status', 'Count', 'Percentage']
+    const stockHeaders = ['Stock Status', 'Item Count', 'Percentage', 'Value Impact', 'Action Required']
     const stockRows = [
-      ['In Stock', inStockItems.toString(), `${((inStockItems / inv.totalItems) * 100).toFixed(1)}%`],
-      ['Low Stock', inv.lowStockItems.toString(), `${((inv.lowStockItems / inv.totalItems) * 100).toFixed(1)}%`],
-      ['Out of Stock', inv.outOfStockItems.toString(), `${((inv.outOfStockItems / inv.totalItems) * 100).toFixed(1)}%`]
+      [
+        'In Stock',
+        inStockItems.toLocaleString(),
+        `${((inStockItems / inv.totalItems) * 100).toFixed(1)}%`,
+        'Optimal',
+        'Monitor levels'
+      ],
+      [
+        'Low Stock',
+        inv.lowStockItems.toLocaleString(),
+        `${((inv.lowStockItems / inv.totalItems) * 100).toFixed(1)}%`,
+        'At Risk',
+        'Reorder soon'
+      ],
+      [
+        'Out of Stock',
+        inv.outOfStockItems.toLocaleString(),
+        `${((inv.outOfStockItems / inv.totalItems) * 100).toFixed(1)}%`,
+        'Critical',
+        'Immediate reorder'
+      ]
     ]
     
     yPos = addDataTable(pdf, stockHeaders, stockRows, yPos)
     
-    // Inventory Health
-    const healthScore = ((inStockItems / inv.totalItems) * 100)
+    // Inventory Health Assessment
     const healthStatus = healthScore >= 80 ? 'Excellent' : 
                         healthScore >= 60 ? 'Good' : 
                         healthScore >= 40 ? 'Fair' : 'Critical'
     
-    yPos += 10
-    pdf.setTextColor(0, 0, 0)
+    yPos = addSectionTitle(pdf, 'Inventory Health Assessment', yPos)
+    
+    pdf.setTextColor(51, 65, 85)
+    pdf.setFontSize(11)
+    pdf.setFont('helvetica', 'bold')
+    pdf.text(`Overall Inventory Health: ${healthStatus.toUpperCase()}`, 25, yPos)
+    
+    pdf.setTextColor(100, 116, 139)
     pdf.setFontSize(10)
     pdf.setFont('helvetica', 'normal')
-    pdf.text(`Inventory Health: ${healthStatus} (${healthScore.toFixed(1)}%)`, 20, yPos)
+    pdf.text(`${healthScore.toFixed(1)}% of inventory is adequately stocked`, 25, yPos + 15)
     
-    return yPos + 25
+    if (inv.lowStockItems > 0) {
+      pdf.setTextColor(245, 158, 11)
+      pdf.text(`Warning: ${inv.lowStockItems} items require immediate attention`, 25, yPos + 30)
+    }
+    
+    if (inv.outOfStockItems > 0) {
+      pdf.setTextColor(239, 68, 68)
+      pdf.text(`Alert: ${inv.outOfStockItems} items are completely out of stock`, 25, yPos + 45)
+    }
+    
+    addProfessionalFooter(pdf)
+    return yPos + 60
   }
 
   const addMenuPerformanceContent = (pdf: jsPDF, data: ReportData, yStart: number) => {
@@ -564,40 +993,147 @@ export default function BusinessReports() {
     yPos = addSectionTitle(pdf, 'Menu Performance Analysis', yPos)
     
     if (data.topItems.length === 0) {
-      pdf.setTextColor(99, 99, 102)
-      pdf.setFontSize(11)
-      pdf.setFont('helvetica', 'normal')
-      pdf.text('No menu performance data available for this period', 20, yPos)
-      return yPos + 25
+      const suggestions = [
+        'Process sales through the POS system',
+        'Ensure menu items are properly categorized',
+        'Verify product data is being tracked correctly'
+      ]
+      yPos = addNoDataState(pdf, 'No Menu Performance Data', 
+        'Menu analysis requires sales transactions with product details', suggestions, yPos)
+      addProfessionalFooter(pdf)
+      return yPos
     }
     
-    // Performance Summary
+    // Performance Summary Calculations
     const totalRevenue = data.topItems.reduce((sum, item) => sum + item.revenue, 0)
     const totalQuantity = data.topItems.reduce((sum, item) => sum + item.quantity, 0)
     const avgItemPrice = totalQuantity > 0 ? totalRevenue / totalQuantity : 0
+    const topPerformer = data.topItems[0]
+    const topPerformerShare = totalRevenue > 0 ? (topPerformer.revenue / totalRevenue) * 100 : 0
     
     const menuMetrics = [
       { label: 'Total Menu Revenue', value: `₱${totalRevenue.toLocaleString()}` },
-      { label: 'Items Sold', value: totalQuantity.toString() },
-      { label: 'Avg Item Price', value: `₱${avgItemPrice.toFixed(2)}` }
+      { label: 'Total Items Sold', value: totalQuantity.toLocaleString() },
+      { label: 'Avg Item Price', value: `₱${avgItemPrice.toFixed(2)}` },
+      { label: 'Top Performer', value: topPerformer.name.length > 15 ? topPerformer.name.substring(0, 12) + '...' : topPerformer.name },
+      { label: 'Top Item Revenue', value: `₱${topPerformer.revenue.toLocaleString()}` },
+      { label: 'Market Leader Share', value: `${topPerformerShare.toFixed(1)}%` },
+      { label: 'Active Menu Items', value: data.topItems.length.toString() },
+      { label: 'Revenue Diversity', value: topPerformerShare < 30 ? 'Balanced' : topPerformerShare < 50 ? 'Moderate' : 'Concentrated' }
     ]
     
     yPos = addSimpleMetrics(pdf, menuMetrics, yPos)
     
-    // Top Performing Items
-    yPos = addSectionTitle(pdf, 'Best Performing Items', yPos)
+    // Top Performing Items Analysis
+    yPos = addSectionTitle(pdf, 'Best Performing Menu Items', yPos)
     
-    const headers = ['Rank', 'Item Name', 'Qty Sold', 'Revenue', '% of Total']
-    const rows = data.topItems.slice(0, 10).map((item, index) => [
-      `#${index + 1}`,
-      item.name.length > 18 ? item.name.substring(0, 15) + '...' : item.name,
-      item.quantity.toString(),
-      `₱${item.revenue.toFixed(2)}`,
-      `${((item.revenue / totalRevenue) * 100).toFixed(1)}%`
-    ])
+    if (data.topItems.length === 0) {
+      const suggestions = [
+        'Process sales through POS system',
+        'Ensure menu items are being tracked',
+        'Verify transaction data is properly recorded'
+      ]
+      yPos = addNoDataState(pdf, 'No Menu Sales Data', 
+        'No menu item sales found for this period', suggestions, yPos)
+    } else {
+      const headers = ['Rank', 'Item', 'Qty', 'Revenue', 'Share', 'Price']
+      
+      const rows = data.topItems.slice(0, 12).map((item, index) => {
+        const marketShare = totalRevenue > 0 ? ((item.revenue / totalRevenue) * 100).toFixed(1) : '0.0'
+        const avgPrice = item.quantity > 0 ? (item.revenue / item.quantity).toFixed(2) : '0.00'
+        
+        return [
+          `#${index + 1}`,
+          item.name.length > 15 ? item.name.substring(0, 12) + '...' : item.name,
+          item.quantity.toString(),
+          `₱${item.revenue.toLocaleString()}`,
+          `${marketShare}%`,
+          `₱${avgPrice}`
+        ]
+      })
+      
+      yPos = addDataTable(pdf, headers, rows, yPos)
+    }
     
-    yPos = addDataTable(pdf, headers, rows, yPos)
+    // Menu Performance Insights
+    yPos = addSectionTitle(pdf, 'Performance Insights', yPos)
     
+    const pageWidth = pdf.internal.pageSize.width
+    const margin = 25
+    
+    // Create insight cards
+    const insights = []
+    
+    if (topPerformerShare > 40) {
+      insights.push({
+        title: 'Revenue Concentration Risk',
+        message: `${topPerformer.name} generates ${topPerformerShare.toFixed(1)}% of menu revenue`,
+        type: 'warning',
+        recommendation: 'Consider promoting other high-margin items'
+      })
+    }
+    
+    if (data.topItems.length < 5) {
+      insights.push({
+        title: 'Limited Menu Diversity',
+        message: `Only ${data.topItems.length} items are generating sales`,
+        type: 'info',
+        recommendation: 'Expand menu offerings or promote existing items'
+      })
+    }
+    
+    if (avgItemPrice > 300) {
+      insights.push({
+        title: 'Premium Pricing Strategy',
+        message: `Average item price of ₱${avgItemPrice.toFixed(2)} indicates premium positioning`,
+        type: 'success',
+        recommendation: 'Maintain quality standards to justify premium pricing'
+      })
+    }
+    
+    // Display insights
+    insights.forEach((insight, index) => {
+      const cardHeight = 50
+      const cardY = yPos + (index * (cardHeight + 10))
+      
+      // Insight card background
+      if (insight.type === 'warning') {
+        pdf.setFillColor(254, 243, 199)
+        pdf.setDrawColor(251, 191, 36)
+      } else if (insight.type === 'success') {
+        pdf.setFillColor(236, 253, 245)
+        pdf.setDrawColor(34, 197, 94)
+      } else {
+        pdf.setFillColor(239, 246, 255)
+        pdf.setDrawColor(59, 130, 246)
+      }
+      
+      pdf.setLineWidth(1)
+      pdf.roundedRect(margin, cardY, pageWidth - (margin * 2), cardHeight, 4, 4, 'FD')
+      
+      // Icon and title
+      const icon = insight.type === 'warning' ? 'Warning:' : insight.type === 'success' ? 'Success:' : 'Info:'
+      pdf.setTextColor(71, 85, 105)
+      pdf.setFontSize(10)
+      pdf.setFont('helvetica', 'bold')
+      pdf.text(`${icon} ${insight.title}`, margin + 10, cardY + 15)
+      
+      // Message
+      pdf.setTextColor(100, 116, 139)
+      pdf.setFontSize(9)
+      pdf.setFont('helvetica', 'normal')
+      pdf.text(insight.message, margin + 10, cardY + 28)
+      
+      // Recommendation
+      pdf.setTextColor(71, 85, 105)
+      pdf.setFontSize(8)
+      pdf.setFont('helvetica', 'italic')
+      pdf.text(`Recommendation: ${insight.recommendation}`, margin + 10, cardY + 40)
+    })
+    
+    yPos += insights.length * 60 + 20
+    
+    addProfessionalFooter(pdf)
     return yPos + 10
   }
 
@@ -610,60 +1146,130 @@ export default function BusinessReports() {
     const netProfit = totalRevenue - totalExpenses
     const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0
     
-    // Executive Overview
+    // Executive Summary Header
     yPos = addSectionTitle(pdf, 'Executive Summary', yPos)
     
-    // Key Performance Indicators
+    if (totalRevenue === 0 && totalOrders === 0 && data.salesData.length === 0) {
+      const suggestions = [
+        'Activate POS system to start recording transactions',
+        'Verify business operations are generating sales',
+        'Check system integration and data synchronization'
+      ]
+      yPos = addNoDataState(pdf, 'No Business Activity Detected', 
+        'No operational data available for executive analysis', suggestions, yPos)
+      addProfessionalFooter(pdf)
+      return yPos
+    }
+    
+    // Executive KPIs with enhanced styling
+    const avgDailyRevenue = totalRevenue / Math.max(data.salesData.length, 1)
+    const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0
+    
     const executiveMetrics = [
-      { label: 'Revenue', value: `₱${totalRevenue.toLocaleString()}` },
-      { label: 'Orders', value: totalOrders.toString() },
-      { label: 'Expenses', value: `₱${totalExpenses.toLocaleString()}` },
+      { label: 'Total Revenue', value: `₱${totalRevenue.toLocaleString()}` },
       { label: 'Net Profit', value: `₱${netProfit.toLocaleString()}` },
-      { label: 'Margin', value: `${profitMargin.toFixed(1)}%` }
+      { label: 'Profit Margin', value: `${profitMargin.toFixed(1)}%` },
+      { label: 'Total Orders', value: totalOrders.toLocaleString() },
+      { label: 'Avg Order Value', value: `₱${avgOrderValue.toFixed(2)}` },
+      { label: 'Daily Average', value: `₱${avgDailyRevenue.toLocaleString()}` },
+      { label: 'Operating Expenses', value: `₱${totalExpenses.toLocaleString()}` },
+      { label: 'Business Health', value: profitMargin >= 20 ? 'Excellent' : profitMargin >= 10 ? 'Good' : profitMargin >= 0 ? 'Fair' : 'Critical' }
     ]
     
     yPos = addSimpleMetrics(pdf, executiveMetrics, yPos)
     
-    // Business Performance Summary
-    yPos = addSectionTitle(pdf, 'Business Performance', yPos)
+    // Executive Analysis
+    yPos = addSectionTitle(pdf, 'Business Performance Analysis', yPos)
     
-    const performanceHeaders = ['Metric', 'Value', 'Status']
+    const performanceHeaders = ['Key Metric', 'Current Value', 'Performance Rating', 'Trend']
     const performanceRows = [
-      ['Daily Average Revenue', `₱${(totalRevenue / Math.max(data.salesData.length, 1)).toLocaleString()}`, totalRevenue > 0 ? 'Active' : 'Low'],
-      ['Average Order Value', `₱${totalOrders > 0 ? (totalRevenue / totalOrders).toFixed(2) : '0.00'}`, totalOrders > 0 ? 'Good' : 'No Sales'],
-      ['Profit Margin', `${profitMargin.toFixed(1)}%`, profitMargin >= 20 ? 'Excellent' : profitMargin >= 10 ? 'Good' : profitMargin >= 0 ? 'Fair' : 'Critical']
+      [
+        'Revenue Performance', 
+        `₱${totalRevenue.toLocaleString()}`, 
+        totalRevenue > 50000 ? 'Excellent' : totalRevenue > 20000 ? 'Good' : 'Developing',
+        'Growing'
+      ],
+      [
+        'Order Volume', 
+        totalOrders.toLocaleString(), 
+        totalOrders > 100 ? 'High Volume' : totalOrders > 50 ? 'Moderate' : 'Growing',
+        totalOrders > 50 ? 'Strong' : 'Steady'
+      ],
+      [
+        'Profit Margin', 
+        `${profitMargin.toFixed(1)}%`, 
+        profitMargin >= 20 ? 'Excellent' : profitMargin >= 10 ? 'Good' : profitMargin >= 0 ? 'Fair' : 'Critical',
+        profitMargin > 15 ? 'Healthy' : profitMargin > 0 ? 'Stable' : 'Needs Attention'
+      ],
+      [
+        'Customer Spend', 
+        `₱${avgOrderValue.toFixed(2)}`, 
+        avgOrderValue > 500 ? 'Premium' : avgOrderValue > 200 ? 'Standard' : 'Value',
+        'Optimizing'
+      ]
     ]
     
     yPos = addDataTable(pdf, performanceHeaders, performanceRows, yPos)
     
-    // Simple recommendations
-    yPos = addSectionTitle(pdf, 'Key Recommendations', yPos)
+    // Strategic Recommendations
+    yPos = addSectionTitle(pdf, 'Strategic Recommendations', yPos)
     
+    // Create recommendation cards
+    const pageWidth = pdf.internal.pageSize.width
+    const margin = 25
+    let recommendations: string[] = []
+    
+    if (profitMargin < 0) {
+      recommendations = [
+        'CRITICAL: Address negative profit margin through cost reduction',
+        'Review all operational expenses and identify cost-saving opportunities',
+        'Consider pricing strategy adjustments to improve margins'
+      ]
+    } else if (profitMargin < 10) {
+      recommendations = [
+        'Focus on operational efficiency to improve profit margins',
+        'Analyze top-performing products and optimize product mix',
+        'Implement cost control measures across all business areas'
+      ]
+    } else if (profitMargin < 20) {
+      recommendations = [
+        'Strong foundation - consider expansion opportunities',
+        'Invest in marketing to increase customer acquisition',
+        'Optimize high-margin products and services'
+      ]
+    } else {
+      recommendations = [
+        'Excellent performance - scale successful strategies',
+        'Consider market expansion or new product lines',
+        'Maintain operational excellence while growing'
+      ]
+    }
+    
+    if (totalOrders === 0) {
+      recommendations.unshift('URGENT: Activate sales operations immediately')
+    }
+    
+    // Simple recommendations like receipt text
     pdf.setTextColor(0, 0, 0)
     pdf.setFontSize(10)
     pdf.setFont('helvetica', 'normal')
     
-    let recommendations = []
-    
-    if (profitMargin < 0) {
-      recommendations.push('• Business is operating at a loss - immediate attention needed')
-      recommendations.push('• Review and reduce operational expenses')
-    } else if (profitMargin < 10) {
-      recommendations.push('• Profit margin below industry average - focus on cost control')
-    } else {
-      recommendations.push('• Profit margin is healthy - consider expansion opportunities')
-    }
-    
-    if (totalOrders === 0) {
-      recommendations.push('• No sales recorded - verify POS system usage')
-    }
-    
-    recommendations.forEach(rec => {
-      pdf.text(rec, 20, yPos)
-      yPos += 12
+    recommendations.forEach((rec) => {
+      // Check if we need a new page
+      if (yPos > 260) {
+        pdf.addPage()
+        yPos = addSimpleHeader(pdf, 'Business Report (continued)')
+        yPos = addSectionTitle(pdf, 'Strategic Recommendations (continued)', yPos)
+      }
+      
+      // Simple bullet point and text
+      const cleanRec = rec.replace(/[^\w\s\-.,]/g, '').trim()
+      pdf.text(`• ${cleanRec}`, 25, yPos)
+      yPos += 15
     })
     
-    return yPos + 10
+    addProfessionalFooter(pdf)
+    return yPos + 20
   }
 
   const getReportTitle = (reportType: string): string => {
@@ -690,6 +1296,29 @@ export default function BusinessReports() {
     if (dateRange !== 'custom') return true
     if (!customStartDate || !customEndDate) return false
     return new Date(customStartDate) <= new Date(customEndDate)
+  }
+
+  // Debug rendering - show something even if contexts aren't loaded
+  if (!profile) {
+    return (
+      <div className="max-w-7xl mx-auto p-6">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+          <h2 className="text-lg font-semibold text-yellow-800">Authentication Required</h2>
+          <p className="text-yellow-700 mt-1">Please log in to access Business Reports.</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!selectedBranch) {
+    return (
+      <div className="max-w-7xl mx-auto p-6">
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+          <h2 className="text-lg font-semibold text-orange-800">Branch Selection Required</h2>
+          <p className="text-orange-700 mt-1">Please select a branch to access Business Reports.</p>
+        </div>
+      </div>
+    )
   }
 
   return (

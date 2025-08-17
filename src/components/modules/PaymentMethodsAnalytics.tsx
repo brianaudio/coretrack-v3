@@ -75,11 +75,22 @@ export default function PaymentMethodsAnalytics() {
       }, 2000) // Longer delay to ensure reset is complete
     }
 
+    // 🔥 NUCLEAR FIREBASE RESET - Listen for forced reset events
+    const handleForceReset = (event: any) => {
+      console.log('💥 PAYMENT ANALYTICS NUCLEAR RESET TRIGGERED:', event.detail);
+      setPaymentData(null);
+      setLoading(true);
+      setIsResetting(false);
+      console.log('✅ Payment analytics nuclear reset complete!');
+    };
+
     // Listen for custom shift reset events
     window.addEventListener('shiftReset', handleShiftReset as EventListener)
+    window.addEventListener('forceFirebaseReset', handleForceReset);
     
     return () => {
       window.removeEventListener('shiftReset', handleShiftReset as EventListener)
+      window.removeEventListener('forceFirebaseReset', handleForceReset);
     }
   }, [selectedBranch, profile?.tenantId, clearAnalyticsData])
 
@@ -117,6 +128,14 @@ export default function PaymentMethodsAnalytics() {
 
     const fetchPaymentData = async () => {
     if (!selectedBranch || !profile?.uid) {
+      setPaymentData(null)
+      setLoading(false)
+      return
+    }
+
+    // 🔥 CRITICAL: Block Firebase data fetch when no active shift
+    if (!currentShift?.id) {
+      console.log('[PaymentAnalytics] 🚫 NO ACTIVE SHIFT - Blocking Firebase fetch to prevent payment data leak!')
       setPaymentData(null)
       setLoading(false)
       return

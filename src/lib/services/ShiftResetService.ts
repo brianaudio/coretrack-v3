@@ -349,21 +349,25 @@ export class ShiftResetService {
    */
   private async resetOperationalCollections(): Promise<void> {
     const batch = writeBatch(db)
-    const collectionsToReset = ['posOrders', 'expenses', 'inventory_transactions']
+    const collectionsToReset = ['orders', 'expenses', 'inventory_transactions'] // Fixed: 'orders' not 'posOrders'
     
     for (const collectionName of collectionsToReset) {
       const collectionRef = collection(db, `tenants/${this.tenantId}/${collectionName}`)
-      const collectionQuery = query(collectionRef, where('locationId', '==', this.locationId))
-      const snapshot = await getDocs(collectionQuery)
       
-      // Delete all documents for this location
+      // 🔥 NUCLEAR DELETE: Get ALL documents, not just by locationId
+      // This fixes the issue where orders without locationId weren't being deleted
+      const snapshot = await getDocs(collectionRef)
+      
+      console.log(`🗑️ DELETING ${snapshot.size} documents from ${collectionName} collection`)
+      
+      // Delete all documents in this collection for this tenant
       snapshot.docs.forEach((docSnapshot) => {
         batch.delete(docSnapshot.ref)
       })
     }
     
     await batch.commit()
-    console.log(`🗑️ Reset ${collectionsToReset.length} operational collections`)
+    console.log(`✅ NUCLEAR RESET: Completely cleared ${collectionsToReset.length} operational collections`)
   }
 
   /**

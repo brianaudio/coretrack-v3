@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
 import { useBranch } from '../../lib/context/BranchContext'
 import { getBranchLocationId } from '../../lib/utils/branchUtils'
-import { useFeatureAccess } from '../../lib/hooks/useFeatureAccess'
 import { 
   getExpenses, 
   addExpense, 
@@ -29,7 +28,6 @@ import { Timestamp } from 'firebase/firestore'
 export default function Expenses() {
   const { user, profile } = useAuth()
   const { selectedBranch } = useBranch()
-  const { canAddProduct, blockActionWithLimit } = useFeatureAccess()
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [categories, setCategories] = useState<ExpenseCategory[]>([])
   const [loading, setLoading] = useState(true)

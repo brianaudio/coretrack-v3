@@ -9,6 +9,7 @@ import { subscribeToInventoryItems, InventoryItem } from '../../lib/firebase/inv
 import { subscribeToPOSOrders, POSOrder } from '../../lib/firebase/pos'
 import { useBranch } from '../../lib/context/BranchContext'
 import { useAuth } from '../../lib/context/AuthContext'
+import { useShift } from '../../lib/context/ShiftContext'
 import { getBranchLocationId } from '../../lib/utils/branchUtils'
 
 // Types for analytics data
@@ -75,9 +76,10 @@ interface PerformanceMetrics {
   marginGrowth: number
 }
 
-const EnhancedAnalytics: React.FC = () => {
+const MainDashboard: React.FC = () => {
   const { selectedBranch } = useBranch()
   const { profile } = useAuth()
+  const { currentShift } = useShift()
   
   // Real sales data from Firebase
   const [salesData, setSalesData] = useState<SalesData[]>([])
@@ -110,6 +112,71 @@ const EnhancedAnalytics: React.FC = () => {
     categoryBreakdown: []
   })
 
+  // Clear financial data when shift ends/changes for immediate refresh
+  useEffect(() => {
+    console.log('[Analytics] SHIFT CHANGE DETECTED:', {
+      currentShiftId: currentShift?.id,
+      hasShift: !!currentShift,
+      shiftStatus: currentShift?.status
+    })
+    
+    if (!currentShift) {
+      console.log('[Analytics] No active shift detected - AGGRESSIVE DATA RESET for immediate refresh')
+      // Clear all cached data
+      setSalesData([])
+      setRealPOSOrders([])
+      setLoadingOrders(true)
+      setRealInventoryItems([])
+      setLoadingInventory(true)
+      
+      // Reset analytics to zero state
+      setInventoryAnalytics({
+        totalItems: 0,
+        totalValue: 0,
+        lowStockItems: 0,
+        outOfStockItems: 0,
+        averageStockLevel: 0,
+        topMovingItems: [],
+        categoryBreakdown: []
+      })
+    } else {
+      console.log('[Analytics] Active shift detected - maintaining data subscriptions')
+    }
+  }, [currentShift?.id])
+
+  // 🔥 NUCLEAR FIREBASE RESET - Listen for forced reset events
+  useEffect(() => {
+    const handleForceReset = (event: any) => {
+      console.log('💥 FIREBASE NUCLEAR RESET TRIGGERED:', event.detail);
+      
+      // Immediately clear ALL Firebase data
+      setSalesData([]);
+      setRealPOSOrders([]);
+      setRealInventoryItems([]);
+      setLoadingOrders(true);
+      setLoadingInventory(true);
+      
+      // Reset all analytics to zero
+      setInventoryAnalytics({
+        totalItems: 0,
+        totalValue: 0,
+        lowStockItems: 0,
+        outOfStockItems: 0,
+        averageStockLevel: 0,
+        topMovingItems: [],
+        categoryBreakdown: []
+      });
+      
+      console.log('✅ Firebase data nuclear reset complete - all financial data cleared!');
+    };
+    
+    window.addEventListener('forceFirebaseReset', handleForceReset);
+    
+    return () => {
+      window.removeEventListener('forceFirebaseReset', handleForceReset);
+    };
+  }, []);
+
   // Subscribe to real inventory data
   useEffect(() => {
     if (!selectedBranch?.id || !profile?.uid) {
@@ -120,6 +187,14 @@ const EnhancedAnalytics: React.FC = () => {
         profileUid: profile?.uid || 'missing',
         subscriptionErrors: [...prev.subscriptionErrors, 'Missing branch or profile']
       }))
+      return
+    }
+
+    // 🔥 CRITICAL: Don't subscribe to Firebase when no active shift
+    if (!currentShift?.id) {
+      console.log('[Analytics] 🚫 NO ACTIVE SHIFT - Blocking Firebase inventory subscription to prevent data leak!')
+      setRealInventoryItems([])
+      setLoadingInventory(false)
       return
     }
 
@@ -153,12 +228,21 @@ const EnhancedAnalytics: React.FC = () => {
       console.log('[Analytics] Cleaning up inventory subscription')
       unsubscribe()
     }
-  }, [selectedBranch?.id, profile?.uid])
+  }, [selectedBranch?.id, profile?.uid, currentShift?.id])
 
   // Subscribe to real POS orders data
   useEffect(() => {
     if (!selectedBranch?.id || !profile?.uid) {
       console.log('[Analytics] Missing requirements for orders - Branch:', selectedBranch?.id, 'Profile:', profile?.uid)
+      return
+    }
+
+    // 🔥 CRITICAL: Don't subscribe to Firebase when no active shift  
+    if (!currentShift?.id) {
+      console.log('[Analytics] 🚫 NO ACTIVE SHIFT - Blocking Firebase POS subscription to prevent data leak!')
+      setRealPOSOrders([])
+      setSalesData([])
+      setLoadingOrders(false)
       return
     }
 
@@ -170,18 +254,30 @@ const EnhancedAnalytics: React.FC = () => {
       profile.tenantId || profile.uid, // Use tenantId if available, fallback to uid
       (orders: POSOrder[]) => {
         console.log('[Analytics] Received POS orders:', orders.length, orders)
-        console.log('[Analytics] Order details:', orders.map(o => ({
+        
+        // 🔥 CRITICAL: Filter orders by current shift only!
+        const currentShiftOrders = currentShift?.id 
+          ? orders.filter(order => {
+              // Only show orders created during current shift
+              const orderTime = order.createdAt?.toDate()
+              const shiftStartTime = currentShift.startTime?.toDate()
+              return orderTime && shiftStartTime && orderTime >= shiftStartTime
+            })
+          : [] // No shift = no orders
+          
+        console.log(`[Analytics] 🎯 SHIFT FILTERED: ${currentShiftOrders.length} orders from current shift (out of ${orders.length} total)`)
+        console.log('[Analytics] Current shift orders:', currentShiftOrders.map(o => ({
           id: o.id,
           status: o.status,
           total: o.total,
           locationId: o.locationId,
           createdAt: o.createdAt?.toDate()
         })))
-        setRealPOSOrders(orders)
+        setRealPOSOrders(currentShiftOrders)
         
         // Transform orders into sales data for analytics
-        const salesByDate = transformOrdersToSalesData(orders)
-        console.log('[Analytics] Transformed sales data:', salesByDate)
+        const salesByDate = transformOrdersToSalesData(currentShiftOrders)
+        console.log('[Analytics] Transformed sales data (shift filtered):', salesByDate)
         setSalesData(salesByDate)
         setLoadingOrders(false)
         setDebugInfo(prev => ({
@@ -196,7 +292,7 @@ const EnhancedAnalytics: React.FC = () => {
       console.log('[Analytics] Cleaning up POS orders subscription')
       unsubscribe()
     }
-  }, [selectedBranch?.id, profile?.uid])
+  }, [selectedBranch?.id, profile?.uid, currentShift?.id])
 
   // Transform POS orders into sales analytics data
   const transformOrdersToSalesData = (orders: POSOrder[]): SalesData[] => {
@@ -420,11 +516,11 @@ const EnhancedAnalytics: React.FC = () => {
 
   // Calculate performance metrics from actual data
   const currentMetrics: PerformanceMetrics = {
-    revenue: salesData.reduce((sum, day) => sum + day.revenue, 0),
+    revenue: !currentShift ? 0 : salesData.reduce((sum, day) => sum + day.revenue, 0),
     revenueGrowth: 0,
-    orders: salesData.reduce((sum, day) => sum + day.orders, 0),
+    orders: !currentShift ? 0 : salesData.reduce((sum, day) => sum + day.orders, 0),
     ordersGrowth: 0,
-    averageOrderValue: salesData.length > 0 ? salesData.reduce((sum, day) => sum + day.averageOrderValue, 0) / salesData.length : 0,
+    averageOrderValue: !currentShift ? 0 : (salesData.length > 0 ? salesData.reduce((sum, day) => sum + day.averageOrderValue, 0) / salesData.length : 0),
     aovGrowth: 0,
     profitMargin: 0,
     marginGrowth: 0
@@ -1173,4 +1269,4 @@ const EnhancedAnalytics: React.FC = () => {
   )
 }
 
-export default EnhancedAnalytics
+export default MainDashboard

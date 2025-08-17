@@ -82,7 +82,7 @@ const menuItems: MenuItem[] = [
   // BUSINESS INTELLIGENCE - Weekly reviews
   {
     id: 'dashboard' as ModuleType,
-    label: 'Analytics',
+    label: 'Dashboard',
     section: 'intelligence',
     icon: (
       <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">

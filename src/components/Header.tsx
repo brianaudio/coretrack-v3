@@ -85,6 +85,26 @@ export default function Header({ activeModule, onSidebarToggle, onLogout }: Head
         shiftName: currentShift?.name
       })
       
+      // FIREBASE NUCLEAR SOLUTION: Clear Firebase listeners and force re-sync
+      console.log('🚀 FIREBASE NUCLEAR SOLUTION: Clearing Firebase data and forcing complete re-sync...');
+      alert('✅ Shift ended successfully! Clearing all Firebase data and refreshing...');
+      
+      // Force immediate Firebase data clear and re-sync
+      setTimeout(() => {
+        console.log('💥 FIREBASE NUCLEAR: Forcing complete Firebase re-sync!');
+        
+        // Broadcast a custom event to force all components to reset their Firebase listeners
+        window.dispatchEvent(new CustomEvent('forceFirebaseReset', { 
+          detail: { 
+            timestamp: Date.now(),
+            reason: 'shift_end_nuclear_reset' 
+          } 
+        }));
+        
+        // Force complete page reload to ensure clean Firebase state
+        window.location.reload();
+      }, 1000);
+      
       console.log('✅ Shift ended successfully')
     } catch (error) {
       console.error('Failed to end shift:', error)

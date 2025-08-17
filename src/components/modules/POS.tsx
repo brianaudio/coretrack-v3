@@ -1,3 +1,46 @@
+  // Reset POS state for new shift
+  const resetPOSStateForNewShift = () => {
+    setCart([]);
+    setSelectedDiscount(null);
+    setDiscountAmount(0);
+    setShowPaymentModal(false);
+    setCashReceived('');
+    setSelectedPaymentMethod('cash');
+    setShowFavorites(false);
+    setShowCombos(false);
+    setShowCustomers(false);
+    setShowRecentOrders(false);
+    setRecentOrders([]);
+    setShowVoidModal(false);
+    setVoidingOrder(null);
+    setVoidReason('');
+    setReturnInventory(true);
+    setIsProcessingVoid(false);
+    setPrintingOrder(null);
+    setDownloadingOrder(null);
+    setShowSearchModal(false);
+    setSearchQuery('');
+    setShowDiscountModal(false);
+    setShowMobilePayModal(false);
+    setQrCodeData('');
+    setCombos([]);
+    setEditingCombo(null);
+    setShowAddCombo(false);
+    setSidebarCollapsed(false);
+    setSelectedCategory('All');
+    setMenuItems([]);
+    setLoading(true);
+    // Optionally reload menu items/orders here if needed
+  };
+  // End shift handler (moved below loadMenuItems and loadRecentOrders for scope)
+  const handleEndShift = async () => {
+    if (endCurrentShift) {
+      await endCurrentShift();
+      resetPOSStateForNewShift();
+      await loadMenuItems();
+      await loadRecentOrders();
+    }
+  };
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
@@ -5,6 +48,7 @@ import { useAuth } from '@/lib/context/AuthContext'
 import TutorialOverlay from '@/components/tutorial/TutorialOverlay'
 import { useTutorial } from '@/hooks/useTutorial'
 import { useBranch } from '@/lib/context/BranchContext'
+import { useShift } from '@/lib/context/ShiftContext'
 import { getMenuItems, type MenuItem } from '@/lib/firebase/menuBuilder'
 import { getPOSItems, createPOSOrder, getPOSOrders, updatePOSOrder, type POSItem as FirebasePOSItem, type POSOrder } from '@/lib/firebase/pos'
 import { getBranchLocationId } from '@/lib/utils/branchUtils'
@@ -23,6 +67,7 @@ interface CartItem extends POSItem {
 export default function POS() {
   const { user, profile } = useAuth()
   const { selectedBranch } = useBranch()
+  const { currentShift, startNewShift, endCurrentShift, isShiftActive, loading: shiftLoading } = useShift()
   const { showTutorial, currentStep, nextStep, prevStep, completeTutorial, startTutorial } = useTutorial()
   
   // Development mode detection
@@ -53,6 +98,22 @@ export default function POS() {
   const [cashReceived, setCashReceived] = useState('')
   const [isRefreshing, setIsRefreshing] = useState(false) // Add refresh state
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
+
+  // Custom setter for menuItems that ensures deduplication
+  const setDeduplicatedMenuItems = (items: POSItem[]) => {
+    const uniqueItemsMap = new Map();
+    items.forEach(item => {
+      if (!uniqueItemsMap.has(item.id)) {
+        uniqueItemsMap.set(item.id, item);
+      } else {
+        console.warn(`⚠️ Duplicate item ID detected in setState and skipped: ${item.id} (${item.name})`);
+      }
+    });
+    
+    const deduplicatedItems = Array.from(uniqueItemsMap.values());
+    setMenuItems(deduplicatedItems);
+    console.log(`📋 Set ${deduplicatedItems.length} deduplicated menu items (filtered from ${items.length} total)`);
+  }
   
   // Enhanced Additional Actions State
   const [showSearchModal, setShowSearchModal] = useState(false)
@@ -97,7 +158,17 @@ export default function POS() {
       )
     }
     
-    return items
+    // Additional deduplication safeguard at render time
+    const uniqueRenderItems = new Map();
+    items.forEach(item => {
+      if (!uniqueRenderItems.has(item.id)) {
+        uniqueRenderItems.set(item.id, item);
+      } else {
+        console.warn(`⚠️ Duplicate item ID detected at render time and skipped: ${item.id} (${item.name})`);
+      }
+    });
+    
+    return Array.from(uniqueRenderItems.values())
   }, [menuItems, selectedCategory, searchQuery])
 
   // Enhanced emoji mapping function
@@ -298,12 +369,23 @@ export default function POS() {
         })))
         
         // Convert POSItem and filter only available items
-        const posItems: POSItem[] = items
+        // Also deduplicate items by ID to prevent React key errors
+        const uniqueItemsMap = new Map();
+        items
           .filter(item => item.isAvailable)
-          .map(item => ({
-            ...item,
-            available: item.isAvailable
-          }))
+          .forEach(item => {
+            // Only keep the first instance of each ID
+            if (!uniqueItemsMap.has(item.id)) {
+              uniqueItemsMap.set(item.id, {
+                ...item,
+                available: item.isAvailable
+              });
+            } else {
+              console.warn(`⚠️ Duplicate item ID detected and skipped: ${item.id} (${item.name})`);
+            }
+          });
+        
+        const posItems: POSItem[] = Array.from(uniqueItemsMap.values());
         
         setMenuItems(posItems)
         console.log('✅ Loaded FRESH menu items for POS with correct IDs:', posItems.length)
@@ -432,12 +514,22 @@ export default function POS() {
       
       const items = await getPOSItems(profile.tenantId, locationId)
       
-      const posItems: POSItem[] = items
+      // Add deduplication here as well
+      const uniqueItemsMap = new Map();
+      items
         .filter(item => item.isAvailable)
-        .map(item => ({
-          ...item,
-          available: item.isAvailable
-        }))
+        .forEach(item => {
+          if (!uniqueItemsMap.has(item.id)) {
+            uniqueItemsMap.set(item.id, {
+              ...item,
+              available: item.isAvailable
+            });
+          } else {
+            console.warn(`⚠️ Duplicate item ID detected during refresh and skipped: ${item.id} (${item.name})`);
+          }
+        });
+      
+      const posItems: POSItem[] = Array.from(uniqueItemsMap.values());
       
       setMenuItems(posItems)
       console.log('✅ Menu items refreshed manually:', posItems.length)
@@ -458,8 +550,18 @@ export default function POS() {
       
       const orders = await getPOSOrders(profile.tenantId, locationId)
       
+      // Deduplicate orders by ID to prevent React key errors
+      const uniqueOrdersMap = new Map();
+      orders.forEach(order => {
+        if (!uniqueOrdersMap.has(order.id)) {
+          uniqueOrdersMap.set(order.id, order);
+        } else {
+          console.warn(`⚠️ Duplicate order ID detected and skipped: ${order.id} (Order #${order.orderNumber})`);
+        }
+      });
+      
       // Sort by creation date and get the most recent ones
-      const sortedOrders = orders
+      const sortedOrders = Array.from(uniqueOrdersMap.values())
         .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
         .slice(0, 20) // Get last 20 orders
       

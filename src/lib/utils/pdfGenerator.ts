@@ -240,3 +240,356 @@ export const generatePurchaseOrderSummaryPDF = (orders: PurchaseOrder[]): void =
     alert('Failed to generate summary PDF. Please try again.')
   }
 }
+
+// Shift Report PDF Generator
+export interface ShiftReportData {
+  shiftId: string
+  shiftName: string
+  startTime: Date
+  endTime?: Date
+  staffName: string
+  branchName: string
+  
+  // Financial data
+  grossSales: number
+  totalExpenses: number
+  netProfit: number
+  startingCash: number
+  endingCash?: number
+  
+  // Top menu items (top 3)
+  topItems: Array<{
+    name: string
+    quantity: number
+    revenue: number
+  }>
+  
+  // Peak hours
+  peakHour: {
+    hour: string
+    orderCount: number
+    revenue: number
+  }
+  
+  // Inventory alerts
+  inventoryAlerts: Array<{
+    itemName: string
+    currentStock: number
+    alertType: 'low' | 'out' | 'critical'
+  }>
+}
+
+export const generateShiftReportPDF = (reportData: ShiftReportData): void => {
+  try {
+    const pdf = new jsPDF()
+    let currentY = 30
+    
+    // Define colors (Professional palette)
+    const colors = {
+      primary: [37, 99, 235] as [number, number, number],     // Blue
+      success: [34, 197, 94] as [number, number, number],     // Green
+      danger: [239, 68, 68] as [number, number, number],      // Red
+      warning: [245, 158, 11] as [number, number, number],    // Orange
+      gray: [107, 114, 128] as [number, number, number],      // Gray
+      lightGray: [249, 250, 251] as [number, number, number], // Light Gray
+      darkGray: [55, 65, 81] as [number, number, number]      // Dark Gray
+    }
+    
+    // Modern Header
+    pdf.setDrawColor(220, 220, 220)
+    pdf.setLineWidth(0.5)
+    pdf.line(20, 25, 190, 25)
+    
+    pdf.setTextColor(...colors.darkGray)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(24)
+    pdf.text('SHIFT REPORT', 20, 20)
+    
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(11)
+    pdf.setTextColor(...colors.gray)
+    pdf.text(reportData.branchName, 20, 35)
+    
+    const reportDate = new Date().toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    })
+    pdf.text(`Generated: ${reportDate}`, 190, 35, { align: 'right' })
+    
+    currentY = 55
+    
+    // Shift Information Section
+    pdf.setDrawColor(...colors.lightGray)
+    pdf.setFillColor(248, 249, 250)
+    pdf.rect(20, currentY, 170, 35, 'FD')
+    
+    pdf.setTextColor(...colors.darkGray)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(12)
+    pdf.text('SHIFT INFORMATION', 25, currentY + 10)
+    
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(10)
+    
+    // Format dates properly
+    const startTime = reportData.startTime.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    })
+    
+    const endTime = reportData.endTime ? reportData.endTime.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    }) : 'In Progress'
+    
+    pdf.text(`Shift Name: ${reportData.shiftName}`, 25, currentY + 20)
+    pdf.text(`Staff Member: ${reportData.staffName}`, 25, currentY + 27)
+    pdf.text(`Start Time: ${startTime}`, 110, currentY + 20)
+    pdf.text(`End Time: ${endTime}`, 110, currentY + 27)
+    
+    currentY += 50
+    
+    // Financial Performance Section
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(14)
+    pdf.setTextColor(...colors.darkGray)
+    pdf.text('FINANCIAL PERFORMANCE', 20, currentY)
+    currentY += 15
+    
+    // Three financial cards in a row
+    const cardWidth = 50
+    const cardHeight = 35
+    const cardSpacing = 10
+    
+    // Gross Sales Card
+    pdf.setDrawColor(200, 200, 200)
+    pdf.setFillColor(255, 255, 255)
+    pdf.rect(20, currentY, cardWidth, cardHeight, 'FD')
+    
+    pdf.setTextColor(...colors.gray)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(9)
+    pdf.text('GROSS SALES', 45, currentY + 10, { align: 'center' })
+    
+    pdf.setTextColor(...colors.success)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(14)
+    pdf.text(`P${reportData.grossSales.toLocaleString()}`, 45, currentY + 22, { align: 'center' })
+    
+    // Expenses Card
+    pdf.setDrawColor(200, 200, 200)
+    pdf.setFillColor(255, 255, 255)
+    pdf.rect(20 + cardWidth + cardSpacing, currentY, cardWidth, cardHeight, 'FD')
+    
+    pdf.setTextColor(...colors.gray)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(9)
+    pdf.text('TOTAL EXPENSES', 105, currentY + 10, { align: 'center' })
+    
+    pdf.setTextColor(...colors.warning)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(14)
+    pdf.text(`P${reportData.totalExpenses.toLocaleString()}`, 105, currentY + 22, { align: 'center' })
+    
+    // Net Profit Card
+    pdf.setDrawColor(200, 200, 200)
+    pdf.setFillColor(255, 255, 255)
+    pdf.rect(20 + (cardWidth + cardSpacing) * 2, currentY, cardWidth, cardHeight, 'FD')
+    
+    pdf.setTextColor(...colors.gray)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(9)
+    pdf.text('NET PROFIT', 165, currentY + 10, { align: 'center' })
+    
+    const profitColor = reportData.netProfit >= 0 ? colors.success : colors.danger
+    pdf.setTextColor(...profitColor)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(14)
+    pdf.text(`P${reportData.netProfit.toLocaleString()}`, 165, currentY + 22, { align: 'center' })
+    
+    currentY += 55
+    
+    // Top Performing Items Section
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(14)
+    pdf.setTextColor(...colors.darkGray)
+    pdf.text('TOP PERFORMING ITEMS', 20, currentY)
+    currentY += 15
+    
+    // Table header
+    pdf.setDrawColor(200, 200, 200)
+    pdf.setFillColor(248, 249, 250)
+    pdf.rect(20, currentY, 170, 12, 'FD')
+    
+    pdf.setTextColor(...colors.darkGray)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(10)
+    pdf.text('RANK', 25, currentY + 8)
+    pdf.text('ITEM NAME', 50, currentY + 8)
+    pdf.text('QUANTITY', 120, currentY + 8)
+    pdf.text('REVENUE', 160, currentY + 8)
+    
+    currentY += 12
+    
+    // Top items rows
+    reportData.topItems.slice(0, 3).forEach((item, index) => {
+      const rowHeight = 12
+      
+      // Alternating row colors
+      if (index % 2 === 0) {
+        pdf.setFillColor(252, 252, 252)
+        pdf.rect(20, currentY, 170, rowHeight, 'F')
+      }
+      
+      pdf.setTextColor(...colors.darkGray)
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(10)
+      pdf.text(`#${index + 1}`, 25, currentY + 8)
+      
+      pdf.setFont('helvetica', 'normal')
+      // Truncate long item names
+      const itemName = item.name.length > 20 ? item.name.substring(0, 20) + '...' : item.name
+      pdf.text(itemName, 50, currentY + 8)
+      pdf.text(`${item.quantity} units`, 120, currentY + 8)
+      
+      pdf.setTextColor(...colors.success)
+      pdf.setFont('helvetica', 'bold')
+      pdf.text(`P${item.revenue.toLocaleString()}`, 185, currentY + 8, { align: 'right' })
+      
+      currentY += rowHeight
+    })
+    
+    currentY += 15
+    
+    // Peak Performance Section
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(14)
+    pdf.setTextColor(...colors.darkGray)
+    pdf.text('PEAK PERFORMANCE', 20, currentY)
+    currentY += 15
+    
+    pdf.setDrawColor(200, 200, 200)
+    pdf.setFillColor(255, 248, 225)
+    pdf.rect(20, currentY, 170, 25, 'FD')
+    
+    pdf.setTextColor(...colors.darkGray)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(11)
+    pdf.text(`Peak Hour: ${reportData.peakHour.hour}`, 30, currentY + 10)
+    
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(10)
+    pdf.text(`${reportData.peakHour.orderCount} orders processed`, 30, currentY + 18)
+    
+    pdf.setFont('helvetica', 'bold')
+    pdf.setTextColor(...colors.success)
+    pdf.text(`Revenue: P${reportData.peakHour.revenue.toLocaleString()}`, 180, currentY + 14, { align: 'right' })
+    
+    currentY += 35
+    
+    // Inventory Status Section
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(14)
+    pdf.setTextColor(...colors.darkGray)
+    pdf.text('INVENTORY STATUS', 20, currentY)
+    currentY += 15
+    
+    if (reportData.inventoryAlerts.length > 0) {
+      // Table header for alerts
+      pdf.setDrawColor(200, 200, 200)
+      pdf.setFillColor(248, 249, 250)
+      pdf.rect(20, currentY, 170, 12, 'FD')
+      
+      pdf.setTextColor(...colors.darkGray)
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(10)
+      pdf.text('STATUS', 25, currentY + 8)
+      pdf.text('ITEM NAME', 70, currentY + 8)
+      pdf.text('STOCK LEVEL', 150, currentY + 8)
+      
+      currentY += 12
+      
+      reportData.inventoryAlerts.forEach((alert, index) => {
+        const rowHeight = 12
+        
+        let alertColor = colors.warning
+        let statusText = 'LOW STOCK'
+        let bgColor = [255, 248, 225] as [number, number, number] // Light yellow
+        
+        switch (alert.alertType) {
+          case 'critical':
+            alertColor = colors.danger
+            statusText = 'CRITICAL'
+            bgColor = [254, 242, 242] // Light red
+            break
+          case 'out':
+            alertColor = colors.danger
+            statusText = 'OUT OF STOCK'
+            bgColor = [254, 242, 242] // Light red
+            break
+          case 'low':
+            alertColor = colors.warning
+            statusText = 'LOW STOCK'
+            bgColor = [255, 248, 225] // Light yellow
+            break
+        }
+        
+        pdf.setFillColor(...bgColor)
+        pdf.rect(20, currentY, 170, rowHeight, 'F')
+        
+        pdf.setTextColor(...alertColor)
+        pdf.setFont('helvetica', 'bold')
+        pdf.setFontSize(9)
+        pdf.text(statusText, 25, currentY + 8)
+        
+        pdf.setTextColor(...colors.darkGray)
+        pdf.setFont('helvetica', 'normal')
+        const itemName = alert.itemName.length > 25 ? alert.itemName.substring(0, 25) + '...' : alert.itemName
+        pdf.text(itemName, 70, currentY + 8)
+        pdf.text(`${alert.currentStock} units`, 150, currentY + 8)
+        
+        currentY += rowHeight
+      })
+    } else {
+      pdf.setDrawColor(200, 200, 200)
+      pdf.setFillColor(240, 253, 244)
+      pdf.rect(20, currentY, 170, 20, 'FD')
+      
+      pdf.setTextColor(...colors.success)
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(11)
+      pdf.text('All inventory levels are within normal ranges', 30, currentY + 13)
+      
+      currentY += 30
+    }
+    
+    // Professional Footer
+    const pageHeight = pdf.internal.pageSize.height
+    pdf.setDrawColor(220, 220, 220)
+    pdf.setLineWidth(0.5)
+    pdf.line(20, pageHeight - 25, 190, pageHeight - 25)
+    
+    pdf.setTextColor(...colors.gray)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(8)
+    pdf.text('CoreTrack Business Management System', 20, pageHeight - 15)
+    pdf.text(`Generated on ${new Date().toLocaleString()}`, 190, pageHeight - 15, { align: 'right' })
+    pdf.text(`Shift ID: ${reportData.shiftId}`, 105, pageHeight - 10, { align: 'center' })
+    
+    // Generate clean filename
+    const shiftDate = reportData.startTime.toISOString().split('T')[0]
+    const fileName = `CoreTrack-Shift-Report-${shiftDate}-${reportData.shiftId.slice(-6)}.pdf`
+    pdf.save(fileName)
+    
+  } catch (error) {
+    console.error('Error generating shift report PDF:', error)
+    alert('Failed to generate shift report. Please try again.')
+  }
+}

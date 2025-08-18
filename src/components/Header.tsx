@@ -243,75 +243,51 @@ export default function Header({ activeModule, onSidebarToggle, onLogout }: Head
                   </svg>
                 </button>
 
-                {/* Start Shift Button - Ultra Modern Design */}
+                {/* Start Shift Button - Ultra Minimalist & Sleek */}
                 {!isShiftActive && (
                   <button 
                     onClick={handleStartShift}
                     disabled={loading}
-                    className="group relative overflow-hidden bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-700 hover:via-blue-800 hover:to-indigo-800 text-white disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed px-5 py-2.5 rounded-2xl text-sm font-semibold transition-all duration-300 flex items-center gap-2.5 shadow-lg hover:shadow-xl active:scale-[0.97] hover:-translate-y-0.5"
-                    title="Start Your Work Session"
+                    className="group bg-white/80 backdrop-blur-sm border border-emerald-200/50 hover:border-emerald-300 text-emerald-700 hover:text-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200 flex items-center gap-1.5 hover:bg-white/90"
+                    title="Start Work Session"
                   >
-                    {/* Beautiful gradient overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                    
-                    {/* Animated icon */}
-                    <div className="relative">
-                      {loading ? (
-                        <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                      ) : (
-                        <svg className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                      )}
-                    </div>
-                    
-                    {/* Text with subtle animation */}
-                    <span className="relative hidden md:inline-block">
-                      <span className={`transition-all duration-300 ${loading ? 'opacity-60' : 'opacity-100'}`}>
-                        {loading ? 'Starting Session...' : 'Start Shift'}
-                      </span>
+                    {loading ? (
+                      <svg className="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" strokeWidth={2} className="opacity-25"/>
+                        <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" className="opacity-75"/>
+                      </svg>
+                    ) : (
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    )}
+                    <span className="hidden sm:inline">
+                      {loading ? 'Starting...' : 'Start'}
                     </span>
-                    
-                    {/* Subtle shine effect */}
-                    <div className="absolute inset-0 -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
                   </button>
                 )}
 
-                {/* End Shift Button - Ultra Modern Design (matching Start Shift) */}
+                {/* End Shift Button - Ultra Minimalist & Sleek */}
                 {isShiftActive && (currentShift?.createdBy === user?.uid || currentRole === 'cashier') && (
                   <button 
                     onClick={handleEndShift}
                     disabled={loading || isResetting}
-                    className="group relative overflow-hidden bg-gradient-to-r from-red-600 via-red-700 to-rose-700 hover:from-red-700 hover:via-red-800 hover:to-rose-800 text-white disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed px-5 py-2.5 rounded-2xl text-sm font-semibold transition-all duration-300 flex items-center gap-2.5 shadow-lg hover:shadow-xl active:scale-[0.97] hover:-translate-y-0.5"
-                    title="End Your Work Session"
+                    className="group bg-white/80 backdrop-blur-sm border border-rose-200/50 hover:border-rose-300 text-rose-700 hover:text-rose-800 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200 flex items-center gap-1.5 hover:bg-white/90"
+                    title="End Work Session"
                   >
-                    {/* Beautiful gradient overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                    
-                    {/* Animated icon */}
-                    <div className="relative">
-                      {loading || isResetting ? (
-                        <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                      ) : (
-                        <svg className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18 12M6 12l12.728 6.364" />
-                        </svg>
-                      )}
-                    </div>
-                    
-                    {/* Text with subtle animation */}
-                    <span className="relative hidden md:inline-block">
-                      <span className={`transition-all duration-300 ${loading || isResetting ? 'opacity-60' : 'opacity-100'}`}>
-                        {loading || isResetting ? 'Ending Session...' : 'End Shift'}
-                      </span>
+                    {loading || isResetting ? (
+                      <svg className="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" strokeWidth={2} className="opacity-25"/>
+                        <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" className="opacity-75"/>
+                      </svg>
+                    ) : (
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    )}
+                    <span className="hidden sm:inline">
+                      {loading || isResetting ? 'Ending...' : 'End'}
                     </span>
-                    
-                    {/* Subtle shine effect */}
-                    <div className="absolute inset-0 -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
                   </button>
                 )}
 

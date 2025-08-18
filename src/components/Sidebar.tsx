@@ -318,20 +318,31 @@ export default function Sidebar({
 
           {/* Navigation */}
           <nav className={`flex-1 py-4 space-y-1 transition-all duration-300 ${isOpen ? 'px-3' : 'px-1.5'}`}>
-            {/* Business Type indicator */}
+            {/* Ultra-Minimalist Business Mode */}
             {isOpen && (
-              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl">
-                <p className="text-xs font-medium text-green-800 uppercase tracking-wide">Business Mode</p>
-                <p className="text-sm font-semibold text-green-900 capitalize">
-                  {settings.businessType === 'restaurant' && '🍽️ Restaurant'}
-                  {settings.businessType === 'retail' && '🏪 Retail'}
-                  {settings.businessType === 'hybrid' && '🔄 Hybrid'}
-                </p>
-                {isRetail && (
-                  <p className="text-xs text-green-600 mt-0.5">
-                    Product-focused mode
-                  </p>
-                )}
+              <div className="mb-3">
+                {/* Sleek Minimal Card */}
+                <div className="bg-white/60 backdrop-blur-sm border border-slate-100 rounded-xl p-2.5 hover:bg-white/80 transition-all duration-300">
+                  {/* Compact Header */}
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">MODE</span>
+                    <div className="w-1 h-1 rounded-full bg-emerald-400"></div>
+                  </div>
+                  
+                  {/* Business Type - Ultra Compact */}
+                  <div className="flex items-center space-x-1.5">
+                    <span className="text-base leading-none">
+                      {settings.businessType === 'restaurant' && '🍽️'}
+                      {settings.businessType === 'retail' && '🏪'}
+                      {settings.businessType === 'hybrid' && '🔄'}
+                    </span>
+                    <span className="text-xs font-medium text-slate-700">
+                      {settings.businessType === 'restaurant' && 'Restaurant'}
+                      {settings.businessType === 'retail' && 'Retail'}
+                      {settings.businessType === 'hybrid' && 'Hybrid'}
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
             

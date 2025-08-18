@@ -23,6 +23,10 @@ import {
   type UsageAnalytics
 } from '../../lib/firebase/inventoryAnalytics'
 import {
+  getExpensesByDateRange,
+  type Expense
+} from '../../lib/firebase/expenses'
+import {
   LineChart,
   Line,
   AreaChart,
@@ -51,6 +55,7 @@ export default function Analytics() {
   const [salesData, setSalesData] = useState<SalesData[]>([])
   const [topItems, setTopItems] = useState<TopSellingItem[]>([])
   const [inventoryAnalytics, setInventoryAnalytics] = useState<InventoryAnalytics | null>(null)
+  const [expenses, setExpenses] = useState<Expense[]>([])
 
   // Load analytics data
   useEffect(() => {
@@ -62,17 +67,22 @@ export default function Analytics() {
         const locationId = getBranchLocationId(selectedBranch.id)
         const days = selectedPeriod === 'day' ? 1 : selectedPeriod === 'week' ? 7 : selectedPeriod === 'month' ? 30 : 365
         
-        const [stats, salesChart, topSellingItems, inventoryData] = await Promise.all([
+        const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+        const endDate = new Date()
+        
+        const [stats, salesChart, topSellingItems, inventoryData, expensesData] = await Promise.all([
           getDashboardStats(profile.tenantId, locationId),
           getSalesChartData(profile.tenantId, days, locationId),
           getTopSellingItems(profile.tenantId, days, 10, locationId),
-          getInventoryAnalytics(profile.tenantId, days, locationId)
+          getInventoryAnalytics(profile.tenantId, days, locationId),
+          getExpensesByDateRange(profile.tenantId, startDate, endDate)
         ])
         
         setDashboardStats(stats)
         setSalesData(salesChart)
         setTopItems(topSellingItems)
         setInventoryAnalytics(inventoryData)
+        setExpenses(expensesData)
       } catch (error) {
         console.error('Error loading analytics data:', error)
       } finally {
@@ -86,6 +96,12 @@ export default function Analytics() {
   const totalSales = salesData.reduce((sum, day) => sum + day.revenue, 0)
   const totalOrders = salesData.reduce((sum, day) => sum + day.orders, 0)
   const avgOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0
+  
+  // Calculate expenses and profit
+  const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0)
+  const grossProfit = totalSales - (inventoryAnalytics?.totalValue || 0)
+  const netProfit = grossProfit - totalExpenses
+  const profitMargin = totalSales > 0 ? (netProfit / totalSales) * 100 : 0
 
   // Chart colors
   const chartColors = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16']
@@ -265,15 +281,18 @@ export default function Analytics() {
             <div className="card p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-surface-600">Stock Alerts</p>
-                  <p className="text-3xl font-bold text-orange-600">
-                    {inventoryAnalytics?.lowStockItems || 0}
+                  <p className="text-sm font-medium text-surface-600">Net Profit</p>
+                  <p className={`text-3xl font-bold ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    ₱{netProfit.toLocaleString()}
                   </p>
-                  <p className="text-sm text-orange-600">items need attention</p>
+                  <p className={`text-sm ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {profitMargin.toFixed(1)}% margin
+                  </p>
                 </div>
-                <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-                  <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                <div className={`w-12 h-12 ${netProfit >= 0 ? 'bg-green-100' : 'bg-red-100'} rounded-xl flex items-center justify-center`}>
+                  <svg className={`w-6 h-6 ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                          d={netProfit >= 0 ? "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" : "M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"} />
                   </svg>
                 </div>
               </div>

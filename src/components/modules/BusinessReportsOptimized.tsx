@@ -18,6 +18,15 @@ import {
   getInventoryAnalytics,
   type InventoryAnalytics
 } from '../../lib/firebase/inventoryAnalytics'
+import {
+  getExpenses,
+  getExpensesByDateRange,
+  type Expense
+} from '../../lib/firebase/expenses'
+import {
+  getPurchaseOrders,
+  type PurchaseOrder
+} from '../../lib/firebase/purchaseOrders'
 import jsPDF from 'jspdf'
 
 interface ReportData {
@@ -26,8 +35,8 @@ interface ReportData {
   topItems: TopSellingItem[]
   inventoryAnalytics: InventoryAnalytics | null
   paymentAnalytics: PaymentAnalytics[]
-  expenses: any[]
-  purchaseOrders: any[]
+  expenses: Expense[]
+  purchaseOrders: PurchaseOrder[]
   dateRange: string
   startDate: Date
   endDate: Date
@@ -144,12 +153,14 @@ export default function BusinessReports() {
 
     try {
       // Use existing analytics functions instead of custom queries
-      const [dashboardStats, salesData, topItems, inventoryAnalytics, paymentAnalytics] = await Promise.all([
+      const [dashboardStats, salesData, topItems, inventoryAnalytics, paymentAnalytics, expensesData, purchaseOrdersData] = await Promise.all([
         getDashboardStats(profile.tenantId, locationId),
         getSalesChartData(profile.tenantId, days, locationId),
         getTopSellingItems(profile.tenantId, days, 10, locationId),
         getInventoryAnalytics(profile.tenantId, days, locationId),
-        getPaymentAnalytics(profile.tenantId, locationId, startDate, endDate)
+        getPaymentAnalytics(profile.tenantId, locationId, startDate, endDate),
+        getExpensesByDateRange(profile.tenantId, startDate, endDate),
+        getPurchaseOrders(profile.tenantId, locationId)
       ])
 
       // Debug logging
@@ -159,6 +170,8 @@ export default function BusinessReports() {
         topItemsLength: topItems.length,
         inventoryAnalytics,
         paymentAnalyticsLength: paymentAnalytics.length,
+        expensesLength: expensesData.length,
+        purchaseOrdersLength: purchaseOrdersData.length,
         tenantId: profile.tenantId,
         locationId,
         days,
@@ -244,10 +257,9 @@ export default function BusinessReports() {
 
       setLoadingState({ isLoading: true, progress: 60, stage: 'Finalizing data...' })
 
-      // Instead of using sample data, use real data from Firebase or show empty state
-      // For expenses and purchase orders, we'll show empty state if no real data exists
-      const expenses: any[] = []  // Remove sample data
-      const purchaseOrders: any[] = []  // Remove sample data
+      // Use the actual data from Firebase instead of empty arrays
+      const expenses = expensesData || []
+      const purchaseOrders = purchaseOrdersData || []
 
       setLoadingState({ isLoading: true, progress: 90, stage: 'Finalizing data...' })
 

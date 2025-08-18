@@ -46,12 +46,15 @@ export default function Header({ activeModule, onSidebarToggle, onLogout }: Head
 
   const handleStartShift = async () => {
     try {
-      // Simple shift start - let user enter shift name
-      const shiftName = prompt('Enter shift name (optional):') || undefined
+      // Modern shift start without prompt - just start with current date
+      const today = new Date();
+      const shiftName = `${today.toLocaleDateString()} Shift`;
       await startNewShift(shiftName)
     } catch (error) {
       console.error('Failed to start shift:', error)
-      alert('Failed to start shift. Please try again.')
+      // More elegant error handling
+      const errorMessage = error instanceof Error ? error.message : 'Failed to start shift. Please try again.';
+      alert(errorMessage);
     }
   }
 
@@ -168,126 +171,166 @@ export default function Header({ activeModule, onSidebarToggle, onLogout }: Head
   }
 
   return (
-    <header className="bg-white border-b border-surface-200 shadow-sm">
-      <div className="px-6 py-3">
-        <div className="flex items-center justify-between">
-          {/* Left Section - Mobile Menu + Module Title */}
+    <header className="relative bg-white/95 backdrop-blur-xl border-b border-gray-200/30 shadow-[0_1px_8px_-1px_rgba(0,0,0,0.08)]">
+      {/* Subtle background gradient */}
+      <div className="absolute inset-0 bg-gradient-to-r from-blue-50/20 via-white/50 to-purple-50/20 pointer-events-none"></div>
+      
+      <div className="relative px-4 sm:px-6 py-3">
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
+          {/* Left Section - Modern Module Title */}
           <div className="flex items-center space-x-4">
             <button
               onClick={onSidebarToggle}
-              className="lg:hidden p-2 rounded-lg hover:bg-surface-100 transition-colors"
+              className="lg:hidden p-2.5 rounded-xl hover:bg-gray-100/80 active:bg-gray-200/80 transition-all duration-200 group"
             >
-              <svg className="w-6 h-6 text-surface-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-gray-600 group-hover:text-gray-800 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
             
             <div className="flex items-center space-x-3">
-              <h1 className="text-xl font-semibold text-surface-900">
-                {moduleNames[activeModule]}
-              </h1>
+              <div className="flex items-center space-x-3">
+                <div className="flex flex-col">
+                  <h1 className="text-lg font-semibold text-gray-900 leading-tight">
+                    {moduleNames[activeModule]}
+                  </h1>
+                  <div className="w-12 h-0.5 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"></div>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Right Section - Enterprise Controls */}
+          {/* Right Section - Minimalist Controls */}
           <div className="flex items-center space-x-4">
-            {/* Branch Selector */}
-            <BranchSelector />
+            {/* Branch Selector - Modern Styling */}
+            <div className="flex items-center">
+              <BranchSelector />
+            </div>
 
-            {/* Notification Center */}
-            <NotificationCenter />
+            {/* Notification Center - Cleaner */}
+            <div className="flex items-center">
+              <NotificationCenter />
+            </div>
 
-            {/* User Profile Section */}
-            <div className="flex items-center space-x-3 pl-4 border-l border-surface-200">
-              {/* User Info */}
-              <div className="hidden sm:block text-right">
-                <div className="flex items-center justify-end space-x-2">
-                  <span className="text-sm font-medium text-surface-900">
-                    {profile?.displayName || currentUser?.email?.split('@')[0] || profile?.email?.split('@')[0] || 'User'}
+            {/* Modern User Profile Section */}
+            <div className="flex items-center space-x-4 pl-4 ml-2 border-l border-gray-200/50">
+              {/* Elegant User Info */}
+              <div className="hidden sm:flex flex-col items-end text-right">
+                <div className="flex items-center justify-end space-x-1.5">
+                  <div className={`w-1.5 h-1.5 rounded-full ${
+                    currentRole === 'owner' ? 'bg-purple-500' :
+                    currentRole === 'manager' ? 'bg-emerald-500' : 'bg-blue-500'
+                  } shadow-sm`}></div>
+                  <span className="text-xs text-gray-500 capitalize font-medium">
+                    {currentRole || 'staff'}
                   </span>
-                  <div className="flex items-center space-x-1">
-                    <span className={`w-1.5 h-1.5 rounded-full ${
-                      currentRole === 'owner' ? 'bg-purple-500' :
-                      currentRole === 'manager' ? 'bg-green-500' : 'bg-blue-500'
-                    }`}></span>
-                    <span className="text-xs text-surface-500 capitalize font-medium">
-                      {currentRole || 'staff'}
-                    </span>
-                  </div>
                 </div>
               </div>
 
-              {/* Action Buttons */}
+              {/* Modern Action Buttons */}
               <div className="flex items-center space-x-2">
-                {/* Help/Tutorial Button */}
+                {/* Help Button - Minimalist */}
                 <button 
                   onClick={() => {
                     console.log('Help button clicked, activeModule:', activeModule)
                     showHelp(activeModule)
                   }}
-                  className="text-gray-500 hover:text-blue-600 hover:bg-blue-50 px-2 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
+                  className="group relative p-2 rounded-xl hover:bg-blue-50 active:bg-blue-100 transition-all duration-200"
                   title="Help & Tutorials"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <svg className="w-4 h-4 text-gray-500 group-hover:text-blue-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span className="hidden lg:inline">Help</span>
                 </button>
 
-                {/* Start Shift Button - Only show when no active shift */}
+                {/* Start Shift Button - Ultra Modern Design */}
                 {!isShiftActive && (
                   <button 
                     onClick={handleStartShift}
                     disabled={loading}
-                    className="bg-green-600 hover:bg-green-700 text-white disabled:bg-gray-300 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
-                    title="Start New Shift"
+                    className="group relative overflow-hidden bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-700 hover:via-blue-800 hover:to-indigo-800 text-white disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed px-5 py-2.5 rounded-2xl text-sm font-semibold transition-all duration-300 flex items-center gap-2.5 shadow-lg hover:shadow-xl active:scale-[0.97] hover:-translate-y-0.5"
+                    title="Start Your Work Session"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    <span className="hidden md:inline">
-                      {loading ? 'Starting...' : 'Start Shift'}
+                    {/* Beautiful gradient overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    
+                    {/* Animated icon */}
+                    <div className="relative">
+                      {loading ? (
+                        <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                      )}
+                    </div>
+                    
+                    {/* Text with subtle animation */}
+                    <span className="relative hidden md:inline-block">
+                      <span className={`transition-all duration-300 ${loading ? 'opacity-60' : 'opacity-100'}`}>
+                        {loading ? 'Starting Session...' : 'Start Shift'}
+                      </span>
                     </span>
+                    
+                    {/* Subtle shine effect */}
+                    <div className="absolute inset-0 -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
                   </button>
                 )}
 
-                {/* End Shift Button - Only show when active shift exists and user can end it */}
+                {/* End Shift Button - Ultra Modern Design (matching Start Shift) */}
                 {isShiftActive && (currentShift?.createdBy === user?.uid || currentRole === 'cashier') && (
                   <button 
                     onClick={handleEndShift}
                     disabled={loading || isResetting}
-                    className="bg-red-600 hover:bg-red-700 text-white disabled:bg-gray-300 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
-                    title="End Current Shift"
+                    className="group relative overflow-hidden bg-gradient-to-r from-red-600 via-red-700 to-rose-700 hover:from-red-700 hover:via-red-800 hover:to-rose-800 text-white disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed px-5 py-2.5 rounded-2xl text-sm font-semibold transition-all duration-300 flex items-center gap-2.5 shadow-lg hover:shadow-xl active:scale-[0.97] hover:-translate-y-0.5"
+                    title="End Your Work Session"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10l6 6m0-6l-6 6" />
-                    </svg>
-                    <span className="hidden md:inline">
-                      {loading || isResetting ? 'Ending...' : 'End Shift'}
+                    {/* Beautiful gradient overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    
+                    {/* Animated icon */}
+                    <div className="relative">
+                      {loading || isResetting ? (
+                        <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18 12M6 12l12.728 6.364" />
+                        </svg>
+                      )}
+                    </div>
+                    
+                    {/* Text with subtle animation */}
+                    <span className="relative hidden md:inline-block">
+                      <span className={`transition-all duration-300 ${loading || isResetting ? 'opacity-60' : 'opacity-100'}`}>
+                        {loading || isResetting ? 'Ending Session...' : 'End Shift'}
+                      </span>
                     </span>
+                    
+                    {/* Subtle shine effect */}
+                    <div className="absolute inset-0 -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
                   </button>
                 )}
 
-                {/* Sign Out Button - Always visible, separate from shift controls */}
+                {/* Sign Out Button - Ultra Minimalist */}
                 <button 
                   onClick={handleSignOut}
                   disabled={loading}
-                  className="text-surface-500 hover:text-red-600 hover:bg-red-50 disabled:bg-gray-300 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
+                  className="group relative p-2 rounded-xl hover:bg-red-50 active:bg-red-100 disabled:bg-gray-100 disabled:cursor-not-allowed transition-all duration-200"
                   title="Sign Out"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  <svg className="w-4 h-4 text-gray-500 group-hover:text-red-600 disabled:text-gray-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                   </svg>
-                  <span className="hidden md:inline">Sign Out</span>
                 </button>
                 
-                {/* Active Shift Indicator for Non-Owners */}
+                {/* Active Shift Indicator - Elegant Badge */}
                 {isShiftActive && currentShift?.createdBy !== user?.uid && currentRole !== 'cashier' && (
-                  <div className="hidden lg:flex items-center text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded">
-                    <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-                    </svg>
+                  <div className="hidden lg:flex items-center text-xs text-amber-700 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/50 px-3 py-1.5 rounded-full shadow-sm">
+                    <div className="w-1.5 h-1.5 bg-amber-500 rounded-full mr-1.5 animate-pulse"></div>
                     Active Shift
                   </div>
                 )}

@@ -15,6 +15,8 @@ import {
   archiveShiftData,
   calculateShiftSummary
 } from '../firebase/shifts'
+import { generateShiftReportData } from '../utils/shiftReportGenerator'
+import { generateShiftReportPDF } from '../utils/pdfGenerator'
 
 // Types
 export interface ShiftData {
@@ -201,6 +203,25 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       // Update shift in Firebase
       await updateShift(profile.tenantId, currentShift.id, endedShift)
       setCurrentShift(endedShift)
+      
+      // Generate and download shift report PDF
+      try {
+        console.log('📊 Generating shift report PDF...')
+        const reportData = await generateShiftReportData(
+          endedShift,
+          profile.tenantId,
+          selectedBranch.name,
+          profile.displayName || profile.email || 'Staff Member',
+          locationId
+        )
+        
+        generateShiftReportPDF(reportData)
+        console.log('✅ Shift report PDF generated successfully')
+      } catch (pdfError) {
+        console.error('❌ Failed to generate PDF report:', pdfError)
+        // Don't throw error - shift ending should not fail if PDF generation fails
+        alert('Shift ended successfully, but PDF report generation failed. You can try generating the report manually later.')
+      }
       
       // Archive the shift data
       await archiveShift(endedShift.id)

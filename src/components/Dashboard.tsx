@@ -173,10 +173,9 @@ function DashboardInner({ onLogout }: DashboardProps) {
         {/* Shift Status Bar (only for staff) */}
         <ShiftStatusBar />
         
-        {/* Connection Status Bar */}
         <div className="px-6 py-2 bg-white border-b border-surface-200">
           <div className="flex items-center justify-between">
-            <ConnectionStatus />
+            <div></div>
             <div className="flex items-center space-x-4">
               {/* Profile Refresh Button (shows if profile is missing but user exists) */}
               {user && !profile && (

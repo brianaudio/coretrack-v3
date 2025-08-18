@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CoreTrack - Firebase Data Inspector</title>
+    <style>
+        body { 
+            font-family: system-ui, -apple-system, sans-serif; 
+            margin: 20px; 
+            background: #f5f5f5; 
+        }
+        .container { 
+            max-width: 1000px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 30px; 
+            border-radius: 12px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+        }
+        .section { 
+            margin: 20px 0; 
+            padding: 20px; 
+            border: 1px solid #e5e5e5; 
+            border-radius: 8px; 
+        }
+        .success { background: #f0f9ff; border-color: #0ea5e9; }
+        .warning { background: #fffbeb; border-color: #f59e0b; }
+        .error { background: #fef2f2; border-color: #ef4444; }
+        button { 
+            background: #3b82f6; 
+            color: white; 
+            border: none; 
+            padding: 12px 24px; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-size: 14px; 
+            margin: 5px; 
+        }
+        button:hover { background: #2563eb; }
+        pre { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 6px; 
+            overflow-x: auto; 
+            white-space: pre-wrap; 
+        }
+        .metric { 
+            display: inline-block; 
+            background: #f8f9fa; 
+            padding: 8px 12px; 
+            border-radius: 6px; 
+            margin: 5px; 
+            border-left: 3px solid #3b82f6; 
+        }
+        .status { 
+            padding: 4px 8px; 
+            border-radius: 4px; 
+            font-size: 12px; 
+            font-weight: bold; 
+        }
+        .status.good { background: #dcfce7; color: #166534; }
+        .status.warning { background: #fef3c7; color: #92400e; }
+        .status.error { background: #fecaca; color: #991b1b; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 CoreTrack Firebase Data Inspector</h1>
+        <p>This tool will help diagnose why your Business Reports are showing 0 values.</p>
+        
+        <div class="section">
+            <h3>📊 Quick Check</h3>
+            <button onclick="runQuickDiagnosis()">🚀 Run Quick Diagnosis</button>
+            <button onclick="runFullInspection()">🔍 Full Data Inspection</button>
+            <button onclick="createSampleData()">➕ Create Sample Data</button>
+        </div>
+
+        <div id="results"></div>
+    </div>
+
+    <script type="module">
+        // Firebase configuration - replace with your actual config
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
+        import { 
+            getFirestore, 
+            collection, 
+            getDocs, 
+            query, 
+            where, 
+            orderBy, 
+            limit,
+            addDoc,
+            Timestamp 
+        } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
+
+        // You'll need to replace this with your actual Firebase config
+        const firebaseConfig = {
+            // Add your Firebase config here
+            apiKey: "your-api-key",
+            authDomain: "your-project.firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "your-project.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "your-app-id"
+        };
+
+        let app, db;
+        
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            console.log('✅ Firebase initialized successfully');
+        } catch (error) {
+            console.error('❌ Firebase initialization failed:', error);
+        }
+
+        window.runQuickDiagnosis = async function() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="section"><h3>🔄 Running Quick Diagnosis...</h3></div>';
+
+            try {
+                // Get tenant and location from localStorage (or use defaults)
+                const tenantId = localStorage.getItem('activeTenant') || 'test-tenant';
+                const locationId = localStorage.getItem('activeLocation') || 'main-location';
+
+                console.log(`🏢 Checking data for Tenant: ${tenantId}, Location: ${locationId}`);
+
+                // Check POS Orders
+                const posOrdersRef = collection(db, `tenants/${tenantId}/posOrders`);
+                const posOrdersSnapshot = await getDocs(query(posOrdersRef, limit(10)));
+                
+                // Check Inventory
+                const inventoryRef = collection(db, `tenants/${tenantId}/inventory`);
+                const inventorySnapshot = await getDocs(query(inventoryRef, limit(10)));
+                
+                // Check Expenses
+                const expensesRef = collection(db, `tenants/${tenantId}/expenses`);
+                const expensesSnapshot = await getDocs(query(expensesRef, limit(10)));
+
+                // Generate results
+                let html = `
+                    <div class="section success">
+                        <h3>📋 Quick Diagnosis Results</h3>
+                        <div class="grid">
+                            <div class="metric">
+                                <strong>Tenant ID:</strong><br>${tenantId}
+                            </div>
+                            <div class="metric">
+                                <strong>Location ID:</strong><br>${locationId}
+                            </div>
+                            <div class="metric">
+                                <strong>POS Orders:</strong><br>
+                                <span class="status ${posOrdersSnapshot.size > 0 ? 'good' : 'error'}">
+                                    ${posOrdersSnapshot.size} documents
+                                </span>
+                            </div>
+                            <div class="metric">
+                                <strong>Inventory Items:</strong><br>
+                                <span class="status ${inventorySnapshot.size > 0 ? 'good' : 'warning'}">
+                                    ${inventorySnapshot.size} documents
+                                </span>
+                            </div>
+                            <div class="metric">
+                                <strong>Expenses:</strong><br>
+                                <span class="status ${expensesSnapshot.size > 0 ? 'good' : 'warning'}">
+                                    ${expensesSnapshot.size} documents
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                if (posOrdersSnapshot.size === 0) {
+                    html += `
+                        <div class="section error">
+                            <h3>❌ Issue Found: No POS Orders</h3>
+                            <p><strong>This is why your reports show 0 revenue!</strong></p>
+                            <p>Your Firebase collection <code>tenants/${tenantId}/posOrders</code> is empty.</p>
+                            <h4>💡 Solutions:</h4>
+                            <ul>
+                                <li>Process some test orders through your POS system</li>
+                                <li>Click "Create Sample Data" to add test transactions</li>
+                                <li>Verify your POS system is saving to the correct Firebase collection</li>
+                                <li>Check if orders are being saved with status: 'completed'</li>
+                            </ul>
+                        </div>
+                    `;
+                } else {
+                    // Show sample order data
+                    const sampleOrder = posOrdersSnapshot.docs[0].data();
+                    html += `
+                        <div class="section success">
+                            <h3>✅ Found POS Orders</h3>
+                            <p>Great! You have ${posOrdersSnapshot.size} POS orders. Here's a sample:</p>
+                            <pre>${JSON.stringify(sampleOrder, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+
+                resultsDiv.innerHTML = html;
+
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="section error">
+                        <h3>❌ Error during diagnosis</h3>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <p>Make sure to:</p>
+                        <ul>
+                            <li>Replace the Firebase config in this file with your actual config</li>
+                            <li>Ensure you're logged in to your CoreTrack app</li>
+                            <li>Check the browser console for more details</li>
+                        </ul>
+                        <pre>${error.stack}</pre>
+                    </div>
+                `;
+            }
+        };
+
+        window.createSampleData = async function() {
+            try {
+                const tenantId = localStorage.getItem('activeTenant') || 'test-tenant';
+                const locationId = localStorage.getItem('activeLocation') || 'main-location';
+                
+                // Create sample POS orders
+                const posOrdersRef = collection(db, `tenants/${tenantId}/posOrders`);
+                
+                const sampleOrders = [
+                    {
+                        id: 'sample-order-1',
+                        tenantId,
+                        locationId,
+                        status: 'completed',
+                        total: 450.50,
+                        items: [
+                            { name: 'Burger Combo', quantity: 2, price: 225.25 }
+                        ],
+                        paymentMethod: 'cash',
+                        createdAt: Timestamp.now(),
+                        orderNumber: 'ORD-001'
+                    },
+                    {
+                        id: 'sample-order-2',
+                        tenantId,
+                        locationId,
+                        status: 'completed',
+                        total: 320.00,
+                        items: [
+                            { name: 'Pizza Special', quantity: 1, price: 320.00 }
+                        ],
+                        paymentMethod: 'card',
+                        createdAt: Timestamp.now(),
+                        orderNumber: 'ORD-002'
+                    }
+                ];
+
+                for (const order of sampleOrders) {
+                    await addDoc(posOrdersRef, order);
+                }
+
+                document.getElementById('results').innerHTML = `
+                    <div class="section success">
+                        <h3>✅ Sample Data Created!</h3>
+                        <p>Created ${sampleOrders.length} sample POS orders with total revenue of ₱${sampleOrders.reduce((sum, order) => sum + order.total, 0)}</p>
+                        <p>Now try generating your reports again - they should show data!</p>
+                        <button onclick="runQuickDiagnosis()">🔄 Re-check Data</button>
+                    </div>
+                `;
+
+            } catch (error) {
+                document.getElementById('results').innerHTML = `
+                    <div class="section error">
+                        <h3>❌ Error creating sample data</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        };
+
+        // Make functions available globally
+        window.db = db;
+        
+        // Auto-run quick diagnosis if Firebase is ready
+        if (db) {
+            setTimeout(() => {
+                console.log('🚀 Auto-running quick diagnosis...');
+                // You can uncomment this to auto-run
+                // runQuickDiagnosis();
+            }, 1000);
+        }
+    </script>
+</body>
+</html>

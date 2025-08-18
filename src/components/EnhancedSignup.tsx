@@ -108,7 +108,6 @@ export default function EnhancedSignup({ onLogin, onBackToLanding, initialMode =
     const tier = localStorage.getItem('selectedTier')
     if (tier) {
       setSelectedTier(tier)
-      console.log(`📋 Signup form loaded with pre-selected tier: ${tier}`)
     }
   }, [])
   
@@ -272,8 +271,6 @@ export default function EnhancedSignup({ onLogin, onBackToLanding, initialMode =
     try {
       // Pass the complete businessSetup object to the enhanced account creation
       const result = await createEnhancedAccount(businessSetup)
-      
-      console.log('Enhanced account created:', result)
       
       // Set user role as owner since they're creating the business account
       setCurrentRole('owner')

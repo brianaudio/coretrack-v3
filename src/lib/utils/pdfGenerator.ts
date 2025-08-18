@@ -1,242 +1,107 @@
 import jsPDF from 'jspdf'
-import { PurchaseOrder } from '../firebase/purchaseOrders'
-import { Timestamp } from 'firebase/firestore'
 
-// Helper function to safely convert Timestamp or Date objects to Date
-const toDate = (dateValue: any): Date => {
-  if (!dateValue) return new Date()
-  if (dateValue.toDate && typeof dateValue.toDate === 'function') {
-    // It's a Firestore Timestamp
-    return dateValue.toDate()
+export interface ShiftReportData {
+  shiftName: string
+  staffName: string
+  startTime: Date
+  endTime: Date | null
+  branchName: string
+  totalOrders?: number
+  grossSales: number
+  netProfit: number
+  totalExpenses: number
+  totalCOGS?: number
+  grossProfit?: number
+  topItems: {
+    name: string
+    quantity: number
+    revenue: number
+  }[]
+  peakHour: {
+    hour: string
+    orderCount: number
+    revenue: number
   }
-  if (dateValue instanceof Date) {
-    // It's already a Date object
-    return dateValue
-  }
-  // Try to parse as a string or number
-  return new Date(dateValue)
+  inventoryAlerts: {
+    itemName: string
+    currentStock: number
+    alertType: 'low' | 'critical' | 'out'
+  }[]
 }
 
-export const generatePurchaseOrderPDF = (order: PurchaseOrder): void => {
+// Purchase Order Summary PDF Report - Multiple Orders Summary
+export const generatePurchaseOrderSummaryPDF = (orders: any[]): void => {
   try {
-    const pdf = new jsPDF()
-    
-    // Set up the document
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(20)
-    pdf.text('PURCHASE ORDER', 105, 20, { align: 'center' })
-    
-    // Order number and date
-    pdf.setFontSize(12)
-    pdf.setFont('helvetica', 'normal')
-    pdf.text(`Order #: ${order.orderNumber}`, 20, 40)
-    pdf.text(`Date: ${toDate(order.createdAt).toLocaleDateString()}`, 140, 40)
-    
-    // Status
-    pdf.setFont('helvetica', 'bold')
-    pdf.text(`Status: ${order.status.toUpperCase()}`, 20, 50)
-    
-    // Supplier information
-    pdf.setFont('helvetica', 'bold')
-    pdf.text('SUPPLIER INFORMATION:', 20, 70)
-    pdf.setFont('helvetica', 'normal')
-    pdf.text(`Supplier: ${order.supplierName}`, 20, 80)
-    pdf.text(`Requested by: ${order.requestor || 'N/A'}`, 20, 90)
-    pdf.text(`Expected Delivery: ${toDate(order.expectedDelivery).toLocaleDateString()}`, 20, 100)
-    
-    if (order.deliveredAt) {
-      // Handle both Timestamp and Date objects
-      const deliveredDate = toDate(order.deliveredAt)
-      pdf.text(`Delivered on: ${deliveredDate.toLocaleDateString()}`, 20, 110)
-      if (order.deliveredBy) {
-        pdf.text(`Received by: ${order.deliveredBy}`, 20, 120)
-      }
-    }
-    
-    // Items table header
-    const tableStartY = 140 // Increased by 10 to accommodate the new "Received by" line
-    pdf.setFont('helvetica', 'bold')
-    pdf.text('ITEMS:', 20, tableStartY - 10)
-    
-    // Table headers
-    pdf.rect(20, tableStartY, 170, 10)
-    pdf.setFontSize(10)
-    pdf.text('Item Name', 22, tableStartY + 7)
-    pdf.text('Qty Ordered', 80, tableStartY + 7)
-    pdf.text('Qty Received', 115, tableStartY + 7)
-    pdf.text('Unit', 145, tableStartY + 7)
-    pdf.text('Unit Price', 160, tableStartY + 7)
-    
-    // Table rows
-    let currentY = tableStartY + 10
-    pdf.setFont('helvetica', 'normal')
-    
-    order.items.forEach((item, index) => {
-      const rowHeight = 10
-      
-      // Alternate row background
-      if (index % 2 === 0) {
-        pdf.setFillColor(245, 245, 245)
-        pdf.rect(20, currentY, 170, rowHeight, 'F')
-      }
-      
-      // Item data
-      pdf.text(item.itemName.length > 25 ? item.itemName.substring(0, 25) + '...' : item.itemName, 22, currentY + 7)
-      pdf.text(item.quantity.toString(), 85, currentY + 7)
-      
-      // Show quantity received if available
-      const qtyReceived = item.quantityReceived || 0
-      if (qtyReceived > 0) {
-        pdf.text(qtyReceived.toString(), 120, currentY + 7)
-        
-        // Highlight partial deliveries
-        if (qtyReceived < item.quantity) {
-          pdf.setTextColor(255, 100, 100) // Red for partial
-          pdf.text('PARTIAL', 135, currentY + 7)
-          pdf.setTextColor(0, 0, 0) // Reset to black
-        }
-      } else {
-        pdf.text('-', 120, currentY + 7)
-      }
-      
-      pdf.text(item.unit, 147, currentY + 7)
-      pdf.text(`₱${item.unitPrice.toFixed(2)}`, 162, currentY + 7)
-      
-      currentY += rowHeight
-      
-      // Add new page if needed
-      if (currentY > 270) {
-        pdf.addPage()
-        currentY = 20
-      }
-    })
-    
-    // Totals
-    currentY += 10
-    pdf.setFont('helvetica', 'bold')
-    pdf.text(`Subtotal: ₱${order.subtotal.toLocaleString()}`, 120, currentY)
-    pdf.text(`Tax: ₱${order.tax.toLocaleString()}`, 120, currentY + 10)
-    pdf.text(`Total: ₱${order.total.toLocaleString()}`, 120, currentY + 20)
-    
-    // Notes if available
-    if (order.notes) {
-      currentY += 40
-      pdf.setFont('helvetica', 'bold')
-      pdf.text('NOTES:', 20, currentY)
-      pdf.setFont('helvetica', 'normal')
-      const splitNotes = pdf.splitTextToSize(order.notes, 170)
-      pdf.text(splitNotes, 20, currentY + 10)
-    }
-    
-    // Footer
-    const pageHeight = pdf.internal.pageSize.height
-    pdf.setFontSize(8)
-    pdf.setFont('helvetica', 'italic')
-    pdf.text('Generated by CoreTrack Inventory Management System', 105, pageHeight - 10, { align: 'center' })
-    pdf.text(`Generated on: ${new Date().toLocaleString()}`, 105, pageHeight - 5, { align: 'center' })
-    
-    // Save the PDF
-    const fileName = `PO-${order.orderNumber}-${new Date().toISOString().split('T')[0]}.pdf`
-    pdf.save(fileName)
-    
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) return
+
+    const pdfHTML = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Purchase Orders Summary Report</title>
+          <style>
+            @media print { @page { margin: 0.5in; } }
+            body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+            .header { text-align: center; border-bottom: 3px solid #7c3aed; padding-bottom: 20px; margin-bottom: 30px; }
+            .logo { color: #7c3aed; font-size: 2.2em; font-weight: bold; margin-bottom: 10px; }
+            .po-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+            .po-table th, .po-table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+            .po-table th { background-color: #f8fafc; font-weight: 600; color: #374151; }
+            .footer { text-align: center; margin-top: 40px; color: #6b7280; font-size: 0.9em; border-top: 1px solid #e5e7eb; padding-top: 20px; }
+            .status-pending { color: #f59e0b; font-weight: bold; }
+            .status-approved { color: #10b981; font-weight: bold; }
+            .status-completed { color: #6366f1; font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="logo">CoreTrack Purchase Orders</div>
+            <h1>Purchase Orders Summary Report</h1>
+            <p><strong>Generated:</strong> ${new Date().toLocaleDateString()}</p>
+          </div>
+          
+          ${orders.length > 0 ? `
+          <h3>Purchase Orders List</h3>
+          <table class="po-table">
+            <thead>
+              <tr>
+                <th>PO Number</th>
+                <th>Supplier</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th>Total Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${orders.map((order: any) => `
+                <tr>
+                  <td>${order.poNumber || order.id?.slice(-8) || 'N/A'}</td>
+                  <td>${order.supplier || order.supplierName || 'N/A'}</td>
+                  <td>${order.createdAt ? new Date(order.createdAt.toDate()).toLocaleDateString() : new Date().toLocaleDateString()}</td>
+                  <td><span class="status-${order.status}">${(order.status || 'pending').toUpperCase()}</span></td>
+                  <td>₱${(order.totalAmount || order.total || 0).toLocaleString()}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          ` : '<p>No purchase orders found.</p>'}
+          
+          <div class="footer">
+            <p><strong>CoreTrack Purchase Order Management</strong></p>
+            <p>Generated ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
+          </div>
+        </body>
+      </html>
+    `
+
+    printWindow.document.write(pdfHTML)
+    printWindow.document.close()
+    setTimeout(() => printWindow.print(), 500)
   } catch (error) {
-    console.error('Error generating PDF:', error)
-    alert('Failed to generate PDF. Please try again.')
+    console.error('Purchase Order Summary PDF export error:', error)
+    alert('❌ Error generating Purchase Order Summary PDF. Please try again.')
   }
 }
 
-export const generatePurchaseOrderSummaryPDF = (orders: PurchaseOrder[]): void => {
-  try {
-    const pdf = new jsPDF()
-    
-    // Title
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(18)
-    pdf.text('PURCHASE ORDERS SUMMARY', 105, 20, { align: 'center' })
-    
-    // Generated date
-    pdf.setFontSize(10)
-    pdf.setFont('helvetica', 'normal')
-    pdf.text(`Generated on: ${new Date().toLocaleString()}`, 105, 30, { align: 'center' })
-    
-    // Summary stats
-    const totalOrders = orders.length
-    const totalValue = orders.reduce((sum, order) => sum + order.total, 0)
-    const deliveredOrders = orders.filter(o => o.status === 'delivered').length
-    const partialOrders = orders.filter(o => o.status === 'partially_delivered').length
-    const pendingOrders = orders.filter(o => ['pending', 'approved', 'ordered'].includes(o.status)).length
-    
-    pdf.setFont('helvetica', 'bold')
-    pdf.text('SUMMARY:', 20, 50)
-    pdf.setFont('helvetica', 'normal')
-    pdf.text(`Total Orders: ${totalOrders}`, 20, 60)
-    pdf.text(`Total Value: ₱${totalValue.toLocaleString()}`, 20, 70)
-    pdf.text(`Delivered: ${deliveredOrders}`, 20, 80)
-    pdf.text(`Partially Delivered: ${partialOrders}`, 20, 90)
-    pdf.text(`Pending: ${pendingOrders}`, 20, 100)
-    
-    // Orders table
-    let currentY = 120
-    pdf.setFont('helvetica', 'bold')
-    pdf.text('ORDERS LIST:', 20, currentY - 10)
-    
-    // Headers
-    pdf.rect(20, currentY, 170, 10)
-    pdf.setFontSize(9)
-    pdf.text('Order #', 22, currentY + 7)
-    pdf.text('Supplier', 50, currentY + 7)
-    pdf.text('Status', 100, currentY + 7)
-    pdf.text('Total', 130, currentY + 7)
-    pdf.text('Date', 160, currentY + 7)
-    
-    currentY += 10
-    pdf.setFont('helvetica', 'normal')
-    
-    orders.forEach((order, index) => {
-      const rowHeight = 8
-      
-      if (index % 2 === 0) {
-        pdf.setFillColor(245, 245, 245)
-        pdf.rect(20, currentY, 170, rowHeight, 'F')
-      }
-      
-      pdf.text(order.orderNumber, 22, currentY + 6)
-      pdf.text(order.supplierName.length > 15 ? order.supplierName.substring(0, 15) + '...' : order.supplierName, 50, currentY + 6)
-      
-      // Color code status
-      if (order.status === 'delivered') {
-        pdf.setTextColor(0, 150, 0)
-      } else if (order.status === 'partially_delivered') {
-        pdf.setTextColor(255, 150, 0)
-      } else if (order.status === 'cancelled') {
-        pdf.setTextColor(200, 0, 0)
-      }
-      
-      pdf.text(order.status.replace('_', ' ').toUpperCase(), 100, currentY + 6)
-      pdf.setTextColor(0, 0, 0) // Reset color
-      
-      pdf.text(`₱${order.total.toLocaleString()}`, 130, currentY + 6)
-      pdf.text(order.createdAt?.toDate().toLocaleDateString() || 'N/A', 160, currentY + 6)
-      
-      currentY += rowHeight
-      
-      if (currentY > 270) {
-        pdf.addPage()
-        currentY = 20
-      }
-    })
-    
-    // Footer
-    const pageHeight = pdf.internal.pageSize.height
-    pdf.setFontSize(8)
-    pdf.setFont('helvetica', 'italic')
-    pdf.text('Generated by CoreTrack Inventory Management System', 105, pageHeight - 10, { align: 'center' })
-    
-    const fileName = `PO-Summary-${new Date().toISOString().split('T')[0]}.pdf`
-    pdf.save(fileName)
-    
-  } catch (error) {
-    console.error('Error generating summary PDF:', error)
-    alert('Failed to generate summary PDF. Please try again.')
-  }
-}
+// Note: Shift PDF report generation has been disabled per user request

@@ -93,7 +93,6 @@ const MenuBuilderClean: React.FC = () => {
                   if (!profile?.tenantId || !selectedBranch?.id) return;
                   
                   try {
-                    console.log('🔄 Starting price sync...');
                     const { updateAllMenuItemCosts } = await import('../../lib/firebase/autoMenuPriceSync');
                     const updatedCount = await updateAllMenuItemCosts(profile.tenantId, selectedBranch.id);
                     alert(`✅ Updated ${updatedCount} menu items!`);

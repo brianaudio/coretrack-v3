@@ -79,8 +79,8 @@ export interface TenantSubscription {
   canceledAt?: Timestamp;
   
   // Payment
-  stripeSubscriptionId?: string;
-  stripeCustomerId?: string;
+  paymentProviderId?: string;
+  paymentCustomerId?: string;
   lastPaymentDate?: Timestamp;
   nextPaymentDate?: Timestamp;
   

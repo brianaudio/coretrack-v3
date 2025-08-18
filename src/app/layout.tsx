@@ -9,8 +9,13 @@ import { BusinessSettingsProvider } from '../lib/context/BusinessSettingsContext
 import { MenuPOSSyncProvider } from '../lib/context/MenuPOSSyncContext'
 import { UserProvider } from '../lib/rbac/UserContext'
 import { ToastProvider } from '../components/ui/Toast'
+import { HelpProvider } from '../lib/context/HelpContext'
 import ErrorBoundary from '../components/ErrorBoundary'
 import DataInitializer from '../components/DataInitializer'
+import TrialExpirationHandler from '../components/TrialExpirationHandler'
+import AIAssistant from '../components/AIAssistant'
+import SimpleOnboarding from '../components/onboarding/SimpleOnboarding'
+import HelpModal from '../components/HelpModal'
 
 export const metadata: Metadata = {
   title: 'CoreTrack - Business Inventory Management',
@@ -589,9 +594,16 @@ export default function RootLayout({
                     <SubscriptionProvider>
                       <UserPermissionsProvider>
                         <MenuPOSSyncProvider>
-                          <ToastProvider>
-                            {children}
-                          </ToastProvider>
+                          <HelpProvider>
+                            <ToastProvider>
+                              <TrialExpirationHandler>
+                                <SimpleOnboarding />
+                                {children}
+                                <AIAssistant />
+                                <HelpModal />
+                              </TrialExpirationHandler>
+                            </ToastProvider>
+                          </HelpProvider>
                         </MenuPOSSyncProvider>
                       </UserPermissionsProvider>
                     </SubscriptionProvider>

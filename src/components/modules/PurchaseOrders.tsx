@@ -29,7 +29,7 @@ import {
   type InventoryItem,
   type CreateInventoryItem
 } from '../../lib/firebase/inventory'
-import { generatePurchaseOrderPDF, generatePurchaseOrderSummaryPDF } from '../../lib/utils/pdfGenerator'
+import { generatePurchaseOrderSummaryPDF } from '../../lib/utils/pdfGenerator'
 import { Timestamp } from 'firebase/firestore'
 
 export default function PurchaseOrders() {
@@ -1753,7 +1753,7 @@ export default function PurchaseOrders() {
                   {/* PDF Download Button - Only for delivered orders */}
                   {viewingOrder.status === 'delivered' && (
                     <button
-                      onClick={() => generatePurchaseOrderPDF(viewingOrder)}
+                      onClick={() => generatePurchaseOrderSummaryPDF([viewingOrder])}
                       className="btn-secondary bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
                     >
                       📄 Download PDF

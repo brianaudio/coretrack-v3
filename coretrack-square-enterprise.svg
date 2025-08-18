@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" fill="none">
+  <defs>
+    <!-- Apple-inspired gradient -->
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#000000"/>
+      <stop offset="100%" style="stop-color:#1c1c1e"/>
+    </linearGradient>
+    
+    <!-- Premium logo gradient -->
+    <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#007AFF"/>
+      <stop offset="50%" style="stop-color:#5856D6"/>
+      <stop offset="100%" style="stop-color:#AF52DE"/>
+    </linearGradient>
+    
+    <!-- Glow effect -->
+    <filter id="softGlow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="800" height="800" fill="url(#bg)"/>
+  
+  <!-- Logo centered -->
+  <g transform="translate(400, 280)">
+    <!-- Background glow -->
+    <circle cx="0" cy="0" r="80" fill="rgba(0,122,255,0.08)"/>
+    
+    <!-- Main logo -->
+    <g filter="url(#softGlow)">
+      <circle cx="0" cy="0" r="24" fill="url(#logoGrad)"/>
+      
+      <g stroke="url(#logoGrad)" stroke-linecap="round" stroke-linejoin="round" stroke-width="4">
+        <path d="M0 -65v28M0 37v28"/>
+        <path d="M-45.96 -45.96l19.8 19.8M26.16 26.16l19.8 19.8"/>
+        <path d="M-65 0h28M37 0h28"/>
+        <path d="M-45.96 45.96l19.8-19.8M26.16 -26.16l19.8-19.8"/>
+      </g>
+      
+      <g fill="url(#logoGrad)">
+        <circle cx="0" cy="-51" r="4"/>
+        <circle cx="0" cy="51" r="4"/>
+        <circle cx="51" cy="0" r="4"/>
+        <circle cx="-51" cy="0" r="4"/>
+      </g>
+    </g>
+  </g>
+  
+  <!-- Typography -->
+  <g transform="translate(400, 420)">
+    <!-- Main brand -->
+    <text x="0" y="0" fill="#ffffff" font-family="SF Pro Display, -apple-system, sans-serif" font-size="56" font-weight="700" text-anchor="middle" letter-spacing="-1.5px">
+      CoreTrack
+    </text>
+    
+    <!-- AI designation -->
+    <text x="0" y="35" fill="#007AFF" font-family="SF Pro Display, -apple-system, sans-serif" font-size="22" font-weight="500" text-anchor="middle" letter-spacing="1px">
+      AI
+    </text>
+    
+    <!-- Description -->
+    <text x="0" y="65" fill="#a1a1a6" font-family="SF Pro Text, -apple-system, sans-serif" font-size="18" font-weight="400" text-anchor="middle" letter-spacing="0.2px">
+      Business Management System
+    </text>
+    
+    <!-- Enterprise badge -->
+    <g transform="translate(-60, 85)">
+      <rect x="0" y="0" width="120" height="24" rx="12" fill="rgba(0,122,255,0.15)" stroke="#007AFF" stroke-width="1"/>
+      <text x="60" y="15" fill="#007AFF" font-family="SF Pro Text, -apple-system, sans-serif" font-size="11" font-weight="600" text-anchor="middle" letter-spacing="0.5px">
+        ENTERPRISE
+      </text>
+    </g>
+  </g>
+</svg>

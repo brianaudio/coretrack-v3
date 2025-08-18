@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 800" fill="none">
+  <defs>
+    <!-- Modern gradient inspired by Apple's design language -->
+    <linearGradient id="modernBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#000000"/>
+      <stop offset="100%" style="stop-color:#1a1a1a"/>
+    </linearGradient>
+    
+    <!-- Premium logo gradient -->
+    <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#007AFF"/>
+      <stop offset="50%" style="stop-color:#5856D6"/>
+      <stop offset="100%" style="stop-color:#AF52DE"/>
+    </linearGradient>
+    
+    <!-- Text gradient -->
+    <linearGradient id="textGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#ffffff"/>
+      <stop offset="100%" style="stop-color:#e5e5e7"/>
+    </linearGradient>
+    
+    <!-- Subtle glow effect -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Premium background -->
+  <rect width="1400" height="800" fill="url(#modernBg)"/>
+  
+  <!-- Subtle background pattern (Apple-style noise) -->
+  <defs>
+    <pattern id="noise" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect width="4" height="4" fill="#000"/>
+      <circle cx="1" cy="1" r="0.3" fill="#ffffff" opacity="0.02"/>
+      <circle cx="3" cy="3" r="0.3" fill="#ffffff" opacity="0.01"/>
+    </pattern>
+  </defs>
+  <rect width="1400" height="800" fill="url(#noise)" opacity="1"/>
+  
+  <!-- Main logo container positioned left -->
+  <g transform="translate(120, 400)">
+    <!-- Logo background circle with subtle shadow -->
+    <circle cx="0" cy="0" r="85" fill="rgba(0,122,255,0.1)" opacity="0.3"/>
+    
+    <!-- Main logo icon -->
+    <g filter="url(#glow)">
+      <!-- Core/Center circle representing the "Core" -->
+      <circle cx="0" cy="0" r="20" fill="url(#logoGradient)"/>
+      
+      <!-- Tracking lines/paths radiating outward - more refined -->
+      <g stroke="url(#logoGradient)" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" opacity="0.9">
+        <path d="M0 -60v25M0 35v25"/>
+        <path d="M-42.43 -42.43l17.68 17.68M24.75 24.75l17.68 17.68"/>
+        <path d="M-60 0h25M35 0h25"/>
+        <path d="M-42.43 42.43l17.68-17.68M24.75 -24.75l17.68-17.68"/>
+      </g>
+      
+      <!-- Connection nodes - more subtle -->
+      <g fill="url(#logoGradient)" opacity="0.8">
+        <circle cx="0" cy="-45" r="3"/>
+        <circle cx="0" cy="45" r="3"/>
+        <circle cx="45" cy="0" r="3"/>
+        <circle cx="-45" cy="0" r="3"/>
+      </g>
+      
+      <!-- Additional connection points for AI/network feel -->
+      <g fill="url(#logoGradient)" opacity="0.4">
+        <circle cx="31.82" cy="-31.82" r="2"/>
+        <circle cx="31.82" cy="31.82" r="2"/>
+        <circle cx="-31.82" cy="31.82" r="2"/>
+        <circle cx="-31.82" cy="-31.82" r="2"/>
+      </g>
+    </g>
+  </g>
+  
+  <!-- Typography - Apple-inspired layout -->
+  <g transform="translate(280, 400)">
+    <!-- Main brand name -->
+    <text x="0" y="-60" fill="url(#textGradient)" font-family="SF Pro Display, -apple-system, system-ui, sans-serif" font-size="72" font-weight="700" letter-spacing="-2px">
+      CoreTrack
+    </text>
+    
+    <!-- AI designation -->
+    <text x="0" y="-10" fill="#007AFF" font-family="SF Pro Display, -apple-system, system-ui, sans-serif" font-size="28" font-weight="500" letter-spacing="0.5px">
+      AI
+    </text>
+    
+    <!-- Product description -->
+    <text x="0" y="25" fill="#a1a1a6" font-family="SF Pro Text, -apple-system, system-ui, sans-serif" font-size="24" font-weight="400" letter-spacing="0.2px">
+      Business Management System
+    </text>
+    
+    <!-- Enterprise badge -->
+    <g transform="translate(0, 65)">
+      <rect x="0" y="0" width="140" height="28" rx="14" fill="rgba(0,122,255,0.15)" stroke="#007AFF" stroke-width="1"/>
+      <text x="70" y="18" fill="#007AFF" font-family="SF Pro Text, -apple-system, system-ui, sans-serif" font-size="12" font-weight="600" text-anchor="middle" letter-spacing="0.5px">
+        ENTERPRISE
+      </text>
+    </g>
+  </g>
+  
+  <!-- Subtle decorative elements -->
+  <g opacity="0.1">
+    <!-- Top right corner accent -->
+    <circle cx="1300" cy="100" r="2" fill="#007AFF"/>
+    <circle cx="1320" cy="120" r="1.5" fill="#5856D6"/>
+    <circle cx="1280" cy="140" r="1" fill="#AF52DE"/>
+    
+    <!-- Bottom left corner accent -->
+    <circle cx="100" cy="700" r="1.5" fill="#007AFF"/>
+    <circle cx="80" cy="680" r="1" fill="#5856D6"/>
+    <circle cx="120" cy="720" r="2" fill="#AF52DE"/>
+  </g>
+</svg>

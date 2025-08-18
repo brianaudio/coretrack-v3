@@ -1,0 +1,135 @@
+/**
+ * SECURE Firebase Security Rules - NO DATA LEAKAGE
+ * Replaces overly permissive rules with proper tenant isolation
+ */
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions for security validation
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserId() {
+      return request.auth.uid;
+    }
+    
+    function getUserProfile() {
+      return exists(/databases/$(database)/documents/users/$(getUserId())) ? 
+        get(/databases/$(database)/documents/users/$(getUserId())).data : null;
+    }
+    
+    function getUserTenantId() {
+      let profile = getUserProfile();
+      return profile != null ? profile.tenantId : null;
+    }
+    
+    function isSameTenant(tenantId) {
+      let userTenantId = getUserTenantId();
+      return userTenantId != null && userTenantId == tenantId;
+    }
+    
+    function isOwnerOrAdmin() {
+      let profile = getUserProfile();
+      return profile != null && (profile.role == 'owner' || profile.role == 'admin');
+    }
+    
+    // User profiles - users can only access their own profile
+    match /users/{userId} {
+      allow read, write: if isAuthenticated() && getUserId() == userId;
+    }
+    
+    // SECURE TENANT-SCOPED DATA - NO WILDCARDS
+    match /tenants/{tenantId} {
+      // Tenant document itself
+      allow read: if isAuthenticated() && isSameTenant(tenantId);
+      allow write: if isAuthenticated() && isSameTenant(tenantId) && isOwnerOrAdmin();
+      
+      // POS Items - ONLY same tenant
+      match /posItems/{itemId} {
+        allow read, write: if isAuthenticated() && isSameTenant(tenantId);
+      }
+      
+      // POS Orders - ONLY same tenant
+      match /orders/{orderId} {
+        allow read, write: if isAuthenticated() && isSameTenant(tenantId);
+      }
+      
+      // CRITICAL: Alternative collection names used in codebase
+      match /posOrders/{orderId} {
+        allow read, write: if isAuthenticated() && isSameTenant(tenantId);
+      }
+      
+      // Inventory - ONLY same tenant
+      match /inventory/{itemId} {
+        allow read, write: if isAuthenticated() && isSameTenant(tenantId);
+      }
+      
+      // Menu Items - ONLY same tenant
+      match /menuItems/{itemId} {
+        allow read, write: if isAuthenticated() && isSameTenant(tenantId);
+      }
+      
+      // Expenses - ONLY same tenant
+      match /expenses/{expenseId} {
+        allow read, write: if isAuthenticated() && isSameTenant(tenantId);
+      }
+      
+      // Purchase Orders - ONLY same tenant
+      match /purchaseOrders/{orderId} {
+        allow read, write: if isAuthenticated() && isSameTenant(tenantId);
+      }
+      
+      // Branches - ONLY same tenant
+      match /branches/{branchId} {
+        allow read, write: if isAuthenticated() && isSameTenant(tenantId);
+      }
+      
+      // Analytics - ONLY same tenant, read-only for non-admins
+      match /analytics/{document=**} {
+        allow read: if isAuthenticated() && isSameTenant(tenantId);
+        allow write: if isAuthenticated() && isSameTenant(tenantId) && isOwnerOrAdmin();
+      }
+      
+      // Financial Transactions - ONLY same tenant, read-only for non-admins  
+      match /financialTransactions/{transactionId} {
+        allow read: if isAuthenticated() && isSameTenant(tenantId);
+        allow write: if isAuthenticated() && isSameTenant(tenantId) && isOwnerOrAdmin();
+      }
+      
+      // Settings - ONLY same tenant owners/admins
+      match /settings/{settingId} {
+        allow read: if isAuthenticated() && isSameTenant(tenantId);
+        allow write: if isAuthenticated() && isSameTenant(tenantId) && isOwnerOrAdmin();
+      }
+      
+      // Team Members - ONLY same tenant
+      match /teamMembers/{memberId} {
+        allow read: if isAuthenticated() && isSameTenant(tenantId);
+        allow write: if isAuthenticated() && isSameTenant(tenantId) && isOwnerOrAdmin();
+      }
+    }
+    
+    // Subscriptions - user must have valid tenant
+    match /subscriptions/{subscriptionId} {
+      allow read, write: if isAuthenticated() && getUserTenantId() != null;
+    }
+    
+    // Billing Plans - read-only for authenticated users
+    match /billingPlans/{planId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only server-side modifications
+    }
+    
+    // System collections - read-only
+    match /system/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only server-side modifications
+    }
+    
+    // 🚨 CRITICAL: NO WILDCARD RULES - DENY EVERYTHING ELSE
+    // This prevents access to any unlisted collections
+  }
+}

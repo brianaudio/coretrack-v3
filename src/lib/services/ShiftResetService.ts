@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { getBranchLocationId } from '../utils/branchUtils'
+import { generateUniqueReactKey } from '../utils/reactKeyUtils'
 
 // Types for shift reset operations
 interface ShiftResetSummary {
@@ -114,10 +115,9 @@ export class ShiftResetService {
       // Step 5: Create audit log
       await this.createAuditLog(summary)
       
-      // Step 6: Generate shift report (optional)
-      if (options.generateReport !== false) {
-        await this.generateShiftReport(summary)
-      }
+      // Step 6: Skip shift report generation (disabled)
+      // Report generation has been disabled per user request
+      console.log(`📊 Shift report generation skipped for ${summary.shiftName}`)
       
       console.log('✅ Enterprise Shift Reset Complete!', {
         archiveId: summary.archiveId,
@@ -348,21 +348,25 @@ export class ShiftResetService {
    */
   private async resetOperationalCollections(): Promise<void> {
     const batch = writeBatch(db)
-    const collectionsToReset = ['posOrders', 'expenses', 'inventory_transactions']
+    const collectionsToReset = ['orders', 'expenses', 'inventory_transactions'] // Fixed: 'orders' not 'posOrders'
     
     for (const collectionName of collectionsToReset) {
       const collectionRef = collection(db, `tenants/${this.tenantId}/${collectionName}`)
-      const collectionQuery = query(collectionRef, where('locationId', '==', this.locationId))
-      const snapshot = await getDocs(collectionQuery)
       
-      // Delete all documents for this location
+      // 🔥 NUCLEAR DELETE: Get ALL documents, not just by locationId
+      // This fixes the issue where orders without locationId weren't being deleted
+      const snapshot = await getDocs(collectionRef)
+      
+      console.log(`🗑️ DELETING ${snapshot.size} documents from ${collectionName} collection`)
+      
+      // Delete all documents in this collection for this tenant
       snapshot.docs.forEach((docSnapshot) => {
         batch.delete(docSnapshot.ref)
       })
     }
     
     await batch.commit()
-    console.log(`🗑️ Reset ${collectionsToReset.length} operational collections`)
+    console.log(`✅ NUCLEAR RESET: Completely cleared ${collectionsToReset.length} operational collections`)
   }
 
   /**

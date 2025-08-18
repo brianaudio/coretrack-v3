@@ -130,7 +130,6 @@ export default function DebuggingDemo() {
       
       // This will throw an error
       const result = data.someProperty.nestedProperty
-      console.log(result)
     } catch (err: any) {
       debugError(err, {
         operation: 'Accessing nested property',

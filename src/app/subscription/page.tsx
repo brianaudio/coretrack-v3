@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useSubscription } from '../../lib/context/SubscriptionContext';
 import { useAuth } from '../../lib/context/AuthContext';
 import { SUBSCRIPTION_PLANS } from '../../lib/types/subscription';
-import { updateSubscriptionTier } from '../../lib/firebase/subscription';
+// PayPal payment integration only
 
 export default function SubscriptionPage() {
   const { subscription, features, limits, isActive, isTrial, trialDaysRemaining, refreshSubscription } = useSubscription();
@@ -13,27 +13,13 @@ export default function SubscriptionPage() {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
 
   const handleUpgrade = async (planId: string) => {
-    if (!tenant?.id) return;
-    
-    const plan = SUBSCRIPTION_PLANS.find(p => p.id === planId);
-    if (!plan) return;
-
-    try {
-      setLoading(true);
-      await updateSubscriptionTier(tenant.id, plan.tier, billingCycle);
-      await refreshSubscription();
-      alert('Subscription updated successfully!');
-    } catch (error) {
-      console.error('Error updating subscription:', error);
-      alert('Error updating subscription. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    // PayPal integration would go here
+    console.log('Upgrading to plan:', planId);
   };
 
   const getButtonText = (planId: string) => {
     if (subscription?.planId === planId) return 'Current Plan';
-    return 'Upgrade';
+    return 'Upgrade with PayPal';
   };
 
   const getButtonStyle = (planId: string) => {
@@ -291,7 +277,6 @@ export default function SubscriptionPage() {
                       </svg>
                     ) : (
                       <svg className="w-5 h-5 text-gray-300 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>
                     )}
                   </td>

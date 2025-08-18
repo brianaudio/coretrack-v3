@@ -350,3 +350,21 @@ export const getCategoryPerformance = async (tenantId: string, days: number = 30
     throw new Error('Failed to get category performance');
   }
 };
+
+// Temporary placeholder for PaymentAnalytics until implementation
+export interface PaymentAnalytics {
+  method: string;
+  amount: number;
+  transactions: number;
+  percentage: number;
+}
+
+export const getPaymentAnalytics = async (
+  tenantId: string,
+  locationId: string,
+  startDate: Date,
+  endDate: Date
+): Promise<PaymentAnalytics[]> => {
+  // Temporary implementation - return empty array until proper implementation
+  return [];
+};

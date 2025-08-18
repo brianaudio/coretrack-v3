@@ -21,6 +21,28 @@ interface EnhancedAddProductModalProps {
   categories: string[]
 }
 
+// Category to Icon mapping for seamless selection
+const CATEGORY_ICON_MAP: Record<string, string[]> = {
+  'Coffee': ['☕', '🥤', '🫖', '🧋', '☕', '🫘', '🤎', '🍵'],
+  'Tea': ['🫖', '🍵', '🧋', '🍃', '🌿', '🫖', '🟫', '☕'],
+  'Cold Drinks': ['🥤', '🧃', '🥛', '🍹', '🧊', '💧', '🫗', '🍻'],
+  'Desserts': ['🧁', '🍰', '🎂', '🍪', '🍩', '🍮', '🍫', '🍬'],
+  'Appetizers': ['🍟', '🥨', '🧀', '🥜', '🍿', '🥖', '🫓', '🥙'],
+  'Main Course': ['🍔', '🍕', '🍝', '🍜', '🍛', '🥗', '🌮', '🥩'],
+  'Breakfast': ['🍳', '🥞', '🧇', '🥓', '🥖', '🍞', '🥐', '☕'],
+  'Salads': ['🥗', '🥬', '🍃', '🫒', '🥒', '🍅', '🫑', '🥕'],
+  'Sandwiches': ['🥪', '🍔', '🌭', '🥙', '🫓', '🥖', '🍞', '🧀'],
+  'Pizza': ['🍕', '🫓', '🧀', '🍅', '🫒', '🌿', '🍄', '🥓'],
+  'Pasta': ['🍝', '🍜', '🧀', '🍅', '🌿', '🥄', '🫒', '🧄'],
+  'Burgers': ['🍔', '🍟', '🥓', '🧀', '🍅', '🥬', '🥒', '🧅'],
+  'Sides': ['🍟', '🥨', '🧀', '🥖', '🍿', '🫓', '🥜', '🧅'],
+  'Beverages': ['🥤', '☕', '🧋', '🍹', '🧃', '🥛', '🫖', '💧'],
+  'Alcohol': ['🍻', '🍷', '🥂', '🍸', '🍺', '🥃', '🍾', '🍹'],
+  'Smoothies': ['🥤', '🍓', '🍌', '🥭', '🫐', '🍑', '🥝', '🧊'],
+  'Bakery': ['🥐', '🥖', '🍞', '🧁', '🍪', '🥯', '🫓', '🍩'],
+  'Default': ['🍽️', '🥘', '🍴', '🥄', '🍶', '🫖', '🥪', '🍱']
+}
+
 const WIZARD_STEPS: WizardStep[] = [
   {
     id: 'basic',
@@ -30,6 +52,15 @@ const WIZARD_STEPS: WizardStep[] = [
     isRequired: true,
     isCompleted: false,
     validationRules: ['name', 'category', 'description']
+  },
+  {
+    id: 'media',
+    title: 'Product Image',
+    description: 'Upload product photo',
+    icon: '📷',
+    isRequired: false,
+    isCompleted: false,
+    validationRules: []
   },
   {
     id: 'recipe',
@@ -68,6 +99,12 @@ const WIZARD_STEPS: WizardStep[] = [
     validationRules: []
   }
 ]
+
+// Helper function to get default icon for category
+const getDefaultIconForCategory = (category: string): string => {
+  const icons = CATEGORY_ICON_MAP[category] || CATEGORY_ICON_MAP['Default']
+  return icons[0] // Return first icon as default
+}
 
 export default function EnhancedAddProductModal({
   isOpen,
@@ -126,6 +163,8 @@ export default function EnhancedAddProductModal({
     isDirty: false,
     isSaving: false
   })
+
+  const [selectedCategoryIcon, setSelectedCategoryIcon] = useState<string>('')
 
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null)
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
@@ -261,7 +300,6 @@ export default function EnhancedAddProductModal({
           {/* Step Info */}
           <div className="flex items-center justify-between text-sm">
             <span className="flex items-center gap-2">
-              <span className="text-2xl">{currentStepData.icon}</span>
               <span className="font-medium">{currentStepData.title}</span>
             </span>
             <span className="text-blue-100">
@@ -288,7 +326,6 @@ export default function EnhancedAddProductModal({
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <span className="text-xl">{step.icon}</span>
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-sm truncate">{step.title}</div>
                       <div className="text-xs opacity-75 truncate">{step.description}</div>
@@ -311,9 +348,11 @@ export default function EnhancedAddProductModal({
             >
                 {/* Step content will be rendered here based on currentStep */}
                 {formState.currentStep === 0 && (
-                  <BasicInfoStep
+                  <BasicInfoStepWithIcon
                     data={formState.data}
                     categories={categories}
+                    selectedIcon={selectedCategoryIcon}
+                    onIconChange={setSelectedCategoryIcon}
                     onChange={updateFormData}
                   />
                 )}
@@ -422,13 +461,97 @@ export default function EnhancedAddProductModal({
   )
 }
 
+// Seamless Icon Selector Component
+interface IconSelectorProps {
+  category: string
+  selectedIcon: string
+  onIconChange: (icon: string) => void
+}
+
+function IconSelector({ category, selectedIcon, onIconChange }: IconSelectorProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const availableIcons = CATEGORY_ICON_MAP[category] || CATEGORY_ICON_MAP['Default']
+  
+  // Auto-select default icon when category changes
+  React.useEffect(() => {
+    if (category && !selectedIcon) {
+      onIconChange(getDefaultIconForCategory(category))
+    }
+  }, [category, selectedIcon, onIconChange])
+
+  const handleIconSelect = (icon: string) => {
+    onIconChange(icon)
+    setIsOpen(false)
+  }
+
+  return (
+    <div className="relative">
+      <div className="flex items-center gap-3">
+        <div className="flex items-center bg-gray-50 rounded-lg p-2 min-w-[120px]">
+          <div className="text-2xl mr-2">{selectedIcon || getDefaultIconForCategory(category)}</div>
+          <button
+            type="button"
+            onClick={() => setIsOpen(!isOpen)}
+            className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+          >
+            Change
+            <svg className={`w-4 h-4 transform transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      
+      {/* Icon Selection Panel */}
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-2 bg-white rounded-lg shadow-lg border border-gray-200 p-3 z-10 min-w-[300px]">
+          <div className="text-sm text-gray-600 mb-2 font-medium">Choose icon for {category}:</div>
+          <div className="grid grid-cols-8 gap-2">
+            {availableIcons.map((icon, index) => (
+              <button
+                key={index}
+                type="button"
+                onClick={() => handleIconSelect(icon)}
+                className={`p-2 text-2xl rounded-lg transition-all hover:bg-blue-50 ${
+                  selectedIcon === icon 
+                    ? 'bg-blue-100 ring-2 ring-blue-500' 
+                    : 'bg-gray-50 hover:bg-blue-50'
+                }`}
+              >
+                {icon}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Step Components
 interface StepProps {
   data: Partial<EnhancedMenuItem>
   onChange: (updates: Partial<EnhancedMenuItem>) => void
 }
 
-function BasicInfoStep({ data, categories, onChange }: StepProps & { categories: string[] }) {
+function BasicInfoStepWithIcon({ 
+  data, 
+  categories, 
+  selectedIcon, 
+  onIconChange, 
+  onChange 
+}: StepProps & { 
+  categories: string[] 
+  selectedIcon: string
+  onIconChange: (icon: string) => void
+}) {
+  const handleCategoryChange = (category: string) => {
+    // Auto-set icon when category changes
+    const defaultIcon = getDefaultIconForCategory(category)
+    onChange({ category })
+    onIconChange(defaultIcon)
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -448,7 +571,7 @@ function BasicInfoStep({ data, categories, onChange }: StepProps & { categories:
             value={data.name || ''}
             onChange={(e) => onChange({ name: e.target.value })}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
-            placeholder="Enter product name (e.g., Classic Burger)"
+            placeholder="Enter product name..."
           />
         </div>
         
@@ -458,40 +581,39 @@ function BasicInfoStep({ data, categories, onChange }: StepProps & { categories:
           </label>
           <select
             value={data.category || ''}
-            onChange={(e) => onChange({ category: e.target.value })}
+            onChange={(e) => handleCategoryChange(e.target.value)}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="">Select category</option>
-            {categories.map(category => (
-              <option key={category} value={category}>{category}</option>
+            <option value="">Select category...</option>
+            {categories.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
             ))}
           </select>
         </div>
-        
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Emoji (Optional)
+            Category Icon
           </label>
-          <input
-            type="text"
-            value={data.emoji || ''}
-            onChange={(e) => onChange({ emoji: e.target.value })}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-2xl"
-            placeholder="🍔"
-            maxLength={2}
+          <IconSelector
+            category={data.category || ''}
+            selectedIcon={selectedIcon || getDefaultIconForCategory(data.category || '')}
+            onIconChange={onIconChange}
           />
         </div>
-        
+
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Description *
+            Description
           </label>
           <textarea
             value={data.description || ''}
             onChange={(e) => onChange({ description: e.target.value })}
             rows={4}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Describe your product in detail..."
+            placeholder="Describe your product..."
           />
         </div>
       </div>

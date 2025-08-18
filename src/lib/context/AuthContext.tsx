@@ -91,7 +91,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     // Development mode - bypass Firebase authentication
     if (isDevelopment) {
-      console.log('🔧 Development Mode: Using mock authentication data');
       
       // Additional security warnings for production misconfiguration
       if (process.env.NODE_ENV === 'production') {
@@ -124,7 +123,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           
           if (!userProfile) {
             // Profile might not be created yet (common after signup), retry after a short delay
-            console.log('🔧 AuthContext: Profile not found, retrying in 2 seconds...')
             setTimeout(async () => {
               try {
                 const retryProfile = await getUserProfile(firebaseUser.uid);
@@ -176,7 +174,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const { signOutWithShiftEnd } = await import('../utils/logoutUtils')
     
     if (isDevelopment) {
-      console.log('🔧 Development Mode: Mock sign out with shift cleanup');
       
       // In dev mode, still try to clean up any demo shifts
       try {
@@ -197,7 +194,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const handleRefreshProfile = async () => {
     if (isDevelopment) {
-      console.log('🔧 Development Mode: Mock profile refresh');
       return;
     }
     

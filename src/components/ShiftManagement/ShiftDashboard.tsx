@@ -7,6 +7,8 @@ import { useToast } from '../ui/Toast'
 import { collection, query, where, getDocs, orderBy, limit, updateDoc, doc, Timestamp } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { getBranchLocationId } from '../../lib/utils/branchUtils'
+import { generateUniqueReactKey } from '../../lib/utils/reactKeyUtils'
+import { generateDebuggedShiftKey } from '../../lib/utils/shiftKeyDebugger'
 
 interface ShiftData {
   id: string
@@ -173,39 +175,64 @@ export default function ShiftDashboard() {
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-24 bg-gray-200 rounded-lg"></div>
+      <div className="space-y-8 animate-pulse">
+        {/* Header Skeleton */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <div className="h-8 bg-surface-200 rounded-lg w-48"></div>
+            <div className="h-4 bg-surface-200 rounded w-64 mt-2"></div>
+          </div>
+          <div className="h-10 bg-surface-200 rounded-lg w-48"></div>
+        </div>
+
+        {/* Stats Cards Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-32 bg-surface-200 rounded-xl"></div>
+          ))}
+        </div>
+
+        {/* Table Skeleton */}
+        <div className="bg-white rounded-xl shadow-lg border border-surface-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-surface-200">
+            <div className="h-6 bg-surface-200 rounded w-32"></div>
+          </div>
+          <div className="p-6 space-y-4">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="flex items-center space-x-4">
+                <div className="h-4 bg-surface-200 rounded w-24"></div>
+                <div className="h-4 bg-surface-200 rounded w-20"></div>
+                <div className="h-4 bg-surface-200 rounded w-32"></div>
+                <div className="h-4 bg-surface-200 rounded w-28"></div>
+                <div className="h-4 bg-surface-200 rounded w-16"></div>
+                <div className="h-4 bg-surface-200 rounded w-20"></div>
+              </div>
             ))}
           </div>
-          <div className="h-64 bg-gray-200 rounded-lg"></div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-8">
+      {/* Header Section */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Shift Management</h1>
-          <p className="text-gray-600">Monitor and manage staff shifts across your operation</p>
+          <h1 className="text-3xl font-bold text-gray-900">Shift Dashboard</h1>
+          <p className="text-gray-600 mt-1">Monitor and manage staff shifts across your operation</p>
         </div>
         
         {/* Period Selector */}
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center bg-surface-100 rounded-lg p-1 border border-surface-200">
           {(['today', 'week', 'month'] as const).map((period) => (
             <button
               key={period}
               onClick={() => setSelectedPeriod(period)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                 selectedPeriod === period
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                  ? 'bg-primary-500 text-white shadow-sm'
+                  : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200'
               }`}
             >
               {period.charAt(0).toUpperCase() + period.slice(1)}
@@ -214,146 +241,216 @@ export default function ShiftDashboard() {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
+      {/* Enhanced Stats Cards with Gradients */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        {/* Total Shifts Card */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-primary-100 text-sm font-medium">Total Shifts</p>
+              <p className="text-3xl font-bold mt-1">{stats.totalShifts}</p>
+              <p className="text-primary-200 text-xs mt-1">
+                {selectedPeriod === 'today' ? 'Today' : selectedPeriod === 'week' ? 'This Week' : 'This Month'}
+              </p>
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Total Shifts</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalShifts}</p>
+            <div className="bg-white/20 rounded-full p-3">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
             </div>
+          </div>
+          {/* Decorative Element */}
+          <div className="absolute -top-4 -right-4 opacity-10">
+            <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
+        {/* Active Shifts Card */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-100 text-sm font-medium">Active Shifts</p>
+              <p className="text-3xl font-bold mt-1">{stats.activeShifts}</p>
+              <p className="text-green-200 text-xs mt-1">
+                Currently running
+              </p>
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Active Shifts</p>
-              <p className="text-2xl font-bold text-green-600">{stats.activeShifts}</p>
+            <div className="bg-white/20 rounded-full p-3">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
             </div>
+          </div>
+          <div className="absolute -top-4 -right-4 opacity-10">
+            <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
+        {/* Completed Shifts Card */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-surface-600 to-surface-700 rounded-xl shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-surface-200 text-sm font-medium">Completed</p>
+              <p className="text-3xl font-bold mt-1">{stats.completedShifts}</p>
+              <p className="text-surface-300 text-xs mt-1">
+                Finished shifts
+              </p>
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Completed</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.completedShifts}</p>
+            <div className="bg-white/20 rounded-full p-3">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
             </div>
+          </div>
+          <div className="absolute -top-4 -right-4 opacity-10">
+            <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M5 13l4 4L19 7" />
+            </svg>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                </svg>
-              </div>
+        {/* Staff Members Card */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-100 text-sm font-medium">Team Members</p>
+              <p className="text-3xl font-bold mt-1">{stats.staffCount}</p>
+              <p className="text-purple-200 text-xs mt-1">
+                Active staff
+              </p>
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Staff Members</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.staffCount}</p>
+            <div className="bg-white/20 rounded-full p-3">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+              </svg>
             </div>
+          </div>
+          <div className="absolute -top-4 -right-4 opacity-10">
+            <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+            </svg>
           </div>
         </div>
       </div>
 
-      {/* Shifts Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Recent Shifts</h3>
+      {/* Professional Shifts Table */}
+      <div className="bg-white rounded-xl shadow-lg border border-surface-200 overflow-hidden">
+        {/* Table Header */}
+        <div className="bg-gradient-to-r from-surface-50 to-surface-100 px-6 py-4 border-b border-surface-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-surface-900">Recent Shifts</h3>
+              <p className="text-sm text-surface-600 mt-1">Track and manage shift operations</p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="bg-white rounded-lg px-3 py-1.5 border border-surface-300">
+                <span className="text-sm font-medium text-surface-700">
+                  {shifts.length} shift{shifts.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
         
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-surface-200">
+            <thead className="bg-surface-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-surface-600 uppercase tracking-wider">
                   Date & Time
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-surface-600 uppercase tracking-wider">
                   Shift Type
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-surface-600 uppercase tracking-wider">
                   Staff on Duty
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-surface-600 uppercase tracking-wider">
                   Duration
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-surface-600 uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-surface-600 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white divide-y divide-surface-100">
               {shifts.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center">
-                      <svg className="w-12 h-12 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <p>No shifts found for the selected period</p>
+                      <div className="bg-surface-100 rounded-full p-4 mb-4">
+                        <svg className="w-8 h-8 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <h4 className="text-surface-900 font-medium mb-1">No shifts found</h4>
+                      <p className="text-surface-500 text-sm">No shifts were found for the selected period</p>
                     </div>
                   </td>
                 </tr>
               ) : (
                 shifts.map((shift) => (
-                  <tr key={shift.id} className="hover:bg-gray-50">
+                  <tr key={generateDebuggedShiftKey(`shift-row-${shift.id}`)} className="hover:bg-surface-50 transition-colors duration-200">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className="text-sm font-semibold text-surface-900">
                           {formatDate(shift.createdAt)}
                         </div>
-                        <div className="text-sm text-gray-500">
+                        <div className="text-sm text-surface-500">
                           Started at {formatTime(shift.createdAt)}
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getShiftTypeColor(shift.shiftType)}`}>
+                      <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${getShiftTypeColor(shift.shiftType)}`}>
                         {shift.shiftType.charAt(0).toUpperCase() + shift.shiftType.slice(1)}
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">
-                        {shift.staffOnDuty.join(', ')}
+                      <div className="flex items-center space-x-2">
+                        <div className="flex -space-x-1">
+                          {shift.staffOnDuty.slice(0, 3).map((staff, index) => (
+                            <div
+                              key={generateUniqueReactKey(`staff-${shift.id}-${index}-${staff}`)}
+                              className="w-6 h-6 bg-primary-500 rounded-full flex items-center justify-center text-xs font-medium text-white border border-white"
+                              title={staff}
+                            >
+                              {staff.charAt(0).toUpperCase()}
+                            </div>
+                          ))}
+                          {shift.staffOnDuty.length > 3 && (
+                            <div className="w-6 h-6 bg-surface-400 rounded-full flex items-center justify-center text-xs font-medium text-white border border-white">
+                              +{shift.staffOnDuty.length - 3}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-surface-900">
+                            {shift.staffOnDuty.length} member{shift.staffOnDuty.length !== 1 ? 's' : ''}
+                          </div>
+                          {shift.staffOnDuty.length <= 3 && (
+                            <div className="text-xs text-surface-500">
+                              {shift.staffOnDuty.join(', ')}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-sm text-gray-500">
-                        {shift.staffOnDuty.length} staff member{shift.staffOnDuty.length !== 1 ? 's' : ''}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {shift.startTime} - {shift.endTime}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getShiftStatusColor(shift.status)}`}>
+                      <div className="text-sm font-medium text-surface-900">{shift.startTime} - {shift.endTime}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full ${getShiftStatusColor(shift.status)}`}>
+                        <div className={`w-1.5 h-1.5 rounded-full mr-2 ${
+                          shift.status === 'active' ? 'bg-green-500' : 'bg-surface-400'
+                        }`}></div>
                         {shift.status.charAt(0).toUpperCase() + shift.status.slice(1)}
                       </span>
                     </td>
@@ -361,13 +458,21 @@ export default function ShiftDashboard() {
                       {shift.status === 'active' && (profile?.role === 'manager' || profile?.role === 'owner') && (
                         <button
                           onClick={() => endShift(shift.id)}
-                          className="text-red-600 hover:text-red-900 font-medium"
+                          className="inline-flex items-center px-3 py-1.5 bg-red-50 text-red-700 text-sm font-medium rounded-lg hover:bg-red-100 transition-colors duration-200"
                         >
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
                           End Shift
                         </button>
                       )}
                       {shift.status === 'completed' && (
-                        <span className="text-gray-400">Completed</span>
+                        <span className="inline-flex items-center px-3 py-1.5 bg-surface-100 text-surface-600 text-sm font-medium rounded-lg">
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Completed
+                        </span>
                       )}
                     </td>
                   </tr>

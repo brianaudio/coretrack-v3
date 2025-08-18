@@ -20,7 +20,6 @@ export function MenuPOSSyncProvider({ children }: { children: React.ReactNode })
   // Set up real-time sync listeners when user logs in
   useEffect(() => {
     if (profile?.tenantId) {
-      console.log(`🚀 [SYNC-PROVIDER] Setting up sync listeners for tenant: ${profile.tenantId}`);
       
       // Clean up existing listeners
       if (syncListenersRef.current) {
@@ -33,18 +32,11 @@ export function MenuPOSSyncProvider({ children }: { children: React.ReactNode })
       // Perform initial validation and cleanup
       (async () => {
         try {
-          console.log(`🔍 [SYNC-PROVIDER] Performing initial sync validation...`);
           const validation = await menuPOSSyncService.validateMenuPOSSync(profile.tenantId);
           
           if (!validation.valid) {
-            console.log(`⚠️ [SYNC-PROVIDER] Sync issues detected, auto-fixing...`);
-            console.log(`📋 [SYNC-PROVIDER] Issues:`, validation.issues);
-            
             // Auto-fix by cleaning up orphaned items
             const cleanedCount = await menuPOSSyncService.cleanupOrphanedPOSItems(profile.tenantId);
-            console.log(`✅ [SYNC-PROVIDER] Auto-fixed ${cleanedCount} sync issues`);
-          } else {
-            console.log(`✅ [SYNC-PROVIDER] Sync is healthy`);
           }
         } catch (error) {
           console.error(`❌ [SYNC-PROVIDER] Initial sync validation failed:`, error);

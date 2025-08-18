@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { TenantUser } from '../../lib/firebase/userRoles';
 import AddUserModal from './AddUserModal';
 import UserCredentialsModal from './UserCredentialsModal';
+import { db } from '../../lib/firebase';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 
 interface UserManagementProps {
   tenantId?: string;
@@ -25,11 +27,35 @@ const UserManagement: React.FC<UserManagementProps> = ({
     const loadUsers = async () => {
       setLoading(true);
       try {
-        // TODO: Implement Firebase user fetching
-        // For now, start with empty array until Firebase integration
-        setUsers([]);
+        if (!tenantId || tenantId === 'demo-tenant') {
+          // Demo data for demo tenant
+          setUsers([]);
+          return;
+        }
+
+        // Fetch users from Firebase
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('tenantId', '==', tenantId));
+        const querySnapshot = await getDocs(q);
+        
+        const fetchedUsers: TenantUser[] = querySnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            uid: doc.id,
+            email: data.email || '',
+            role: data.role || 'staff',
+            status: data.status || 'active',
+            displayName: data.displayName,
+            createdAt: data.createdAt,
+            lastLoginAt: data.lastLoginAt
+          } as TenantUser;
+        });
+
+        setUsers(fetchedUsers);
       } catch (error) {
         console.error('Error loading users:', error);
+        // Fall back to empty array on error
+        setUsers([]);
       } finally {
         setLoading(false);
       }

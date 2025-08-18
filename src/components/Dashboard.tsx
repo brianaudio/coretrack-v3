@@ -3,35 +3,31 @@
 import { useState, useEffect } from 'react'
 import Sidebar from './Sidebar'
 import Header from './Header'
-import FallbackComponent from './FallbackComponent'
 import DashboardOverview from './modules/DashboardOverview'
-import EnhancedAnalytics from './modules/EnhancedAnalytics'
+import MainDashboard from './modules/MainDashboard'
 import EnhancedTeamManagement from './modules/EnhancedTeamManagement'
 import DevTools from './DevTools'
 import ProfessionalFooter from './ProfessionalFooter'
-import ShiftDashboard from './ShiftManagement/ShiftDashboard'
 import InventoryCenter from './modules/InventoryCenter'
-import POS from './modules/POS'  // Original POS
 import POSEnhanced from './modules/POS_Enhanced'  // Enhanced POS with Add-ons and Offline
 import Expenses from './modules/Expenses'
 import MenuBuilder from './modules/MenuBuilder'
 import PurchaseOrders from './modules/PurchaseOrders'
 import LocationManagement from './modules/LocationManagement'
 import SettingsPage from '../app/settings/page'
-import FirebaseDebugger from './FirebaseDebugger'
-import ShiftStatusBar from './ShiftManagement/ShiftStatusBar'
+import ShiftStatusBar from './ShiftManagement/UnifiedShiftStatusBar'
 import InventoryDiscrepancy from './modules/InventoryDiscrepancy'
 import BusinessReports from './modules/BusinessReports'
 import CapitalIntelligence from './modules/CapitalIntelligence'
-import { useAuth } from '../lib/context/AuthContext' // Use AuthContext instead of UserContext
-import { useUser } from '../lib/rbac/UserContext' // Add UserContext for coordinated loading
-import { useSubscription } from '../lib/context/SubscriptionContext' // Add subscription context
-import { hasPermission, getAllowedModules, ModulePermission } from '../lib/rbac/permissions'
+import { useAuth } from '../lib/context/AuthContext'
+import { useUser } from '../lib/rbac/UserContext'
+import { useSubscription } from '../lib/context/SubscriptionContext'
 import { hasModuleAccess, getAccessibleModules } from '../lib/rbac/subscriptionPermissions'
 import ConnectionStatus from './ui/ConnectionStatus'
 import FloatingCalculator from './ui/FloatingCalculator'
-// import TestCalculator from './ui/TestCalculator'
+import { ContextualHints } from './ui/ux-enhancements'
 import { BranchProvider } from '../lib/context/BranchContext'
+import { ShiftProvider, useShift } from '../lib/context/ShiftContext'
 
 export type ModuleType = 'dashboard' | 'inventory' | 'pos' | 'purchase-orders' | 'menu-builder' | 'expenses' | 'team-management' | 'location-management' | 'settings' | 'discrepancy-monitoring' | 'business-reports' | 'capital-intelligence'
 
@@ -39,14 +35,16 @@ interface DashboardProps {
   onLogout?: () => void
 }
 
-export default function Dashboard({ onLogout }: DashboardProps) {
-  const { profile, user, loading: authLoading, refreshProfile } = useAuth() // Use AuthContext
-  const { currentRole, loading: userLoading } = useUser() // Use coordinated UserContext
-  const { features: subscriptionFeatures, loading: subscriptionLoading } = useSubscription() // Add subscription context
+// Inner Dashboard component that has access to ShiftContext
+function DashboardInner({ onLogout }: DashboardProps) {
+  const { profile, user, loading: authLoading, refreshProfile } = useAuth()
+  const { currentRole, loading: userLoading } = useUser()
+  const { features: subscriptionFeatures, loading: subscriptionLoading } = useSubscription()
+  const { currentShift } = useShift()
   const [activeModule, setActiveModule] = useState<ModuleType>('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
-  // Coordinated loading state - include subscription loading
+  // Coordinated loading state
   const isLoading = authLoading || userLoading || subscriptionLoading
 
   // Auto-refresh profile if user exists but profile is missing (common after signup)
@@ -92,7 +90,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
   }, [effectiveRole, subscriptionFeatures, activeModule, allowedModules])
 
-  // Show unified loading state while authentication initializes
+  // Show loading state while authentication initializes
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -116,99 +114,113 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     )
   }
 
-  // Direct access to dashboard - no shift requirement
-
   const renderModule = () => {
+    // Use shift ID as key to force component re-mounting when shift changes
+    const shiftKey = currentShift?.id || 'no-shift'
+    
     switch (activeModule) {
       case 'pos':
-        return <POSEnhanced />
+        return <POSEnhanced key={`pos-${shiftKey}`} />
       case 'inventory':
-        return <InventoryCenter />
+        return <InventoryCenter key={`inventory-${shiftKey}`} />
       case 'purchase-orders':
-        return <PurchaseOrders />
+        return <PurchaseOrders key={`purchase-${shiftKey}`} />
       case 'menu-builder':
-        return <MenuBuilder />
+        return <MenuBuilder key={`menu-${shiftKey}`} />
       case 'dashboard':
-        return <EnhancedAnalytics />
+        return <MainDashboard key={`dashboard-${shiftKey}`} />
       case 'expenses':
-        return <Expenses />
+        return <Expenses key={`expenses-${shiftKey}`} />
       case 'team-management':
         return (
-          <div className="space-y-6">
+          <div className="space-y-6" key={`team-${shiftKey}`}>
             <EnhancedTeamManagement />
           </div>
         )
       case 'location-management':
-        return <LocationManagement />
+        return <LocationManagement key={`location-${shiftKey}`} />
       case 'discrepancy-monitoring':
-        return <InventoryDiscrepancy />
+        return <InventoryDiscrepancy key={`discrepancy-${shiftKey}`} />
       case 'business-reports':
-        return <BusinessReports />
+        return <BusinessReports key={`reports-${shiftKey}`} />
       case 'capital-intelligence':
-        return <CapitalIntelligence />
+        return <CapitalIntelligence key={`capital-${shiftKey}`} />
       case 'settings':
-        return <SettingsPage />
+        return <SettingsPage key={`settings-${shiftKey}`} />
       default:
-        return <DashboardOverview />
+        return <DashboardOverview key={`overview-${shiftKey}`} />
     }
   }
 
   return (
-    <BranchProvider>
-      <div className="h-screen flex bg-surface-50">
-        <Sidebar 
+    <div className="h-screen flex bg-surface-50">
+      <Sidebar 
+        activeModule={activeModule}
+        onModuleChange={setActiveModule}
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        allowedModules={allowedModules}
+        currentRole={effectiveRole}
+      />
+      
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Header 
           activeModule={activeModule}
-          onModuleChange={setActiveModule}
-          isOpen={sidebarOpen}
-          onToggle={() => setSidebarOpen(!sidebarOpen)}
-          allowedModules={allowedModules}
-          currentRole={effectiveRole}
+          onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
+          onLogout={onLogout}
         />
         
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <Header 
-            activeModule={activeModule}
-            onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
-            onLogout={onLogout}
-          />
-          
-          {/* Shift Status Bar (only for staff) */}
-          <ShiftStatusBar />
-          
-          {/* Connection Status Bar */}
-          <div className="px-6 py-2 bg-white border-b border-surface-200">
-            <div className="flex items-center justify-between">
-              <ConnectionStatus />
-              <div className="flex items-center space-x-4">
-                {/* Profile Refresh Button (shows if profile is missing but user exists) */}
-                {user && !profile && (
-                  <button
-                    onClick={refreshProfile}
-                    className="text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition-colors"
-                  >
-                    Refresh Profile
-                  </button>
-                )}
-                <div className="text-xs text-surface-500">
-                  Logged in as {currentUser?.email} • {currentRole}
-                </div>
+        {/* Shift Status Bar (only for staff) */}
+        <ShiftStatusBar />
+        
+        <div className="px-6 py-2 bg-white border-b border-surface-200">
+          <div className="flex items-center justify-between">
+            <div></div>
+            <div className="flex items-center space-x-4">
+              {/* Profile Refresh Button (shows if profile is missing but user exists) */}
+              {user && !profile && (
+                <button
+                  onClick={refreshProfile}
+                  className="text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition-colors"
+                >
+                  Refresh Profile
+                </button>
+              )}
+              <div className="text-xs text-surface-500">
+                Logged in as {currentUser?.email} • {currentRole}
               </div>
             </div>
           </div>
-          
-          <main className="flex-1 overflow-auto bg-surface-50 main-scroll">
-            <div className="p-6 pb-8 min-h-full">
-              {renderModule()}
-            </div>
-            {/* Professional Footer */}
-            <ProfessionalFooter />
-          </main>
         </div>
         
-        <DevTools />
-        <FloatingCalculator />
-        {/* <TestCalculator /> */}
+        <main className="flex-1 overflow-auto bg-surface-50 main-scroll">
+          <div className="p-6 pb-8 min-h-full">
+            {renderModule()}
+            
+            {/* Contextual Hints for First-Time Users */}
+            <ContextualHints 
+              page={activeModule === 'inventory' ? 'inventory' : 
+                    activeModule === 'pos' ? 'pos' : 'inventory'} 
+            />
+          </div>
+          {/* Professional Footer */}
+          <ProfessionalFooter />
+        </main>
       </div>
+      
+      <DevTools />
+      <FloatingCalculator />
+    </div>
+  )
+}
+
+// Main Dashboard component wrapper
+export default function Dashboard({ onLogout }: DashboardProps) {
+  return (
+    <BranchProvider>
+      <ShiftProvider>
+        <DashboardInner onLogout={onLogout} />
+      </ShiftProvider>
     </BranchProvider>
   )
 }

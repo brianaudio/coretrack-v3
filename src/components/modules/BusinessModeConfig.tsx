@@ -24,7 +24,6 @@ const BusinessModeConfig: React.FC = () => {
     try {
       await updateBusinessSettings(profile.tenantId, { businessName: businessName.trim() });
       await refreshSettings();
-      console.log(`✅ Business name updated to: ${businessName}`);
     } catch (error) {
       console.error('Error updating business name:', error);
       alert('Failed to update business name');
@@ -54,7 +53,6 @@ const BusinessModeConfig: React.FC = () => {
       await updateBusinessSettings(profile.tenantId, preset);
       await refreshSettings();
       
-      console.log(`✅ Business mode changed to: ${businessType}`);
     } catch (error) {
       console.error('Error updating business type:', error);
       alert('Failed to update business mode');

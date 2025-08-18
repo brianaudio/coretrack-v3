@@ -39,7 +39,6 @@ export const BusinessSettingsProvider: React.FC<BusinessSettingsProviderProps> =
   // Load settings when user/profile changes
   useEffect(() => {
     if (isDevelopment) {
-      console.log('🔧 Development Mode: Using default business settings');
       setSettings(DEFAULT_BUSINESS_SETTINGS);
       setLoading(false);
       return;
@@ -57,7 +56,6 @@ export const BusinessSettingsProvider: React.FC<BusinessSettingsProviderProps> =
     const unsubscribe = subscribeToBusinessSettings(profile.tenantId, (newSettings) => {
       setSettings(newSettings);
       setLoading(false);
-      console.log('🏢 Business settings updated:', newSettings.businessType);
     });
 
     return () => {
@@ -67,7 +65,6 @@ export const BusinessSettingsProvider: React.FC<BusinessSettingsProviderProps> =
 
   const refreshSettings = async () => {
     if (isDevelopment) {
-      console.log('🔧 Development Mode: Mock settings refresh');
       setSettings(DEFAULT_BUSINESS_SETTINGS);
       return;
     }

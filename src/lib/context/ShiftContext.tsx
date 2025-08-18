@@ -4,6 +4,8 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { useAuth } from './AuthContext'
 import { useBranch } from './BranchContext'
 import { getBranchLocationId } from '../utils/branchUtils'
+import { generateUniqueReactKey } from '../utils/reactKeyUtils'
+import { generateDailyResetKey } from '../utils/shiftKeyDebugger'
 import { Timestamp } from 'firebase/firestore'
 import {
   createShift,
@@ -13,6 +15,8 @@ import {
   archiveShiftData,
   calculateShiftSummary
 } from '../firebase/shifts'
+import { generateShiftReportData } from '../utils/shiftReportGenerator'
+// Note: Shift PDF generation import removed as per user request
 
 // Types
 export interface ShiftData {
@@ -45,7 +49,7 @@ export interface ShiftContextType {
   archiveShift: (shiftId: string) => Promise<void>
   
   // Data Operations
-  resetDailyData: () => Promise<void>
+  resetDailyData: () => Promise<any>
   getShiftSummary: () => Promise<any>
   
   // Shift History
@@ -65,6 +69,7 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
   const [currentShift, setCurrentShift] = useState<ShiftData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isResetting, setIsResetting] = useState(false) // Add reset protection
 
   // Helper to generate shift names
   const generateShiftName = () => {
@@ -95,7 +100,10 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
   const loadCurrentShift = async () => {
     try {
       setLoading(true)
-      if (!profile?.tenantId || !selectedBranch) return
+      
+      if (!profile?.tenantId || !selectedBranch) {
+        return
+      }
       
       const locationId = getBranchLocationId(selectedBranch.id)
       const activeShift = await getActiveShift(profile.tenantId, locationId)
@@ -103,8 +111,9 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       setCurrentShift(activeShift)
       setError(null)
     } catch (err) {
-      console.error('Error loading current shift:', err)
+      console.error('❌ [SHIFT-CONTEXT] Error loading current shift:', err)
       setError('Failed to load current shift')
+      setCurrentShift(null)
     } finally {
       setLoading(false)
     }
@@ -151,7 +160,6 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       setCurrentShift(createdShift)
       setError(null)
       
-      console.log('New shift started:', createdShift)
     } catch (err) {
       console.error('Error starting shift:', err)
       setError('Failed to start new shift')
@@ -196,10 +204,15 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       await updateShift(profile.tenantId, currentShift.id, endedShift)
       setCurrentShift(endedShift)
       
-      console.log('Shift ended:', endedShift)
+      // Note: Shift PDF report generation has been disabled per user request
+      console.log('✅ Shift ended successfully (PDF report generation skipped)')
       
       // Archive the shift data
       await archiveShift(endedShift.id)
+      
+      // Reset data for next shift
+      await resetDailyData()
+      console.log('✅ Data reset completed for next shift')
       
     } catch (err) {
       console.error('Error ending shift:', err)
@@ -217,8 +230,6 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       const locationId = getBranchLocationId(selectedBranch.id)
       await archiveShiftData(profile.tenantId, locationId, shiftId)
       
-      console.log('Shift archived:', shiftId)
-      
       // Mark shift as archived in local state
       if (currentShift?.id === shiftId) {
         setCurrentShift({
@@ -233,13 +244,63 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
   }
 
   const resetDailyData = async () => {
+    // Prevent concurrent reset operations
+    if (isResetting) {
+      console.warn('Reset operation already in progress, skipping...')
+      return null
+    }
+
     try {
-      // TODO: Reset daily operational data
-      // This will archive current data and start fresh
-      console.log('Resetting daily data')
+      setIsResetting(true) // Set reset flag
+      
+      // Small delay to prevent rapid successive calls in Strict Mode
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      if (!profile?.tenantId || !selectedBranch) {
+        throw new Error('Missing tenant or branch information for daily reset')
+      }
+
+      const locationId = getBranchLocationId(selectedBranch.id)
+      
+      // Import and use the ShiftResetService for proper reset
+      const { ShiftResetService } = await import('../services/ShiftResetService')
+      const resetService = new ShiftResetService(profile.tenantId, selectedBranch.id)
+      
+      // Create a daily reset with unique timestamp and random component
+      // Use high-resolution timer and multiple random sources for maximum uniqueness
+      // Add React Strict Mode protection with crypto random
+      const timestamp = Date.now()
+      const highResTime = Math.floor(performance.now() * 1000).toString() // Convert to integer to avoid decimals
+      const randomSuffix = Math.random().toString(36).substr(2, 9)
+      const cryptoRandom = typeof crypto !== 'undefined' && crypto.getRandomValues 
+        ? crypto.getRandomValues(new Uint32Array(1))[0].toString(36)
+        : Math.floor(Math.random() * 999999).toString(36)
+      const strictModeCounter = Math.floor(Math.random() * 10000).toString(36)
+      const uniqueId = `${timestamp}-${highResTime}-${randomSuffix}-${cryptoRandom}-${strictModeCounter}`
+      const dailyResetData = {
+        tenantId: profile.tenantId,
+        branchId: selectedBranch.id,
+        shiftId: generateDailyResetKey(),
+        shiftName: `Daily Reset ${new Date().toLocaleDateString()}`,
+        startTime: Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000)), // 24 hours ago
+        resetBy: profile.uid || profile.email || 'system',
+        resetReason: 'system' as const,
+        generateReport: false, // Disabled per user request
+        preserveInventoryLevels: true
+      }
+      
+      // Perform the actual reset
+      const summary = await resetService.performShiftReset(dailyResetData)
+      
+      // Update last reset timestamp
+      localStorage.setItem('lastDailyReset', new Date().toISOString())
+      
+      return summary
     } catch (err) {
       console.error('Error resetting daily data:', err)
       throw err
+    } finally {
+      setIsResetting(false) // Clear reset flag
     }
   }
 
@@ -283,6 +344,11 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       return []
     }
   }
+
+  // Load current shift when auth or branch changes
+  useEffect(() => {
+    loadCurrentShift()
+  }, [profile?.tenantId, selectedBranch?.id])
 
   const value: ShiftContextType = {
     currentShift,

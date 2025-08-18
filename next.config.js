@@ -2,18 +2,27 @@ const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
   skipWaiting: true,
-  disable: process.env.NODE_ENV === 'development',
-  buildExcludes: [/middleware-manifest.json$/],
+  disable: process.env.NODE_ENV === 'development', // Disable in development
+  runtimeCaching: [
+    {
+      urlPattern: /^https?.*/,
+      handler: 'NetworkFirst',
+      options: {
+        cacheName: 'offlineCache',
+        expiration: {
+          maxEntries: 200,
+        },
+      },
+    },
+  ],
+  buildExcludes: [/app-build-manifest\.json$/], // Exclude problematic files
 });
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
+  reactStrictMode: true, // Re-enabled with duplicate key fixes in place
   eslint: {
     ignoreDuringBuilds: true, // Temporarily disable ESLint during builds
-  },
-  experimental: {
-    esmExternals: true,
   },
 }
 

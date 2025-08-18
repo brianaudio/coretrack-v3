@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
 import { useBranch } from '../../lib/context/BranchContext'
 import { getBranchLocationId } from '../../lib/utils/branchUtils'
-import { useFeatureAccess } from '../../lib/hooks/useFeatureAccess'
 import { 
   getExpenses, 
   addExpense, 
@@ -29,7 +28,6 @@ import { Timestamp } from 'firebase/firestore'
 export default function Expenses() {
   const { user, profile } = useAuth()
   const { selectedBranch } = useBranch()
-  const { canAddProduct, blockActionWithLimit } = useFeatureAccess()
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [categories, setCategories] = useState<ExpenseCategory[]>([])
   const [loading, setLoading] = useState(true)
@@ -197,15 +195,6 @@ export default function Expenses() {
 
       // Calculate net profit (gross profit minus expenses)
       const netProfit = grossProfit - totalExpenses
-
-      console.log('Profit Calculation Debug:', {
-        totalRevenue,
-        totalCOGS,
-        grossProfit,
-        totalExpenses,
-        netProfit,
-        filteredExpensesCount: filteredExpenses.length
-      })
 
       setProfitData({
         totalRevenue,
@@ -468,7 +457,7 @@ export default function Expenses() {
       <div className="bg-gradient-to-r from-primary-600 to-primary-700 rounded-xl p-6 text-white">
         <div className="flex justify-between items-center">
           <div>
-            <h3 className="text-xl font-bold mb-1">Financial Management Hub</h3>
+            <h3 className="text-xl font-bold mb-1">Financials</h3>
             <p className="text-primary-100 text-sm">Manage expenses, track budgets, and analyze your business financial health</p>
           </div>
           <div className="flex space-x-3">
@@ -509,7 +498,7 @@ export default function Expenses() {
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
               </svg>
-              <span className="text-sm font-medium">Expenses</span>
+              <span className="text-sm font-medium">Costs</span>
             </div>
             <p className="text-lg font-bold">₱{profitData.totalExpenses.toLocaleString()}</p>
           </div>

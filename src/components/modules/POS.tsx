@@ -2,7 +2,10 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '@/lib/context/AuthContext'
+import TutorialOverlay from '@/components/tutorial/TutorialOverlay'
+import { useTutorial } from '@/hooks/useTutorial'
 import { useBranch } from '@/lib/context/BranchContext'
+import { useShift } from '@/lib/context/ShiftContext'
 import { getMenuItems, type MenuItem } from '@/lib/firebase/menuBuilder'
 import { getPOSItems, createPOSOrder, getPOSOrders, updatePOSOrder, type POSItem as FirebasePOSItem, type POSOrder } from '@/lib/firebase/pos'
 import { getBranchLocationId } from '@/lib/utils/branchUtils'
@@ -21,6 +24,8 @@ interface CartItem extends POSItem {
 export default function POS() {
   const { user, profile } = useAuth()
   const { selectedBranch } = useBranch()
+  const { currentShift, startNewShift, endCurrentShift, isShiftActive, loading: shiftLoading } = useShift()
+  const { showTutorial, currentStep, nextStep, prevStep, completeTutorial, startTutorial } = useTutorial()
   
   // Development mode detection
   const isDevelopment = process.env.NODE_ENV === 'development'
@@ -50,6 +55,22 @@ export default function POS() {
   const [cashReceived, setCashReceived] = useState('')
   const [isRefreshing, setIsRefreshing] = useState(false) // Add refresh state
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
+
+  // Custom setter for menuItems that ensures deduplication
+  const setDeduplicatedMenuItems = (items: POSItem[]) => {
+    const uniqueItemsMap = new Map();
+    items.forEach(item => {
+      if (!uniqueItemsMap.has(item.id)) {
+        uniqueItemsMap.set(item.id, item);
+      } else {
+        console.warn(`⚠️ Duplicate item ID detected in setState and skipped: ${item.id} (${item.name})`);
+      }
+    });
+    
+    const deduplicatedItems = Array.from(uniqueItemsMap.values());
+    setMenuItems(deduplicatedItems);
+    console.log(`📋 Set ${deduplicatedItems.length} deduplicated menu items (filtered from ${items.length} total)`);
+  }
   
   // Enhanced Additional Actions State
   const [showSearchModal, setShowSearchModal] = useState(false)
@@ -94,7 +115,17 @@ export default function POS() {
       )
     }
     
-    return items
+    // Additional deduplication safeguard at render time
+    const uniqueRenderItems = new Map();
+    items.forEach(item => {
+      if (!uniqueRenderItems.has(item.id)) {
+        uniqueRenderItems.set(item.id, item);
+      } else {
+        console.warn(`⚠️ Duplicate item ID detected at render time and skipped: ${item.id} (${item.name})`);
+      }
+    });
+    
+    return Array.from(uniqueRenderItems.values())
   }, [menuItems, selectedCategory, searchQuery])
 
   // Enhanced emoji mapping function
@@ -295,12 +326,23 @@ export default function POS() {
         })))
         
         // Convert POSItem and filter only available items
-        const posItems: POSItem[] = items
+        // Also deduplicate items by ID to prevent React key errors
+        const uniqueItemsMap = new Map();
+        items
           .filter(item => item.isAvailable)
-          .map(item => ({
-            ...item,
-            available: item.isAvailable
-          }))
+          .forEach(item => {
+            // Only keep the first instance of each ID
+            if (!uniqueItemsMap.has(item.id)) {
+              uniqueItemsMap.set(item.id, {
+                ...item,
+                available: item.isAvailable
+              });
+            } else {
+              console.warn(`⚠️ Duplicate item ID detected and skipped: ${item.id} (${item.name})`);
+            }
+          });
+        
+        const posItems: POSItem[] = Array.from(uniqueItemsMap.values());
         
         setMenuItems(posItems)
         console.log('✅ Loaded FRESH menu items for POS with correct IDs:', posItems.length)
@@ -429,12 +471,22 @@ export default function POS() {
       
       const items = await getPOSItems(profile.tenantId, locationId)
       
-      const posItems: POSItem[] = items
+      // Add deduplication here as well
+      const uniqueItemsMap = new Map();
+      items
         .filter(item => item.isAvailable)
-        .map(item => ({
-          ...item,
-          available: item.isAvailable
-        }))
+        .forEach(item => {
+          if (!uniqueItemsMap.has(item.id)) {
+            uniqueItemsMap.set(item.id, {
+              ...item,
+              available: item.isAvailable
+            });
+          } else {
+            console.warn(`⚠️ Duplicate item ID detected during refresh and skipped: ${item.id} (${item.name})`);
+          }
+        });
+      
+      const posItems: POSItem[] = Array.from(uniqueItemsMap.values());
       
       setMenuItems(posItems)
       console.log('✅ Menu items refreshed manually:', posItems.length)
@@ -455,8 +507,18 @@ export default function POS() {
       
       const orders = await getPOSOrders(profile.tenantId, locationId)
       
+      // Deduplicate orders by ID to prevent React key errors
+      const uniqueOrdersMap = new Map();
+      orders.forEach(order => {
+        if (!uniqueOrdersMap.has(order.id)) {
+          uniqueOrdersMap.set(order.id, order);
+        } else {
+          console.warn(`⚠️ Duplicate order ID detected and skipped: ${order.id} (Order #${order.orderNumber})`);
+        }
+      });
+      
       // Sort by creation date and get the most recent ones
-      const sortedOrders = orders
+      const sortedOrders = Array.from(uniqueOrdersMap.values())
         .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
         .slice(0, 20) // Get last 20 orders
       
@@ -752,7 +814,7 @@ ${order.status === 'voided' ? `\nVOID REASON: ${order.voidReason || 'N/A'}` : ''
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
           {/* Modern Header */}
-          <div className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
+          <div className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm tutorial-header">
             <div className="px-4 sm:px-6 py-4">
               <div className="flex items-center justify-between">
                 {/* Left - Logo & Branch Info */}
@@ -762,10 +824,17 @@ ${order.status === 'voided' ? `\nVOID REASON: ${order.voidReason || 'N/A'}` : ''
                     <h1 className="text-xl font-bold text-gray-900">Point of Sale</h1>
                     <p className="text-sm text-gray-500">Main Branch • Order #1234</p>
                   </div>
+                  
+                  {/* First Timer Badge */}
+                  {showTutorial && (
+                    <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium animate-pulse">
+                      👋 Welcome! Taking tour...
+                    </div>
+                  )}
                 </div>
 
                 {/* Center - Quick Actions */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 tutorial-quick-actions">
                   <button
                     onClick={() => {
                       setShowRecentOrders(true)
@@ -837,7 +906,7 @@ ${order.status === 'voided' ? `\nVOID REASON: ${order.voidReason || 'N/A'}` : ''
                 </div>
 
                 {/* Search Bar */}
-                <div className="mb-4">
+                <div className="mb-4 tutorial-search">
                   <div className="relative">
                     <input
                       type="text"
@@ -864,7 +933,7 @@ ${order.status === 'voided' ? `\nVOID REASON: ${order.voidReason || 'N/A'}` : ''
                   </div>
                 </div>
                 
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 tutorial-categories">
                   {[
                     { name: 'All', emoji: '🍽️' },
                     { name: 'Food', emoji: '🍕' },
@@ -3008,6 +3077,15 @@ ${order.status === 'voided' ? `\nVOID REASON: ${order.voidReason || 'N/A'}` : ''
               </div>
             </div>
           )}
+
+          {/* Tutorial Overlay */}
+          <TutorialOverlay
+            show={showTutorial}
+            currentStep={currentStep}
+            onNext={nextStep}
+            onPrev={prevStep}
+            onComplete={completeTutorial}
+          />
         </div>
   )
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import CoreTrackLogo from './CoreTrackLogo'
+import PWAInstaller from './PWAInstaller'
 import { trackButtonClick, trackPageView, trackScrollDepth } from '../lib/analytics'
 
 interface LandingPageProps {
@@ -91,20 +92,39 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
 
   // PWA Install Prompt Handler
   useEffect(() => {
+    let promptCaught = false;
+    
     const handleBeforeInstallPrompt = (e: any) => {
+      console.log('PWA install prompt intercepted');
       // Prevent the mini-infobar from appearing on mobile
-      e.preventDefault()
+      e.preventDefault();
       // Stash the event so it can be triggered later
-      setDeferredPrompt(e)
+      setDeferredPrompt(e);
       // Store on window for access in onClick handlers
-      ;(window as any).deferredPrompt = e
-      console.log('PWA install prompt available')
+      (window as any).deferredPrompt = e;
+      promptCaught = true;
+      console.log('PWA install prompt saved and ready');
     }
 
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    const handleAppInstalled = () => {
+      console.log('PWA was installed');
+      setDeferredPrompt(null);
+      (window as any).deferredPrompt = null;
+    }
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    // Fallback: Check if we can install after page load
+    setTimeout(() => {
+      if (!promptCaught && 'serviceWorker' in navigator) {
+        console.log('No install prompt caught, PWA might still be installable');
+      }
+    }, 2000);
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
     }
   }, [])
 
@@ -130,8 +150,15 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
   }
 
   const handleSignIn = (location: string = 'Navigation') => {
+    console.log('🔘 Sign In button clicked!', location)
+    console.log('🔘 onSignIn function:', typeof onSignIn)
     trackButtonClick(location, 'Sign In')
-    onSignIn()
+    try {
+      onSignIn()
+      console.log('✅ onSignIn() called successfully')
+    } catch (error) {
+      console.error('❌ Error calling onSignIn():', error)
+    }
   }
 
   const features = [
@@ -216,8 +243,14 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
                 </div>
               </div>
               <button
-                onClick={() => handleSignIn('Navigation')}
-                className="text-gray-300 hover:text-white text-sm font-medium transition-colors duration-200"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  console.log('🚀 Direct Sign In button clicked!')
+                  handleSignIn('Navigation')
+                }}
+                className="text-gray-300 hover:text-white text-sm font-medium transition-colors duration-200 cursor-pointer hover:bg-white/10 px-3 py-2 rounded-lg"
+                type="button"
               >
                 Sign in
               </button>
@@ -524,40 +557,7 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                <button
-                  onClick={() => {
-                    // Try to trigger PWA installation using stored prompt
-                    if (deferredPrompt) {
-                      deferredPrompt.prompt()
-                      deferredPrompt.userChoice.then((choiceResult: any) => {
-                        if (choiceResult.outcome === 'accepted') {
-                          console.log('User accepted the install prompt')
-                          setDeferredPrompt(null)
-                        } else {
-                          console.log('User dismissed the install prompt')
-                        }
-                      })
-                    } else {
-                      // Show platform-specific instructions
-                      const userAgent = navigator.userAgent
-                      let instructions = 'To install CoreTrack:\n\n'
-                      
-                      if (userAgent.includes('iPhone') || userAgent.includes('iPad')) {
-                        instructions += '1. Tap the Share button (⬆️)\n2. Select "Add to Home Screen"\n3. Tap "Add"'
-                      } else if (userAgent.includes('Chrome')) {
-                        instructions += '1. Look for the install button (⬇️) in the address bar\n2. Click "Install"\n3. Confirm installation'
-                      } else {
-                        instructions += '• Chrome/Edge: Look for install button in address bar\n• Safari: Share > Add to Home Screen\n• Firefox: Menu > Install'
-                      }
-                      
-                      alert(instructions)
-                    }
-                    trackButtonClick('PWA Install', 'Install Now')
-                  }}
-                  className="bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600 text-white px-10 py-4 rounded-2xl text-lg font-semibold transition-all duration-200 shadow-lg hover:shadow-blue-500/25 hover:scale-105 min-w-[200px]"
-                >
-                  Install Now
-                </button>
+                <PWAInstaller />
                 
                 <div className="flex items-center space-x-2 text-gray-400">
                   <span className="w-2 h-2 bg-green-400 rounded-full"></span>

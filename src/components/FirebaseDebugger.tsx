@@ -15,7 +15,6 @@ export default function FirebaseDebugger() {
     try {
       const result = await testFirebaseConnection();
       setTestResult(result);
-      console.log('🔍 Firebase Test Result:', result);
     } catch (error) {
       console.error('❌ Test failed:', error);
     } finally {

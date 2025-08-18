@@ -14,14 +14,17 @@ import { InventoryItem, InventoryMovement } from './inventory';
 export interface InventoryAnalytics {
   totalItems: number;
   totalValue: number;
-  lowStockItems: number;
-  outOfStockItems: number;
+  lowStockItems: InventoryItem[];  // Changed to array for Export Panel
+  outOfStockItems: InventoryItem[];  // Changed to array for Export Panel
+  lowStockCount?: number;  // Optional count for backward compatibility
+  outOfStockCount?: number;  // Optional count for backward compatibility
   averageStockLevel: number;
   topValueItems: InventoryValueItem[];
   stockMovements: StockMovementData[];
   categoryBreakdown: CategoryAnalytics[];
   stockPredictions: StockPrediction[];
   usageAnalytics: UsageAnalytics[];
+  recentMovements?: any[];  // For Export Panel
 }
 
 export interface InventoryValueItem {
@@ -79,6 +82,9 @@ export const getInventoryAnalytics = async (
   locationId?: string
 ): Promise<InventoryAnalytics> => {
   try {
+    // Validate and sanitize the days parameter
+    const validDays = !isNaN(days) && days > 0 ? Math.floor(days) : 30;
+    
     // Get inventory items with optional location filter
     const inventoryRef = collection(db, `tenants/${tenantId}/inventory`);
     let inventoryQuery = query(inventoryRef);
@@ -106,7 +112,16 @@ export const getInventoryAnalytics = async (
     // Get movements for the specified period
     const movementsRef = collection(db, `tenants/${tenantId}/inventoryMovements`);
     const daysAgo = new Date();
-    daysAgo.setDate(daysAgo.getDate() - days);
+    daysAgo.setDate(daysAgo.getDate() - validDays);
+    
+    // Validate the date before passing to Firebase
+    if (isNaN(daysAgo.getTime())) {
+      console.error('Invalid date calculated for inventory movements query');
+      // Fallback to 30 days ago
+      const fallbackDate = new Date();
+      fallbackDate.setDate(fallbackDate.getDate() - 30);
+      daysAgo.setTime(fallbackDate.getTime());
+    }
     
     const movementsQuery = query(
       movementsRef,
@@ -149,8 +164,18 @@ export const getInventoryAnalytics = async (
     // Ensure totalValue is never NaN
     const safeTotalValue = isNaN(totalValue) ? 0 : totalValue;
     
-    const lowStockItems = inventoryItems.filter(item => item.status === 'low' || item.status === 'critical').length;
-    const outOfStockItems = inventoryItems.filter(item => item.status === 'out').length;
+    // Filter items by status for Export Panel compatibility
+    const lowStockItemsList = inventoryItems.filter(item => 
+      item.currentStock > 0 && item.currentStock <= item.minStock
+    );
+    const outOfStockItemsList = inventoryItems.filter(item => 
+      item.currentStock <= 0
+    );
+    
+    // For legacy compatibility - also provide counts
+    const lowStockItems = lowStockItemsList.length;
+    const outOfStockItems = outOfStockItemsList.length;
+    
     const averageStockLevel = inventoryItems.length > 0 
       ? inventoryItems.reduce((sum, item) => sum + (item.currentStock / Math.max(item.minStock, 1)), 0) / inventoryItems.length 
       : 0;
@@ -194,14 +219,23 @@ export const getInventoryAnalytics = async (
     return {
       totalItems,
       totalValue: safeTotalValue,
-      lowStockItems,
-      outOfStockItems,
+      lowStockItems: lowStockItemsList,  // Array for Export Panel
+      outOfStockItems: outOfStockItemsList,  // Array for Export Panel
+      lowStockCount: lowStockItems,  // Count for other uses
+      outOfStockCount: outOfStockItems,  // Count for other uses
       averageStockLevel,
       topValueItems,
       stockMovements,
       categoryBreakdown,
       stockPredictions,
-      usageAnalytics
+      usageAnalytics,
+      recentMovements: movements.slice(0, 15).map(movement => ({
+        date: movement.timestamp.toDate(),
+        itemName: movement.itemName || 'Unknown Item',
+        type: movement.movementType,
+        quantity: movement.quantity,
+        notes: (movement as any).notes || ''  // Type assertion for optional field
+      }))
     };
   } catch (error) {
     console.error('Error fetching inventory analytics:', error);
@@ -210,14 +244,15 @@ export const getInventoryAnalytics = async (
     return {
       totalItems: 0,
       totalValue: 0,
-      lowStockItems: 0,
-      outOfStockItems: 0,
+      lowStockItems: [],  // Empty arrays instead of numbers
+      outOfStockItems: [],  // Empty arrays instead of numbers
       averageStockLevel: 0,
       topValueItems: [],
       stockMovements: [],
       categoryBreakdown: [],
       stockPredictions: [],
-      usageAnalytics: []
+      usageAnalytics: [],
+      recentMovements: []
     };
   }
 };

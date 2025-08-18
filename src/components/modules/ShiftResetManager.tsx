@@ -7,6 +7,7 @@ import { useBranch } from '../../lib/context/BranchContext'
 import { useShiftReset } from '../../lib/hooks/useShiftReset'
 import { useShift } from '../../lib/context/ShiftContext'
 import type { ShiftResetSummary } from '../../lib/services/ShiftResetService'
+import { generateUniqueReactKey } from '../../lib/utils/reactKeyUtils'
 
 interface ShiftResetManagerProps {
   onResetComplete?: (summary: ShiftResetSummary) => void
@@ -65,9 +66,6 @@ export default function ShiftResetManager({ onResetComplete, className = '' }: S
   const handleManualReset = async () => {
     try {
       setIsManualResetting(true)
-      console.log('🔄 Starting manual reset...')
-      console.log('Profile:', profile?.tenantId)
-      console.log('Branch:', selectedBranch?.id)
       
       if (!profile?.tenantId || !selectedBranch?.id) {
         throw new Error('Missing tenant or branch information')
@@ -90,10 +88,8 @@ export default function ShiftResetManager({ onResetComplete, className = '' }: S
         preserveInventoryLevels: false
       }
       
-      console.log('🔧 Performing manual reset with data:', manualShiftData)
       const summary = await resetService.performShiftReset(manualShiftData)
       
-      console.log('✅ Manual reset completed:', summary)
       alert(`✅ Manual reset completed successfully!\n\nSummary:\n• Total Sales: ₱${summary.totalSales.toLocaleString()}\n• Total Orders: ${summary.totalOrders}\n• Archive ID: ${summary.archiveId}\n\nCheck console for full details.`)
       
       // Update the state with the summary
@@ -109,18 +105,6 @@ export default function ShiftResetManager({ onResetComplete, className = '' }: S
     } finally {
       setIsManualResetting(false)
     }
-  }
-
-  const handleTestReset = () => {
-    console.log('🧪 Test Reset Button Clicked!')
-    console.log('Current state:', {
-      profile: profile?.tenantId,
-      branch: selectedBranch?.id,
-      currentShift: currentShift?.id,
-      canPerformReset,
-      isResetting
-    })
-    alert('Test reset button works! Check console for details.')
   }
 
   const formatCurrency = (amount: number) => {
@@ -173,21 +157,13 @@ export default function ShiftResetManager({ onResetComplete, className = '' }: S
                 {isResetting ? 'Resetting...' : 'End Shift & Reset'}
               </button>
             ) : (
-              <div className="flex gap-2">
-                <button
-                  onClick={handleTestReset}
-                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition-colors"
-                >
-                  Test Button
-                </button>
-                <button
-                  onClick={() => setShowConfirmModal(true)}
-                  disabled={isManualResetting}
-                  className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium text-sm transition-colors"
-                >
-                  {isManualResetting ? 'Resetting...' : 'Manual Data Reset'}
-                </button>
-              </div>
+              <button
+                onClick={() => setShowConfirmModal(true)}
+                disabled={isManualResetting}
+                className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium text-sm transition-colors"
+              >
+                {isManualResetting ? 'Ending Shift...' : 'End Shift'}
+              </button>
             )}
           </div>
         </div>
@@ -277,7 +253,7 @@ export default function ShiftResetManager({ onResetComplete, className = '' }: S
           <h3 className="text-lg font-semibold text-surface-900 mb-4">Recent Resets</h3>
           <div className="space-y-3">
             {resetHistory.slice(0, 5).map((reset, index) => (
-              <div key={reset.archiveId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div key={generateUniqueReactKey(`shift-reset-history-${reset.archiveId}-${index}-${reset.resetAt?.toMillis?.() || Date.now()}`)} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div>
                   <div className="font-medium text-sm">{reset.shiftName}</div>
                   <div className="text-xs text-gray-500">
@@ -306,7 +282,7 @@ export default function ShiftResetManager({ onResetComplete, className = '' }: S
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">
-                  {currentShift ? 'End Shift & Reset Data' : 'Manual Data Reset'}
+                  {currentShift ? 'End Shift & Reset Data' : 'End Shift'}
                 </h3>
                 <p className="text-sm text-gray-600">This action cannot be undone</p>
               </div>

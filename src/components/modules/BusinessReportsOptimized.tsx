@@ -1002,7 +1002,7 @@ export default function BusinessReports() {
     // Inventory Overview
     yPos = addSectionTitle(pdf, 'Inventory Overview', yPos)
     
-    const inStockItems = inv.totalItems - inv.lowStockItems - inv.outOfStockItems
+    const inStockItems = inv.totalItems - (Array.isArray(inv.lowStockItems) ? inv.lowStockItems.length : inv.lowStockItems || 0) - (Array.isArray(inv.outOfStockItems) ? inv.outOfStockItems.length : inv.outOfStockItems || 0)
     const healthScore = inv.totalItems > 0 ? ((inStockItems / inv.totalItems) * 100) : 0
     const avgItemValue = inv.totalItems > 0 ? inv.totalValue / inv.totalItems : 0
     
@@ -1010,11 +1010,11 @@ export default function BusinessReports() {
       { label: 'Total Items', value: inv.totalItems.toLocaleString() },
       { label: 'Total Value', value: `₱${inv.totalValue.toLocaleString()}` },
       { label: 'In Stock Items', value: inStockItems.toLocaleString() },
-      { label: 'Low Stock Items', value: inv.lowStockItems.toLocaleString() },
-      { label: 'Out of Stock', value: inv.outOfStockItems.toLocaleString() },
+      { label: 'Low Stock Items', value: (Array.isArray(inv.lowStockItems) ? inv.lowStockItems.length : inv.lowStockItems || 0).toLocaleString() },
+      { label: 'Out of Stock', value: (Array.isArray(inv.outOfStockItems) ? inv.outOfStockItems.length : inv.outOfStockItems || 0).toLocaleString() },
       { label: 'Avg Item Value', value: `₱${avgItemValue.toFixed(2)}` },
       { label: 'Stock Health', value: `${healthScore.toFixed(1)}%` },
-      { label: 'Reorder Priority', value: inv.lowStockItems > 0 ? 'HIGH' : 'LOW' }
+      { label: 'Reorder Priority', value: (Array.isArray(inv.lowStockItems) ? inv.lowStockItems.length : inv.lowStockItems || 0) > 0 ? 'HIGH' : 'LOW' }
     ]
     
     yPos = addSimpleMetrics(pdf, inventoryMetrics, yPos)
@@ -1033,15 +1033,15 @@ export default function BusinessReports() {
       ],
       [
         'Low Stock',
-        inv.lowStockItems.toLocaleString(),
-        `${((inv.lowStockItems / inv.totalItems) * 100).toFixed(1)}%`,
+        (Array.isArray(inv.lowStockItems) ? inv.lowStockItems.length : inv.lowStockItems || 0).toLocaleString(),
+        `${(((Array.isArray(inv.lowStockItems) ? inv.lowStockItems.length : inv.lowStockItems || 0) / inv.totalItems) * 100).toFixed(1)}%`,
         'At Risk',
         'Reorder soon'
       ],
       [
         'Out of Stock',
-        inv.outOfStockItems.toLocaleString(),
-        `${((inv.outOfStockItems / inv.totalItems) * 100).toFixed(1)}%`,
+        (Array.isArray(inv.outOfStockItems) ? inv.outOfStockItems.length : inv.outOfStockItems || 0).toLocaleString(),
+        `${(((Array.isArray(inv.outOfStockItems) ? inv.outOfStockItems.length : inv.outOfStockItems || 0) / inv.totalItems) * 100).toFixed(1)}%`,
         'Critical',
         'Immediate reorder'
       ]
@@ -1066,14 +1066,14 @@ export default function BusinessReports() {
     pdf.setFont('helvetica', 'normal')
     pdf.text(`${healthScore.toFixed(1)}% of inventory is adequately stocked`, 25, yPos + 15)
     
-    if (inv.lowStockItems > 0) {
+    if ((Array.isArray(inv.lowStockItems) ? inv.lowStockItems.length : inv.lowStockItems || 0) > 0) {
       pdf.setTextColor(245, 158, 11)
-      pdf.text(`Warning: ${inv.lowStockItems} items require immediate attention`, 25, yPos + 30)
+      pdf.text(`Warning: ${(Array.isArray(inv.lowStockItems) ? inv.lowStockItems.length : inv.lowStockItems || 0)} items require immediate attention`, 25, yPos + 30)
     }
     
-    if (inv.outOfStockItems > 0) {
+    if ((Array.isArray(inv.outOfStockItems) ? inv.outOfStockItems.length : inv.outOfStockItems || 0) > 0) {
       pdf.setTextColor(239, 68, 68)
-      pdf.text(`Alert: ${inv.outOfStockItems} items are completely out of stock`, 25, yPos + 45)
+      pdf.text(`Alert: ${(Array.isArray(inv.outOfStockItems) ? inv.outOfStockItems.length : inv.outOfStockItems || 0)} items are completely out of stock`, 25, yPos + 45)
     }
     
     addProfessionalFooter(pdf)

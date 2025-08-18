@@ -137,8 +137,8 @@ export default function Analytics() {
     const reportData = [
       { metric: 'Total Items', value: inventoryAnalytics.totalItems },
       { metric: 'Total Value', value: `₱${inventoryAnalytics.totalValue.toFixed(2)}` },
-      { metric: 'Low Stock Items', value: inventoryAnalytics.lowStockItems },
-      { metric: 'Out of Stock Items', value: inventoryAnalytics.outOfStockItems },
+      { metric: 'Low Stock Items', value: Array.isArray(inventoryAnalytics.lowStockItems) ? inventoryAnalytics.lowStockItems.length : inventoryAnalytics.lowStockItems },
+      { metric: 'Out of Stock Items', value: Array.isArray(inventoryAnalytics.outOfStockItems) ? inventoryAnalytics.outOfStockItems.length : inventoryAnalytics.outOfStockItems },
       { metric: 'Average Stock Level', value: inventoryAnalytics.averageStockLevel.toFixed(2) },
     ]
     
@@ -533,11 +533,11 @@ export default function Analytics() {
                   <p className="text-sm text-surface-600">Total Value</p>
                 </div>
                 <div className="text-center p-4 bg-orange-50 rounded-lg">
-                  <p className="text-2xl font-bold text-orange-600">{inventoryAnalytics.lowStockItems}</p>
+                  <p className="text-2xl font-bold text-orange-600">{Array.isArray(inventoryAnalytics.lowStockItems) ? inventoryAnalytics.lowStockItems.length : inventoryAnalytics.lowStockItems}</p>
                   <p className="text-sm text-surface-600">Low Stock</p>
                 </div>
                 <div className="text-center p-4 bg-red-50 rounded-lg">
-                  <p className="text-2xl font-bold text-red-600">{inventoryAnalytics.outOfStockItems}</p>
+                  <p className="text-2xl font-bold text-red-600">{Array.isArray(inventoryAnalytics.outOfStockItems) ? inventoryAnalytics.outOfStockItems.length : inventoryAnalytics.outOfStockItems}</p>
                   <p className="text-sm text-surface-600">Out of Stock</p>
                 </div>
               </div>

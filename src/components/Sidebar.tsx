@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { ModuleType } from './Dashboard'
 import CoreTrackLogo from './CoreTrackLogo'
 import { ModulePermission, UserRole } from '../lib/rbac/permissions'
@@ -25,14 +24,11 @@ interface MenuItem {
   section: 'daily' | 'intelligence' | 'advanced'
 }
 
-// Interface for menu sections with expand/collapse state
+// Interface for menu sections 
 interface MenuSection {
   id: string
   title: string
-  icon: React.ReactNode
   items: MenuItem[]
-  description?: string
-  defaultExpanded?: boolean
 }
 
 const menuItems: MenuItem[] = [
@@ -172,38 +168,17 @@ const menuSections: MenuSection[] = [
   {
     id: 'daily',
     title: 'Daily Operations',
-    icon: (
-      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-      </svg>
-    ),
-    items: menuItems.filter(item => item.section === 'daily'),
-    description: 'Used constantly',
-    defaultExpanded: true
+    items: menuItems.filter(item => item.section === 'daily')
   },
   {
     id: 'intelligence', 
     title: 'Business Intelligence',
-    icon: (
-      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M3 13H11V3H3V13ZM3 21H11V15H3V21ZM13 21H21V11H13V21ZM13 3V9H21V3H13Z"/>
-      </svg>
-    ),
-    items: menuItems.filter(item => item.section === 'intelligence'),
-    description: 'Weekly reviews',
-    defaultExpanded: false
+    items: menuItems.filter(item => item.section === 'intelligence')
   },
   {
     id: 'advanced',
     title: 'Advanced Tools',
-    icon: (
-      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
-      </svg>
-    ),
-    items: menuItems.filter(item => item.section === 'advanced'),
-    description: 'Special features',
-    defaultExpanded: false
+    items: menuItems.filter(item => item.section === 'advanced')
   }
 ]
 
@@ -218,36 +193,6 @@ export default function Sidebar({
   const { settings, isRetail } = useBusinessSettings()
   const { features: subscriptionFeatures } = useSubscription()
   
-  // State for expandable sections (clean accordion)
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
-    // Initialize with default expanded states
-    const initial: Record<string, boolean> = {}
-    menuSections.forEach(section => {
-      initial[section.id] = section.defaultExpanded || false
-    })
-    return initial
-  })
-
-  // Toggle section expand/collapse (accordion behavior - only one section open at a time)
-  const toggleSection = (sectionId: string) => {
-    setExpandedSections((prev: Record<string, boolean>) => {
-      // If clicking the same section that's already expanded, collapse it
-      if (prev[sectionId]) {
-        return {
-          ...prev,
-          [sectionId]: false
-        }
-      }
-      
-      // Otherwise, collapse all sections and expand the clicked one
-      const newSections: Record<string, boolean> = {}
-      menuSections.forEach(section => {
-        newSections[section.id] = section.id === sectionId
-      })
-      return newSections
-    })
-  }
-
   // Filter menu items based on subscription permissions AND business type
   const filteredMenuSections = menuSections.map(section => ({
     ...section,
@@ -281,10 +226,10 @@ export default function Sidebar({
       {/* Sidebar */}
       <div className={`
         fixed lg:relative z-30 lg:z-0
-        h-full w-64 bg-white border-r border-surface-200
+        h-full w-60 bg-white border-r border-surface-200
         transform transition-all duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-        ${!isOpen ? 'lg:w-16' : 'lg:w-64'}
+        ${!isOpen ? 'lg:w-16' : 'lg:w-60'}
       `}>
         <div className="flex flex-col h-full">
           {/* Logo */}
@@ -317,137 +262,58 @@ export default function Sidebar({
           </div>
 
           {/* Navigation */}
-          <nav className={`flex-1 py-4 space-y-1 transition-all duration-300 ${isOpen ? 'px-3' : 'px-1.5'}`}>
-            {/* Ultra-Minimalist Business Mode */}
-            {isOpen && (
-              <div className="mb-3">
-                {/* Sleek Minimal Card */}
-                <div className="bg-white/60 backdrop-blur-sm border border-slate-100 rounded-xl p-2.5 hover:bg-white/80 transition-all duration-300">
-                  {/* Compact Header */}
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">MODE</span>
-                    <div className="w-1 h-1 rounded-full bg-emerald-400"></div>
-                  </div>
-                  
-                  {/* Business Type - Ultra Compact */}
-                  <div className="flex items-center space-x-1.5">
-                    <span className="text-base leading-none">
-                      {settings.businessType === 'restaurant' && '🍽️'}
-                      {settings.businessType === 'retail' && '🏪'}
-                      {settings.businessType === 'hybrid' && '🔄'}
-                    </span>
-                    <span className="text-xs font-medium text-slate-700">
-                      {settings.businessType === 'restaurant' && 'Restaurant'}
-                      {settings.businessType === 'retail' && 'Retail'}
-                      {settings.businessType === 'hybrid' && 'Hybrid'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {/* Clean Minimalist Accordion Sections */}
-            {filteredMenuSections.map((section) => (
-              <div key={section.id} className="mb-2">
-                {/* Section Header - Clickable for expand/collapse */}
-                <button
-                  onClick={() => toggleSection(section.id)}
-                  className={`
-                    w-full flex items-center justify-between p-3 rounded-xl
-                    hover:bg-gray-50 transition-all duration-200
-                    ${isOpen ? 'text-left' : 'justify-center'}
-                    group
-                  `}
-                  title={!isOpen ? section.title : ''}
-                >
-                  {/* Section Icon and Title */}
-                  <div className="flex items-center space-x-3">
-                    <div className={`
-                      ${isOpen ? 'w-6 h-6 text-gray-600' : 'w-8 h-8 text-gray-700'}
-                      transition-all duration-200
-                    `}>
-                      {section.icon}
-                    </div>
-                    {isOpen && (
-                      <div>
-                        <h3 className="text-sm font-semibold text-gray-900">
-                          {section.title}
-                        </h3>
-                        <p className="text-xs text-gray-500">
-                          {section.description}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Expand/Collapse Arrow - only when sidebar is open */}
+          <nav className={`flex-1 py-4 space-y-1 overflow-y-auto ${isOpen ? 'px-3' : 'px-2'}`}>
+            {filteredMenuSections.map((section) => {
+              if (section.items.length === 0) return null
+              
+              return (
+                <div key={section.id} className="space-y-1">
+                  {/* Section Header */}
                   {isOpen && (
-                    <div className={`
-                      w-5 h-5 text-gray-400 transition-transform duration-200
-                      ${expandedSections[section.id] ? 'rotate-90' : ''}
-                    `}>
-                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
+                    <div className="px-2 py-2">
+                      <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                        {section.title}
+                      </h3>
                     </div>
                   )}
-                </button>
-                
-                {/* Section Items - Expandable */}
-                {(isOpen && expandedSections[section.id]) && (
-                  <div className="mt-1 ml-3 space-y-1 animate-in slide-in-from-top-2 duration-200">
-                    {section.items.map((item) => {
-                      // Dynamic label based on business type
-                      const getItemLabel = (item: MenuItem) => {
-                        if (item.id === 'menu-builder') {
-                          return settings.businessType === 'retail' ? 'Product Builder' : 'Menu Builder'
-                        }
-                        return item.label
+                  
+                  {/* Menu Items */}
+                  {section.items.map((item) => {
+                    const getItemLabel = (item: MenuItem) => {
+                      if (item.id === 'menu-builder') {
+                        return settings.businessType === 'retail' ? 'Product Builder' : 'Menu Builder'
                       }
+                      return item.label
+                    }
 
-                      return (
-                        <button
-                          key={item.id}
-                          onClick={() => onModuleChange(item.id)}
-                          className={`
-                            w-full flex items-center space-x-3 p-2.5 pl-6 rounded-lg
-                            transition-all duration-200 text-left group
-                            ${activeModule === item.id 
-                              ? 'bg-blue-50 text-blue-700 border-l-3 border-blue-500' 
-                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                            }
-                          `}
-                        >
-                          <div className="w-5 h-5 flex-shrink-0">
-                            {item.icon}
-                          </div>
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => onModuleChange(item.id)}
+                        className={`
+                          w-full flex items-center rounded-lg transition-colors
+                          ${isOpen ? 'space-x-3 p-3 text-left' : 'p-3 justify-center'}
+                          ${activeModule === item.id 
+                            ? 'bg-blue-50 text-blue-700 border-r-4 border-blue-500' 
+                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                          }
+                        `}
+                        title={!isOpen ? getItemLabel(item) : undefined}
+                      >
+                        <div className="w-5 h-5 flex-shrink-0">
+                          {item.icon}
+                        </div>
+                        {isOpen && (
                           <span className="font-medium text-sm">
                             {getItemLabel(item)}
                           </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-                
-                {/* Collapsed Sidebar Tooltip for section items */}
-                {!isOpen && (
-                  <div className="absolute left-16 top-0 hidden group-hover:block z-50">
-                    <div className="bg-gray-900 text-white text-sm rounded-lg py-2 px-3 shadow-lg">
-                      <div className="font-semibold">{section.title}</div>
-                      <div className="text-xs text-gray-300 mt-1">{section.description}</div>
-                      <div className="mt-2 space-y-1">
-                        {section.items.map((item) => (
-                          <div key={item.id} className="text-xs text-gray-200">
-                            • {item.label}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              )
+            })}
           </nav>
         </div>
       </div>

@@ -211,7 +211,7 @@ export default function DashboardOverview() {
                 </div>
               </div>
               <p className="text-xs text-red-600 mt-2">
-                {inventoryAnalytics?.lowStockItems || 0} low stock items
+                {Array.isArray(inventoryAnalytics?.lowStockItems) ? inventoryAnalytics.lowStockItems.length : inventoryAnalytics?.lowStockItems || 0} low stock items
               </p>
             </div>
           </div>
@@ -337,11 +337,11 @@ export default function DashboardOverview() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-surface-600">Low Stock</span>
-                  <span className="font-medium text-orange-600">{inventoryAnalytics?.lowStockItems || 0}</span>
+                  <span className="font-medium text-orange-600">{Array.isArray(inventoryAnalytics?.lowStockItems) ? inventoryAnalytics.lowStockItems.length : inventoryAnalytics?.lowStockItems || 0}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-surface-600">Out of Stock</span>
-                  <span className="font-medium text-red-600">{inventoryAnalytics?.outOfStockItems || 0}</span>
+                  <span className="font-medium text-red-600">{Array.isArray(inventoryAnalytics?.outOfStockItems) ? inventoryAnalytics.outOfStockItems.length : inventoryAnalytics?.outOfStockItems || 0}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-surface-600">Total Value</span>

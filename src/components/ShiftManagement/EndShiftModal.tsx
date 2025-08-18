@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useShift } from '@/lib/context/ShiftContext';
 import { useBranch } from '@/lib/context/BranchContext';
 import { useAuth } from '@/lib/context/AuthContext';
-import { generateShiftReportPDF } from '@/lib/utils/pdfGenerator';
+// Note: Shift PDF generation import removed as per user request
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getBranchLocationId } from '@/lib/utils/branchUtils';
@@ -333,13 +333,8 @@ const EndShiftModal: React.FC<EndShiftModalProps> = ({
     
     console.log('📄 Report data:', reportData);
     
-    try {
-      generateShiftReportPDF(reportData);
-      console.log('✅ PDF generated successfully');
-    } catch (error) {
-      console.error('❌ Error generating PDF:', error);
-      alert('Failed to generate PDF report. Please try again.');
-    }
+    // Note: PDF generation has been disabled per user request
+    console.log('✅ Shift ended successfully (PDF generation skipped)');
   };
 
   if (!isOpen) return null;

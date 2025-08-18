@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
 import { useBranch } from '../../lib/context/BranchContext'
+import { useShift } from '../../lib/context/ShiftContext'
 import { getBranchLocationId } from '../../lib/utils/branchUtils'
 import { 
   getDashboardStats,
@@ -27,6 +28,7 @@ import {
   getPurchaseOrders,
   type PurchaseOrder
 } from '../../lib/firebase/purchaseOrders'
+import { subscribeToPOSOrders, type POSOrder } from '../../lib/firebase/pos'
 import jsPDF from 'jspdf'
 
 interface ReportData {
@@ -37,6 +39,8 @@ interface ReportData {
   paymentAnalytics: PaymentAnalytics[]
   expenses: Expense[]
   purchaseOrders: PurchaseOrder[]
+  shiftRevenue?: number
+  shiftOrders?: number
   dateRange: string
   startDate: Date
   endDate: Date
@@ -51,8 +55,14 @@ interface LoadingState {
 export default function BusinessReports() {
   const { profile } = useAuth()
   const { selectedBranch } = useBranch()
+  const { currentShift } = useShift() // Add shift context
   
-  console.log('BusinessReports Debug:', { profile: !!profile, selectedBranch: !!selectedBranch })
+  console.log('BusinessReports Debug:', { 
+    profile: !!profile, 
+    selectedBranch: !!selectedBranch, 
+    currentShift: !!currentShift,
+    shiftId: currentShift?.id
+  })
   
   const [loadingState, setLoadingState] = useState<LoadingState>({ 
     isLoading: false, 
@@ -101,6 +111,35 @@ export default function BusinessReports() {
     }
   ]
 
+  const getCurrentShiftOrders = async (tenantId: string, locationId: string, shift: any): Promise<POSOrder[]> => {
+    if (!shift?.id) return []
+    
+    try {
+      // Use the same POS subscription logic as MainDashboard
+      return new Promise((resolve) => {
+        const unsubscribe = subscribeToPOSOrders(
+          tenantId,
+          (orders: POSOrder[]) => {
+            // Filter orders by current shift only (same as MainDashboard)
+            const currentShiftOrders = orders.filter(order => {
+              const orderTime = order.createdAt?.toDate()
+              const shiftStartTime = shift.startTime?.toDate()
+              return orderTime && shiftStartTime && orderTime >= shiftStartTime
+            })
+            
+            console.log(`[Reports] 🎯 SHIFT FILTERED: ${currentShiftOrders.length} orders from current shift (out of ${orders.length} total)`)
+            unsubscribe()
+            resolve(currentShiftOrders)
+          },
+          locationId
+        )
+      })
+    } catch (error) {
+      console.error('Error fetching current shift orders:', error)
+      return []
+    }
+  }
+
   const calculateDateRange = () => {
     const endDate = new Date()
     const startDate = new Date()
@@ -147,26 +186,64 @@ export default function BusinessReports() {
 
     const { startDate, endDate } = calculateDateRange()
     const locationId = getBranchLocationId(selectedBranch.id)
-    const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+    const days = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)))
+    
+    // Debug date range calculation
+    console.log('Date Range Calculation Debug:', {
+      dateRange,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(), 
+      days,
+      locationId,
+      tenantId: profile.tenantId
+    })
     
     setLoadingState({ isLoading: true, progress: 10, stage: 'Fetching sales data...' })
 
     try {
-      // Use existing analytics functions instead of custom queries
-      const [dashboardStats, salesData, topItems, inventoryAnalytics, paymentAnalytics, expensesData, purchaseOrdersData] = await Promise.all([
+      // Get shift-aware sales data (same as MainDashboard)
+      const [dashboardStats, salesData, topItems, inventoryAnalytics, paymentAnalytics, expensesData, purchaseOrdersData, currentShiftOrders] = await Promise.all([
         getDashboardStats(profile.tenantId, locationId),
         getSalesChartData(profile.tenantId, days, locationId),
         getTopSellingItems(profile.tenantId, days, 10, locationId),
         getInventoryAnalytics(profile.tenantId, days, locationId),
         getPaymentAnalytics(profile.tenantId, locationId, startDate, endDate),
         getExpensesByDateRange(profile.tenantId, startDate, endDate),
-        getPurchaseOrders(profile.tenantId, locationId)
+        getPurchaseOrders(profile.tenantId, locationId),
+        // Get current shift orders directly (same as MainDashboard)
+        getCurrentShiftOrders(profile.tenantId, locationId, currentShift)
       ])
+
+      // Calculate shift-aware sales totals
+      const shiftRevenue = currentShiftOrders.reduce((sum: number, order: POSOrder) => sum + order.total, 0)
+      const shiftOrders = currentShiftOrders.length
+      const shiftAvgOrderValue = shiftOrders > 0 ? shiftRevenue / shiftOrders : 0
+
+      console.log('🎯 SHIFT-AWARE DATA:', {
+        allDashboardRevenue: dashboardStats?.todaysSales?.revenue || 0,
+        shiftRevenue,
+        shiftOrders,
+        shiftAvgOrderValue,
+        currentShiftId: currentShift?.id
+      })
+
+      // If getSalesChartData returns no data for today, create synthetic data from SHIFT data
+      let finalSalesData = salesData
+      if (salesData.length === 0 && shiftRevenue > 0 && dateRange === 'today') {
+        console.log('Creating synthetic sales data from CURRENT SHIFT data for today...')
+        finalSalesData = [{
+          date: new Date().toISOString().split('T')[0],
+          revenue: shiftRevenue,
+          orders: shiftOrders,
+          avgOrderValue: shiftAvgOrderValue
+        }]
+      }
 
       // Debug logging
       console.log('Report Data Debug:', {
         dashboardStats,
-        salesDataLength: salesData.length,
+        originalSalesDataLength: salesData.length,
+        finalSalesDataLength: finalSalesData.length,
         topItemsLength: topItems.length,
         inventoryAnalytics,
         paymentAnalyticsLength: paymentAnalytics.length,
@@ -180,80 +257,24 @@ export default function BusinessReports() {
       })
 
       // Additional detailed debugging
-      console.log('Sales Data Details:', salesData)
+      console.log('Sales Data Details:', finalSalesData)
       console.log('Top Items Details:', topItems)
       console.log('Dashboard Stats Details:', dashboardStats)
       console.log('Payment Analytics Details:', paymentAnalytics)
 
-      // Filter out any sample/mock data that might be coming from analytics
-      const commonTestValues = [896.5, 123.45, 999.99, 100.00, 200.00, 500.00, 1000.00]
-      
-      const filteredSalesData = salesData.filter(day => 
-        day.date && 
-        typeof day.revenue === 'number' && 
-        typeof day.orders === 'number' &&
-        !day.date.includes('sample') &&
-        !day.date.includes('test') &&
-        !day.date.includes('mock') &&
-        // Filter out suspicious test values
-        !commonTestValues.includes(day.revenue) &&
-        !(day.revenue === 0 && day.orders === 0) // Filter out empty sample data
-      )
+      // Use all the data without aggressive filtering - the user has real data
+      const filteredSalesData = finalSalesData
+      const filteredTopItems = topItems
+      const filteredPaymentAnalytics = paymentAnalytics
 
-      const filteredTopItems = topItems.filter(item => 
-        item.name && 
-        typeof item.revenue === 'number' && 
-        typeof item.quantity === 'number' &&
-        item.name.length > 0 &&
-        !item.name.toLowerCase().includes('sample') &&
-        !item.name.toLowerCase().includes('test') &&
-        !item.name.toLowerCase().includes('mock') &&
-        !item.name.toLowerCase().includes('demo') &&
-        !item.name.toLowerCase().includes('placeholder') &&
-        // Filter out suspicious test values
-        !commonTestValues.includes(item.revenue) &&
-        item.revenue > 0 && 
-        item.quantity > 0 &&
-        // Filter out obviously generated names
-        !item.name.match(/^(Item|Product|Test)\s*\d*$/i)
-      )
-
-      const filteredPaymentAnalytics = paymentAnalytics.filter(payment => 
-        payment.method && 
-        typeof payment.amount === 'number' && 
-        typeof payment.transactions === 'number' &&
-        !payment.method.toLowerCase().includes('sample') &&
-        !payment.method.toLowerCase().includes('test') &&
-        !payment.method.toLowerCase().includes('mock') &&
-        !commonTestValues.includes(payment.amount) &&
-        payment.amount > 0 &&
-        payment.transactions > 0
-      )
-
-      // Log what we filtered out
-      console.log('Data Filtering Summary:', {
-        originalSalesData: salesData.length,
-        filteredSalesData: filteredSalesData.length,
-        originalTopItems: topItems.length,
-        filteredTopItems: filteredTopItems.length,
-        originalPaymentAnalytics: paymentAnalytics.length,
-        filteredPaymentAnalytics: filteredPaymentAnalytics.length
+      // Log summary
+      console.log('Data Summary:', {
+        salesData: filteredSalesData.length,
+        topItems: filteredTopItems.length,  
+        paymentAnalytics: filteredPaymentAnalytics.length,
+        expenses: expensesData.length,
+        purchaseOrders: purchaseOrdersData.length
       })
-
-      // Log specific items that were filtered out
-      const removedSalesData = salesData.filter(day => !filteredSalesData.includes(day))
-      const removedTopItems = topItems.filter(item => !filteredTopItems.includes(item))
-      const removedPaymentAnalytics = paymentAnalytics.filter(payment => !filteredPaymentAnalytics.includes(payment))
-
-      if (removedSalesData.length > 0) {
-        console.log('Removed Sales Data (suspected test data):', removedSalesData)
-      }
-      if (removedTopItems.length > 0) {
-        console.log('Removed Top Items (suspected test data):', removedTopItems)
-      }
-      if (removedPaymentAnalytics.length > 0) {
-        console.log('Removed Payment Analytics (suspected test data):', removedPaymentAnalytics)
-      }
 
       setLoadingState({ isLoading: true, progress: 60, stage: 'Finalizing data...' })
 
@@ -269,8 +290,10 @@ export default function BusinessReports() {
         topItems: filteredTopItems,
         inventoryAnalytics,
         paymentAnalytics: filteredPaymentAnalytics,
-        expenses,
-        purchaseOrders,
+        expenses: expensesData,
+        purchaseOrders: purchaseOrdersData,
+        shiftRevenue,
+        shiftOrders,
         dateRange: dateRange === 'custom' 
           ? `${customStartDate} to ${customEndDate}` 
           : dateRange.charAt(0).toUpperCase() + dateRange.slice(1),
@@ -286,14 +309,72 @@ export default function BusinessReports() {
   const generatePDF = async (reportType: string) => {
     setError(null)
     
+    console.log('🚀 Starting PDF Generation:', {
+      reportType,
+      dateRange,
+      selectedBranch: selectedBranch?.name,
+      tenantId: profile?.tenantId
+    })
+
     try {
       setLoadingState({ isLoading: true, progress: 0, stage: 'Preparing report...' })
       
       const data = await fetchReportData()
       
-      // Validate data based on report type
-      if (reportType.includes('sales') && data.salesData.length === 0) {
-        throw new Error(`No sales data found for the selected period (${data.dateRange})`)
+      console.log('📊 Raw Data Fetched:', {
+        dashboardStats: data.dashboardStats,
+        salesDataLength: data.salesData.length,
+        salesData: data.salesData,
+        dateRange: data.dateRange,
+        startDate: data.startDate.toISOString(),
+        endDate: data.endDate.toISOString()
+      })
+      
+      // Validate data based on report type - with better debugging
+      console.log('Report Validation Debug:', {
+        reportType,
+        salesDataLength: data.salesData.length,
+        dashboardStats: data.dashboardStats,
+        todaysSales: data.dashboardStats?.todaysSales,
+        hasInventory: !!data.inventoryAnalytics,
+        dateRange: data.dateRange
+      })
+      
+      if (reportType.includes('sales')) {
+        // Check both sales data and shift-aware data
+        const hasSalesData = data.salesData.length > 0
+        const hasDashboardSales = data.dashboardStats?.todaysSales?.revenue && data.dashboardStats.todaysSales.revenue > 0
+        const hasShiftSales = currentShift && data.shiftRevenue && data.shiftRevenue > 0
+        
+        console.log('🎯 SHIFT-AWARE VALIDATION:', {
+          hasSalesData,
+          hasDashboardSales,
+          hasShiftSales,
+          shiftRevenue: data.shiftRevenue || 0,
+          shiftId: currentShift?.id
+        })
+        
+        // For "Today" reports, prioritize shift data over dashboard stats
+        if (dateRange === 'today' && !hasSalesData && hasShiftSales) {
+          console.log('✅ Using SHIFT data for TODAY report - this matches your main dashboard!')
+          // Don't throw error - we have valid shift data
+        } else if (dateRange === 'today' && !hasSalesData && hasDashboardSales) {
+          console.log('✅ Using dashboard stats for TODAY report since chart data is empty but we have today\'s sales:', data.dashboardStats?.todaysSales)
+          // Don't throw error - we have valid today's data from dashboard stats
+        } else if (!hasSalesData && !hasDashboardSales && !hasShiftSales) {
+          console.warn('No sales data found in either sales data, dashboard stats, or shift data:', {
+            dashboardStats: data.dashboardStats,
+            todaysSales: data.dashboardStats?.todaysSales,
+            salesData: data.salesData,
+            shiftRevenue: data.shiftRevenue || 0,
+            dateRange
+          })
+          throw new Error(`No sales data found for the selected period (${data.dateRange}). Please check if you have any sales transactions recorded for this period.`)
+        }
+        
+        if (!hasSalesData && (hasDashboardSales || hasShiftSales)) {
+          console.log('Using dashboard stats or shift data for sales since chart data is empty')
+        }
       }
       
       if (reportType.includes('inventory') && !data.inventoryAnalytics) {

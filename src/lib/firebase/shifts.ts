@@ -264,12 +264,12 @@ export async function calculateShiftSummary(
       ordersByStatus[order.status] = (ordersByStatus[order.status] || 0) + 1
     })
     
-    // Get expenses for the shift period
+    // Get expenses for the shift period - filter by date field, not createdAt
     const expensesRef = collection(db, 'tenants', tenantId, 'locations', locationId, 'expenses')
     const expensesQuery = query(
       expensesRef,
-      where('createdAt', '>=', startTime),
-      where('createdAt', '<=', endTimeFilter)
+      where('date', '>=', startTime),
+      where('date', '<=', endTimeFilter)
     )
     const expensesSnapshot = await getDocs(expensesQuery)
     

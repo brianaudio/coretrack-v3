@@ -33,8 +33,8 @@ const moduleNames: Record<ModuleType, string> = {
 export default function Header({ activeModule, onSidebarToggle, onLogout }: HeaderProps) {
   const { profile, tenant, signOut, user } = useAuth()
   const { isShiftActive, currentShift, loading, startNewShift, endCurrentShift } = useShift()
-  const { performReset, isResetting } = useShiftReset()
   const { showHelp } = useHelp()
+  const { performReset, isResetting } = useShiftReset()
 
   // Get user info from AuthContext instead of UserContext
   const currentRole = profile?.role || null
@@ -73,45 +73,23 @@ export default function Header({ activeModule, onSidebarToggle, onLogout }: Head
   }
 
   const handleEndShift = async () => {
-    if (!confirm('Are you sure you want to end the current shift?')) {
+    if (!confirm('Are you sure you want to end the current shift? This will reset all data for the next shift.')) {
       return
     }
 
     try {
-      // End the shift first through ShiftContext
-      await endCurrentShift('Ended from header')
+      // Just end the shift - the endCurrentShift function should handle the data reset
+      await endCurrentShift('Shift ended from header')
       
-      // Then perform enterprise-grade data reset
-      await performReset({
-        resetReason: 'shift_end',
-        shiftId: currentShift?.id,
-        shiftName: currentShift?.name
-      })
+      // Show success message
+      alert('✅ Shift ended successfully! Data has been reset for the next shift.')
       
-      // FIREBASE NUCLEAR SOLUTION: Clear Firebase listeners and force re-sync
-      console.log('🚀 FIREBASE NUCLEAR SOLUTION: Clearing Firebase data and forcing complete re-sync...');
-      alert('✅ Shift ended successfully! Clearing all Firebase data and refreshing...');
+      // Refresh page to ensure clean state
+      window.location.reload()
       
-      // Force immediate Firebase data clear and re-sync
-      setTimeout(() => {
-        console.log('💥 FIREBASE NUCLEAR: Forcing complete Firebase re-sync!');
-        
-        // Broadcast a custom event to force all components to reset their Firebase listeners
-        window.dispatchEvent(new CustomEvent('forceFirebaseReset', { 
-          detail: { 
-            timestamp: Date.now(),
-            reason: 'shift_end_nuclear_reset' 
-          } 
-        }));
-        
-        // Force complete page reload to ensure clean Firebase state
-        window.location.reload();
-      }, 1000);
-      
-      console.log('✅ Shift ended successfully')
     } catch (error) {
       console.error('Failed to end shift:', error)
-      alert('Failed to end shift. Please try again.')
+      alert('❌ Failed to end shift. Please try again.')
     }
   }
 

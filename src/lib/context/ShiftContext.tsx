@@ -16,7 +16,7 @@ import {
   calculateShiftSummary
 } from '../firebase/shifts'
 import { generateShiftReportData } from '../utils/shiftReportGenerator'
-import { generateShiftReportPDF } from '../utils/pdfGenerator'
+// Note: Shift PDF generation import removed as per user request
 
 // Types
 export interface ShiftData {
@@ -204,27 +204,15 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       await updateShift(profile.tenantId, currentShift.id, endedShift)
       setCurrentShift(endedShift)
       
-      // Generate and download shift report PDF
-      try {
-        console.log('📊 Generating shift report PDF...')
-        const reportData = await generateShiftReportData(
-          endedShift,
-          profile.tenantId,
-          selectedBranch.name,
-          profile.displayName || profile.email || 'Staff Member',
-          locationId
-        )
-        
-        generateShiftReportPDF(reportData)
-        console.log('✅ Shift report PDF generated successfully')
-      } catch (pdfError) {
-        console.error('❌ Failed to generate PDF report:', pdfError)
-        // Don't throw error - shift ending should not fail if PDF generation fails
-        alert('Shift ended successfully, but PDF report generation failed. You can try generating the report manually later.')
-      }
+      // Note: Shift PDF report generation has been disabled per user request
+      console.log('✅ Shift ended successfully (PDF report generation skipped)')
       
       // Archive the shift data
       await archiveShift(endedShift.id)
+      
+      // Reset data for next shift
+      await resetDailyData()
+      console.log('✅ Data reset completed for next shift')
       
     } catch (err) {
       console.error('Error ending shift:', err)
@@ -297,7 +285,7 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
         startTime: Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000)), // 24 hours ago
         resetBy: profile.uid || profile.email || 'system',
         resetReason: 'system' as const,
-        generateReport: true,
+        generateReport: false, // Disabled per user request
         preserveInventoryLevels: true
       }
       

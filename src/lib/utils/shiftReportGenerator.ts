@@ -2,6 +2,8 @@ import { collection, query, where, getDocs, orderBy, limit } from 'firebase/fire
 import { db } from '../firebase'
 import { ShiftReportData } from '../utils/pdfGenerator'
 import { getBranchLocationId } from '../utils/branchUtils'
+import { getPOSOrders, getPOSItems } from '../firebase/pos'
+import { getExpenses } from '../firebase/expenses'
 
 interface ShiftData {
   id: string
@@ -27,51 +29,60 @@ export const generateShiftReportData = async (
   try {
     console.log('📊 Generating shift report data...')
 
-    // Get real-time sales data for top items and peak hour
-    const ordersRef = collection(db, `tenants/${tenantId}/orders`)
-    const ordersQuery = query(
-      ordersRef,
-      where('locationId', '==', locationId),
-      where('createdAt', '>=', shiftData.startTime),
-      ...(shiftData.endTime ? [where('createdAt', '<=', shiftData.endTime)] : [])
-    )
-    
-    let orders: any[] = []
-    try {
-      const ordersSnapshot = await getDocs(ordersQuery)
-      orders = ordersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-    } catch (ordersError) {
-      console.log('📊 Orders query failed, using manual filtering...')
-      
-      // Fallback: Get all orders and filter manually
-      const allOrdersQuery = query(collection(db, `tenants/${tenantId}/orders`))
-      const allOrdersSnapshot = await getDocs(allOrdersQuery)
-      const allOrders = allOrdersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-      
-      // Filter manually
-      orders = allOrders.filter((order: any) => {
-        if (order.locationId !== locationId) return false
-        if (!order.createdAt || !order.createdAt.toDate) return false
-        
-        const orderDate = order.createdAt.toDate()
-        const shiftStartDate = shiftData.startTime.toDate ? shiftData.startTime.toDate() : new Date(shiftData.startTime)
-        
-        if (shiftData.endTime) {
-          const shiftEndDate = shiftData.endTime.toDate ? shiftData.endTime.toDate() : new Date(shiftData.endTime)
-          return orderDate >= shiftStartDate && orderDate <= shiftEndDate
+    // Get shift time boundaries
+    const shiftStartTime = shiftData.startTime.toDate ? shiftData.startTime.toDate() : new Date(shiftData.startTime)
+    const shiftEndTime = shiftData.endTime ? (shiftData.endTime.toDate ? shiftData.endTime.toDate() : new Date(shiftData.endTime)) : new Date()
+
+    // Get POS orders, menu items, and expenses data - same as Financial Performance card
+    const [allOrders, menuItems, allExpenses] = await Promise.all([
+      getPOSOrders(tenantId, locationId),
+      getPOSItems(tenantId, locationId),
+      getExpenses(tenantId)
+    ])
+
+    // Filter orders for current shift only (completed orders only)
+    const shiftOrders = allOrders.filter(order => {
+      if (order.status !== 'completed') return false
+      const orderDate = order.createdAt.toDate()
+      return orderDate >= shiftStartTime && orderDate <= shiftEndTime
+    })
+
+    // Filter expenses for current shift
+    const shiftExpenses = allExpenses.filter(expense => {
+      const expenseDate = expense.date.toDate()
+      return expenseDate >= shiftStartTime && expenseDate <= shiftEndTime
+    })
+
+    console.log(`📦 Found ${shiftOrders.length} completed orders for shift report`)
+    console.log(`💰 Found ${shiftExpenses.length} expenses for shift report`)
+
+    // Calculate financial metrics (same logic as Financial Performance card)
+    // 1. Gross Revenue (Total Revenue)
+    const grossRevenue = shiftOrders.reduce((sum, order) => sum + order.total, 0)
+
+    // 2. Cost of Goods Sold (COGS)
+    let totalCOGS = 0
+    shiftOrders.forEach(order => {
+      order.items.forEach(orderItem => {
+        const menuItem = menuItems.find(item => item.id === orderItem.itemId)
+        if (menuItem) {
+          totalCOGS += menuItem.cost * orderItem.quantity
         }
-        
-        return orderDate >= shiftStartDate
       })
-    }
+    })
 
-    console.log(`📦 Found ${orders.length} orders for shift report`)
+    // 3. Total Expenses
+    const totalExpenses = shiftExpenses.reduce((sum, expense) => sum + expense.amount, 0)
 
-    // Calculate top 3 items
+    // 4. Net Profit (Gross Revenue - COGS - Expenses)
+    const grossProfit = grossRevenue - totalCOGS
+    const netProfit = grossProfit - totalExpenses
+
+    // Calculate top 3 menu items
     const itemCounts: Record<string, { quantity: number; revenue: number }> = {}
     const hourlyStats: Record<string, { orderCount: number; revenue: number }> = {}
     
-    orders.forEach((order: any) => {
+    shiftOrders.forEach((order: any) => {
       if (order.items) {
         order.items.forEach((item: any) => {
           const key = item.name || 'Unknown Item'
@@ -84,17 +95,15 @@ export const generateShiftReportData = async (
       }
 
       // Track hourly performance
-      if (order.createdAt) {
-        const orderDate = order.createdAt.toDate ? order.createdAt.toDate() : new Date(order.createdAt)
-        const hour = orderDate.getHours()
-        const hourKey = `${hour}:00 - ${hour + 1}:00`
-        
-        if (!hourlyStats[hourKey]) {
-          hourlyStats[hourKey] = { orderCount: 0, revenue: 0 }
-        }
-        hourlyStats[hourKey].orderCount += 1
-        hourlyStats[hourKey].revenue += order.total || 0
+      const orderDate = order.createdAt.toDate()
+      const hour = orderDate.getHours()
+      const hourKey = `${hour}:00 - ${hour + 1}:00`
+      
+      if (!hourlyStats[hourKey]) {
+        hourlyStats[hourKey] = { orderCount: 0, revenue: 0 }
       }
+      hourlyStats[hourKey].orderCount += 1
+      hourlyStats[hourKey].revenue += order.total || 0
     })
 
     // Get top 3 items
@@ -119,7 +128,7 @@ export const generateShiftReportData = async (
           revenue: 0
         }
 
-    // Get inventory alerts (items with low stock)
+    // Get critical inventory that needs to be restocked
     const inventoryRef = collection(db, `tenants/${tenantId}/inventory`)
     const inventoryQuery = query(inventoryRef, where('locationId', '==', locationId))
     
@@ -160,28 +169,35 @@ export const generateShiftReportData = async (
       console.log('📦 Could not fetch inventory alerts:', error)
     }
 
-    // Calculate financial data
-    const grossSales = orders.reduce((sum: number, order: any) => sum + (order.total || 0), 0) || shiftData.totalSales || 0
-    const netProfit = grossSales - (shiftData.totalExpenses || 0)
-
     const reportData: ShiftReportData = {
-      shiftId: shiftData.id,
       shiftName: shiftData.name,
-      startTime: shiftData.startTime.toDate ? shiftData.startTime.toDate() : new Date(shiftData.startTime),
-      endTime: shiftData.endTime ? (shiftData.endTime.toDate ? shiftData.endTime.toDate() : new Date(shiftData.endTime)) : new Date(),
       staffName,
       branchName,
-      grossSales,
-      totalExpenses: shiftData.totalExpenses || 0,
-      netProfit,
-      startingCash: shiftData.metadata?.cashFloat || 0,
-      endingCash: shiftData.metadata?.endingCash,
+      startTime: shiftStartTime,
+      endTime: shiftEndTime,
+      totalOrders: shiftOrders.length, // Added total orders count
+      grossSales: grossRevenue, // Updated to use calculated gross revenue
+      totalCOGS: totalCOGS, // Cost of Goods Sold
+      grossProfit: grossProfit, // Gross Revenue - COGS
+      totalExpenses: totalExpenses, // Updated to use calculated shift expenses
+      netProfit: netProfit, // Updated to use calculated net profit (Gross Profit - Expenses)
       topItems,
       peakHour,
       inventoryAlerts
     }
 
-    console.log('📊 Shift report data generated successfully:', reportData)
+    console.log('📊 Shift report data generated successfully:', {
+      grossRevenue,
+      totalCOGS,
+      grossProfit,
+      totalExpenses,
+      netProfit,
+      topItemsCount: topItems.length,
+      topItemsData: topItems,
+      peakHourData: peakHour,
+      inventoryAlertsCount: inventoryAlerts.length
+    })
+    
     return reportData
     
   } catch (error) {

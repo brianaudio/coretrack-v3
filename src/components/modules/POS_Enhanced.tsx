@@ -739,13 +739,13 @@ export default function POSEnhanced() {
         return;
       }
       
-      // Check if we're using the new data structure (tenants/posOrders) or old (businesses/branches/orders)
+      // Check if we're using the new data structure (tenants/orders) or old (businesses/branches/orders)
       let orderRef;
       let documentExists = false;
       
-      // First try the new path
+      // First try the new path (correct collection name)
       try {
-        orderRef = doc(db, `tenants/${businessId}/posOrders`, order.id);
+        orderRef = doc(db, `tenants/${businessId}/orders`, order.id);
         const orderDoc = await getDoc(orderRef);
         documentExists = orderDoc.exists();
       } catch (error) {
@@ -847,13 +847,13 @@ export default function POSEnhanced() {
         return;
       }
       
-      // Check if we're using the new data structure (tenants/posOrders) or old (businesses/branches/orders)
+      // Check if we're using the new data structure (tenants/orders) or old (businesses/branches/orders)
       let orderRef;
       let documentExists = false;
       
-      // First try the new path
+      // First try the new path (correct collection name)
       try {
-        orderRef = doc(db, `tenants/${businessId}/posOrders`, orderToVoid.id);
+        orderRef = doc(db, `tenants/${businessId}/orders`, orderToVoid.id);
         const orderDoc = await getDoc(orderRef);
         documentExists = orderDoc.exists();
       } catch (error) {

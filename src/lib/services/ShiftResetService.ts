@@ -115,10 +115,9 @@ export class ShiftResetService {
       // Step 5: Create audit log
       await this.createAuditLog(summary)
       
-      // Step 6: Generate shift report (optional)
-      if (options.generateReport !== false) {
-        await this.generateShiftReport(summary)
-      }
+      // Step 6: Skip shift report generation (disabled)
+      // Report generation has been disabled per user request
+      console.log(`📊 Shift report generation skipped for ${summary.shiftName}`)
       
       console.log('✅ Enterprise Shift Reset Complete!', {
         archiveId: summary.archiveId,

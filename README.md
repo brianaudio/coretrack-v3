@@ -1,4 +1,4 @@
-# CoreTrack - Business Inventory Management System
+# CoreTrack v3 - Business Inventory Management System
 
 A comprehensive, SaaS-ready inventory management system designed for restaurants and businesses. Built with modern web technologies and optimized for iPad and mobile devices.
 

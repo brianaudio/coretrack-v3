@@ -1307,7 +1307,7 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
           </div>
 
           <div className="grid lg:grid-cols-2 gap-12 items-center">
-            {/* Interactive Demo */}
+            {/* Live Platform Preview */}
             <div className="space-y-8">
               <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10">
                 <h3 className="text-2xl font-semibold text-white mb-6 flex items-center">

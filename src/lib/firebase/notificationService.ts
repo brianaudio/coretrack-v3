@@ -66,8 +66,8 @@ export class NotificationService {
 // Global notification service instance
 export const notificationService = new NotificationService()
 
-// Auto-start service when module loads (for demo purposes)
-// In production, this would be managed by the application lifecycle
+// Production notification service initialization
+// Managed by the application lifecycle and authentication state
 if (typeof window !== 'undefined') {
   // Client-side initialization
   const startServiceForUser = (tenantId: string) => {

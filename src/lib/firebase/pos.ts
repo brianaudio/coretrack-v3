@@ -582,9 +582,9 @@ export const getTodaysSalesAnalytics = async (tenantId: string) => {
       }
     }
     
-    // If still no data, return empty state instead of demo data
+    // If still no data, return empty state for new businesses
     if (todayData.sales === 0 && todayData.orders === 0) {
-      console.log('📊 No sales data found, returning empty state...');
+      console.log('📊 No sales data found, returning empty state for new business...');
       return {
         todaysSales: 0,
         todaysOrders: 0,
@@ -606,7 +606,7 @@ export const getTodaysSalesAnalytics = async (tenantId: string) => {
     };
   } catch (error) {
     console.error('❌ Error fetching sales analytics:', error);
-    // Return empty state on error instead of demo data
+    // Return empty state on error for production reliability
     return {
       todaysSales: 0,
       todaysOrders: 0,

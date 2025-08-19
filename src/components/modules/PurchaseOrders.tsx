@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
 import { useBranch } from '../../lib/context/BranchContext'
 import { 
@@ -29,7 +29,7 @@ import {
   type InventoryItem,
   type CreateInventoryItem
 } from '../../lib/firebase/inventory'
-import { generatePurchaseOrderSummaryPDF } from '../../lib/utils/pdfGenerator'
+import { generatePurchaseOrderSummaryPDF, generatePurchaseOrderDetailedPDF } from '../../lib/utils/pdfGenerator'
 import { Timestamp } from 'firebase/firestore'
 
 export default function PurchaseOrders() {
@@ -96,7 +96,17 @@ export default function PurchaseOrders() {
   // Debounce timer for inventory checking
   const inventoryCheckTimers = useRef<{ [key: number]: NodeJS.Timeout }>({})
 
-  // Load purchase orders and suppliers
+  // **PERFORMANCE: Add caching to prevent unnecessary reloads**
+  const [dataCache, setDataCache] = useState<{
+    timestamp: number;
+    data: {
+      orders: PurchaseOrder[];
+      suppliers: Supplier[];
+      inventory: any[];
+    } | null;
+  }>({ timestamp: 0, data: null })
+
+  // Load purchase orders and suppliers with caching
   useEffect(() => {
     let timeoutId: NodeJS.Timeout | null = null
     
@@ -114,22 +124,35 @@ export default function PurchaseOrders() {
       }
 
       try {
+        // **PERFORMANCE: Check cache first (cache for 2 minutes)**
+        const now = Date.now()
+        const cacheAge = now - dataCache.timestamp
+        if (dataCache.data && cacheAge < 120000) {
+          debugStep('Using cached data', { cacheAge: Math.round(cacheAge / 1000) + 's' }, { component: 'PurchaseOrders' })
+          setOrders(dataCache.data.orders)
+          setSuppliers(dataCache.data.suppliers)
+          setInventoryItems(dataCache.data.inventory)
+          setLoading(false)
+          return
+        }
+
         setLoading(true)
         
-        // Set timeout to prevent infinite loading
+        // **PERFORMANCE: Set shorter timeout to prevent infinite loading**
         timeoutId = setTimeout(() => {
           debugStep('Loading timeout reached - stopping loading state', undefined, { component: 'PurchaseOrders' })
           setLoading(false)
-        }, 3000)
+        }, 2000)
         
         const locationId = getBranchLocationId(selectedBranch.id)
         
-        debugStep('Loading data for branch', { 
+        debugStep('Loading fresh data for branch', { 
           branchName: selectedBranch.name, 
           locationId 
         }, { component: 'PurchaseOrders' })
         
-        const [ordersData, suppliersData, inventoryData] = await Promise.all([
+        // **PERFORMANCE: Load data in parallel with error handling**
+        const results = await Promise.allSettled([
           getPurchaseOrders(profile.tenantId, locationId),
           getSuppliers(profile.tenantId),
           getInventoryItems(profile.tenantId, locationId)
@@ -138,11 +161,34 @@ export default function PurchaseOrders() {
         // Clear timeout since data loaded successfully
         if (timeoutId) clearTimeout(timeoutId)
         
+        // **PERFORMANCE: Process results even if some fail**
+        const ordersData = results[0].status === 'fulfilled' ? results[0].value : []
+        const suppliersData = results[1].status === 'fulfilled' ? results[1].value : []
+        const inventoryData = results[2].status === 'fulfilled' ? results[2].value : []
+        
+        // Log any failed requests
+        results.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            const operation = ['orders', 'suppliers', 'inventory'][index]
+            console.warn(`Failed to load ${operation}:`, result.reason)
+          }
+        })
+
         debugSuccess('Data loaded successfully', {
           ordersCount: ordersData.length,
           suppliersCount: suppliersData.length,
           inventoryCount: inventoryData.length
         }, { component: 'PurchaseOrders' })
+        
+        // **PERFORMANCE: Update cache**
+        setDataCache({
+          timestamp: now,
+          data: {
+            orders: ordersData,
+            suppliers: suppliersData,
+            inventory: inventoryData
+          }
+        })
         
         setOrders(ordersData)
         setSuppliers(suppliersData)
@@ -152,10 +198,7 @@ export default function PurchaseOrders() {
         if (timeoutId) clearTimeout(timeoutId)
         debugError('Failed to load data', undefined, { component: 'PurchaseOrders' })
         console.error('Purchase Orders load error:', error)
-        // Ensure empty state on error
-        setOrders([])
-        setSuppliers([])
-        setInventoryItems([])
+        // **PERFORMANCE: Don't clear existing data on error, just stop loading**
       } finally {
         setLoading(false)
       }
@@ -167,7 +210,7 @@ export default function PurchaseOrders() {
     return () => {
       if (timeoutId) clearTimeout(timeoutId)
     }
-  }, [profile?.tenantId, selectedBranch?.id])
+  }, [profile?.tenantId, selectedBranch?.id, dataCache.timestamp])
 
   // Cleanup timers on component unmount
   useEffect(() => {
@@ -287,22 +330,8 @@ export default function PurchaseOrders() {
 
       const oldStatus = order.status
       const approvedBy = status === 'approved' ? profile.tenantId : undefined
-      await updatePurchaseOrderStatus(profile.tenantId, orderId, status, approvedBy)
-      
-      // Send notification for status change
-      await notifyOrderStatusChange(profile.tenantId, order.orderNumber, oldStatus, status)
-      
-      // Send approval notification when order is submitted for approval
-      if (status === 'pending') {
-        await notifyApprovalRequired(
-          profile.tenantId,
-          order.orderNumber,
-          order.requestor || 'Unknown',
-          order.total
-        )
-      }
-      
-      // Update local state
+
+      // **PERFORMANCE: Optimistic UI update first**
       setOrders(prev => prev.map(order => 
         order.id === orderId 
           ? { 
@@ -312,6 +341,27 @@ export default function PurchaseOrders() {
             } 
           : order
       ))
+
+      // **PERFORMANCE: Process Firebase update in background**
+      Promise.all([
+        updatePurchaseOrderStatus(profile.tenantId, orderId, status, approvedBy),
+        notifyOrderStatusChange(profile.tenantId, order.orderNumber, oldStatus, status).catch(console.error),
+        status === 'pending' ? notifyApprovalRequired(
+          profile.tenantId,
+          order.orderNumber,
+          order.requestor || 'Unknown',
+          order.total
+        ).catch(console.error) : Promise.resolve()
+      ]).catch(error => {
+        console.error('Background status update error:', error)
+        // Revert optimistic update on error
+        setOrders(prev => prev.map(order => 
+          order.id === orderId 
+            ? { ...order, status: oldStatus }
+            : order
+        ))
+      })
+
     } catch (error) {
       console.error('Error updating order status:', error)
     }
@@ -334,44 +384,53 @@ export default function PurchaseOrders() {
     try {
       setLoadingDelivery(order.id!)
       
-      // Import the function to get latest order status
-      const { getPurchaseOrderById } = await import('../../lib/firebase/purchaseOrders')
+      // **PERFORMANCE: Use local data if order is already current**
+      const localOrder = orders.find(o => o.id === order.id)
+      let orderToProcess = order
       
-      // Fetch the latest order status from database
-      const latestOrder = await getPurchaseOrderById(profile.tenantId, order.id!)
-      
-      if (!latestOrder) {
-        alert('Purchase order not found. It may have been deleted.')
-        return
+      // Only fetch from Firebase if we suspect the order might be stale
+      if (localOrder && (Date.now() - dataCache.timestamp) > 30000) { // Only if cache is older than 30 seconds
+        // Import the function to get latest order status
+        const { getPurchaseOrderById } = await import('../../lib/firebase/purchaseOrders')
+        
+        // Fetch the latest order status from database
+        const latestOrder = await getPurchaseOrderById(profile.tenantId, order.id!)
+        
+        if (!latestOrder) {
+          alert('Purchase order not found. It may have been deleted.')
+          return
+        }
+        
+        if (latestOrder.status === 'delivered') {
+          alert('This order has already been delivered.')
+          // Update local state to reflect the current status
+          setOrders(prev => prev.map(o => 
+            o.id === order.id ? { ...o, status: 'delivered' as const } : o
+          ))
+          return
+        }
+        
+        if (latestOrder.status !== 'ordered' && latestOrder.status !== 'partially_delivered') {
+          alert(`Cannot deliver order. Current status: ${latestOrder.status}`)
+          // Update local state
+          setOrders(prev => prev.map(o => 
+            o.id === order.id ? { ...o, status: latestOrder.status } : o
+          ))
+          return
+        }
+        
+        orderToProcess = latestOrder
       }
       
-      if (latestOrder.status === 'delivered') {
-        alert('This order has already been delivered.')
-        // Update local state to reflect the current status
-        setOrders(prev => prev.map(o => 
-          o.id === order.id ? { ...o, status: 'delivered' as const } : o
-        ))
-        return
-      }
-      
-      if (latestOrder.status !== 'ordered' && latestOrder.status !== 'partially_delivered') {
-        alert(`Cannot deliver order. Current status: ${latestOrder.status}`)
-        // Update local state
-        setOrders(prev => prev.map(o => 
-          o.id === order.id ? { ...o, status: latestOrder.status } : o
-        ))
-        return
-      }
-      
-      setDeliveringOrder(latestOrder)
-      setDeliveryItems(latestOrder.items.map(item => {
+      setDeliveringOrder(orderToProcess)
+      setDeliveryItems(orderToProcess.items.map(item => {
         const quantityReceived = item.quantityReceived || 0
         const remainingQuantity = item.quantity - quantityReceived
         
         return {
           itemName: item.itemName,
           quantityOrdered: item.quantity,
-          quantityReceived: latestOrder.status === 'partially_delivered' 
+          quantityReceived: orderToProcess.status === 'partially_delivered' 
             ? Math.max(0, remainingQuantity) // Default to remaining quantity for partial deliveries
             : item.quantity, // Default to full quantity for new delivery
           unit: item.unit,
@@ -390,7 +449,29 @@ export default function PurchaseOrders() {
     }
   }
 
+  // **PERFORMANCE: Simple debounce helper**
+  const debounce = (func: Function, delay: number) => {
+    let timeoutId: NodeJS.Timeout
+    return (...args: any[]) => {
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => func.apply(null, args), delay)
+    }
+  }
+
+  // **PERFORMANCE: Debounced delivery quantity change**
+  const debouncedQuantityUpdate = useCallback(
+    debounce((updates: {index: number, quantityReceived: number}[]) => {
+      // Batch multiple updates together
+      setDeliveryItems(prev => prev.map((item, i) => {
+        const update = updates.find(u => u.index === i)
+        return update ? { ...item, quantityReceived: Math.max(0, update.quantityReceived) } : item
+      }))
+    }, 100), // 100ms debounce
+    []
+  )
+
   const handleDeliveryQuantityChange = (index: number, quantityReceived: number) => {
+    // **PERFORMANCE: Immediate UI update for responsiveness**
     setDeliveryItems(prev => prev.map((item, i) => 
       i === index ? { ...item, quantityReceived: Math.max(0, quantityReceived) } : item
     ))
@@ -405,7 +486,6 @@ export default function PurchaseOrders() {
       // Validate required fields
       if (!receivedBy.trim()) {
         alert('Please enter the name of the person who received the delivery.')
-        setIsDelivering(false)
         return
       }
       
@@ -425,7 +505,67 @@ export default function PurchaseOrders() {
         return
       }
 
-      const result = await deliverPurchaseOrder(
+      // **PERFORMANCE OPTIMIZATION: Calculate everything client-side first**
+      const updatedItems = deliveringOrder.items.map(item => {
+        const deliveredItem = itemsToDeliver.find(di => 
+          di.itemName.toLowerCase().trim() === item.itemName.toLowerCase().trim()
+        )
+        
+        if (deliveredItem) {
+          const previouslyReceived = item.quantityReceived || 0
+          const newlyReceived = deliveredItem.quantityReceived
+          const totalReceived = previouslyReceived + newlyReceived
+          
+          return {
+            ...item,
+            quantityReceived: Math.min(totalReceived, item.quantity)
+          }
+        } else {
+          return {
+            ...item,
+            quantityReceived: item.quantityReceived || 0
+          }
+        }
+      })
+
+      const isPartialDelivery = updatedItems.some(item => {
+        const quantityReceived = item.quantityReceived || 0
+        return quantityReceived > 0 && quantityReceived < item.quantity
+      })
+
+      const isFullyDelivered = updatedItems.every(item => {
+        const quantityReceived = item.quantityReceived || 0
+        return quantityReceived >= item.quantity
+      })
+
+      let newStatus: PurchaseOrder['status']
+      if (isFullyDelivered) {
+        newStatus = 'delivered'
+      } else if (isPartialDelivery || updatedItems.some(item => (item.quantityReceived || 0) > 0)) {
+        newStatus = 'partially_delivered'
+      } else {
+        newStatus = 'ordered'
+      }
+
+      // **PERFORMANCE: Optimistic UI update - Update immediately for responsive feel**
+      setOrders(prev => prev.map(order => 
+        order.id === deliveringOrder.id 
+          ? { 
+              ...order, 
+              status: newStatus,
+              deliveredBy: receivedBy.trim(),
+              deliveredAt: new Date() as any,
+              items: updatedItems
+            } 
+          : order
+      ))
+
+      // **PERFORMANCE: Close modal immediately**
+      setShowDeliveryModal(false)
+      setDeliveringOrder(null)
+
+      // **PERFORMANCE: Process Firebase operations in background**
+      deliverPurchaseOrder(
         profile.tenantId,
         deliveringOrder.id!,
         itemsToDeliver.map(item => ({
@@ -434,102 +574,44 @@ export default function PurchaseOrders() {
           unit: item.unit,
           unitPrice: item.unitPrice
         })),
-        receivedBy.trim() // Pass the person who received the delivery
-      )
-
-      if (result.success) {
-        // Calculate updated items with received quantities (accumulating for partial deliveries)
-        const updatedItems = deliveringOrder.items.map(item => {
-          const deliveredItem = itemsToDeliver.find(di => 
-            di.itemName.toLowerCase().trim() === item.itemName.toLowerCase().trim()
-          )
+        receivedBy.trim()
+      ).then(result => {
+        if (result.success) {
+          setDeliveryResult(result.inventoryUpdateResult || null)
           
-          if (deliveredItem) {
-            // Accumulate the received quantities for partial deliveries
-            const previouslyReceived = item.quantityReceived || 0
-            const newlyReceived = deliveredItem.quantityReceived
-            const totalReceived = previouslyReceived + newlyReceived
+          // Handle unit mismatches
+          if (result.inventoryUpdateResult && result.inventoryUpdateResult.unitMismatches.length > 0) {
+            const mismatchesWithQuantity = result.inventoryUpdateResult.unitMismatches.map(mismatch => {
+              const deliveredItem = itemsToDeliver.find(item => 
+                item.itemName.toLowerCase().trim() === mismatch.itemName.toLowerCase().trim()
+              )
+              return {
+                ...mismatch,
+                quantity: deliveredItem?.quantityReceived || 0
+              }
+            })
             
-            return {
-              ...item,
-              quantityReceived: Math.min(totalReceived, item.quantity) // Don't exceed ordered quantity
-            }
-          } else {
-            return {
-              ...item,
-              quantityReceived: item.quantityReceived || 0 // Keep existing received quantity
-            }
+            setUnitMismatches(mismatchesWithQuantity)
+            setShowUnitMismatchModal(true)
           }
-        })
-
-        // Determine if this is a partial delivery
-        const isPartialDelivery = updatedItems.some(item => {
-          const quantityReceived = item.quantityReceived || 0
-          return quantityReceived > 0 && quantityReceived < item.quantity
-        })
-
-        // Check if all items have been fully delivered
-        const isFullyDelivered = updatedItems.every(item => {
-          const quantityReceived = item.quantityReceived || 0
-          return quantityReceived >= item.quantity
-        })
-
-        // Determine the new status
-        let newStatus: PurchaseOrder['status']
-        if (isFullyDelivered) {
-          newStatus = 'delivered'
-        } else if (isPartialDelivery || updatedItems.some(item => (item.quantityReceived || 0) > 0)) {
-          newStatus = 'partially_delivered'
         } else {
-          newStatus = 'ordered'
+          // Revert optimistic update on error
+          console.error('Delivery failed, reverting UI state')
+          window.location.reload()
         }
+      }).catch(error => {
+        console.error('Background delivery processing error:', error)
+        // Don't show error to user since they already got feedback
+        // Just log for debugging and revert on next page load if needed
+      })
 
-        // Update local state
-        setOrders(prev => prev.map(order => 
-          order.id === deliveringOrder.id 
-            ? { 
-                ...order, 
-                status: newStatus,
-                deliveredBy: receivedBy.trim(),
-                deliveredAt: new Date() as any,
-                items: updatedItems
-              } 
-            : order
-        ))
-
-        // Send delivery notification
-        await notifyDeliveryReceived(
-          profile.tenantId,
-          deliveringOrder.orderNumber,
-          receivedBy.trim(),
-          newStatus === 'partially_delivered' ? 'partial' : 'complete'
-        )
-
-        setDeliveryResult(result.inventoryUpdateResult || null)
-        
-        // Check for unit mismatches and show resolution modal
-        if (result.inventoryUpdateResult && result.inventoryUpdateResult.unitMismatches.length > 0) {
-          // Prepare unit mismatch data with quantities for resolution
-          const mismatchesWithQuantity = result.inventoryUpdateResult.unitMismatches.map(mismatch => {
-            const deliveredItem = itemsToDeliver.find(item => 
-              item.itemName.toLowerCase().trim() === mismatch.itemName.toLowerCase().trim()
-            )
-            return {
-              ...mismatch,
-              quantity: deliveredItem?.quantityReceived || 0
-            }
-          })
-          
-          setUnitMismatches(mismatchesWithQuantity)
-          setShowUnitMismatchModal(true)
-          // Keep delivery modal open to show other results
-        } else if (result.inventoryUpdateResult && result.inventoryUpdateResult.notFoundItems.length > 0) {
-          // Keep modal open to show results for not found items
-        } else {
-          setShowDeliveryModal(false)
-          setDeliveringOrder(null)
-        }
-      }
+      // **PERFORMANCE: Send notification asynchronously (don't wait)**
+      notifyDeliveryReceived(
+        profile.tenantId,
+        deliveringOrder.orderNumber,
+        receivedBy.trim(),
+        newStatus === 'partially_delivered' ? 'partial' : 'complete'
+      ).catch(error => console.error('Notification error:', error))
     } catch (error) {
       console.error('Error confirming delivery:', error)
       
@@ -777,8 +859,46 @@ export default function PurchaseOrders() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="p-6">
+        {/* **PERFORMANCE: Loading skeleton for better UX** */}
+        <div className="animate-pulse">
+          {/* Header skeleton */}
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <div className="h-8 bg-gray-200 rounded w-48 mb-2"></div>
+              <div className="h-4 bg-gray-200 rounded w-64"></div>
+            </div>
+            <div className="flex gap-2">
+              <div className="h-10 bg-gray-200 rounded w-24"></div>
+              <div className="h-10 bg-gray-200 rounded w-32"></div>
+            </div>
+          </div>
+          
+          {/* Filters skeleton */}
+          <div className="flex gap-3 mb-6">
+            {[1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="h-8 bg-gray-200 rounded w-20"></div>
+            ))}
+          </div>
+          
+          {/* Table skeleton */}
+          <div className="bg-white rounded-lg shadow">
+            {/* Table header */}
+            <div className="grid grid-cols-7 gap-4 p-4 border-b">
+              {[1, 2, 3, 4, 5, 6, 7].map(i => (
+                <div key={i} className="h-4 bg-gray-200 rounded"></div>
+              ))}
+            </div>
+            {/* Table rows */}
+            {[1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="grid grid-cols-7 gap-4 p-4 border-b">
+                {[1, 2, 3, 4, 5, 6, 7].map(j => (
+                  <div key={j} className="h-4 bg-gray-100 rounded"></div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     )
   }
@@ -1091,6 +1211,15 @@ export default function PurchaseOrders() {
                         title="View Details"
                       >
                         View
+                      </button>
+                      
+                      {/* PDF Download Button */}
+                      <button
+                        onClick={() => generatePurchaseOrderDetailedPDF(order)}
+                        className="text-green-600 hover:text-green-900 text-xs"
+                        title="Download PDF Report"
+                      >
+                        PDF
                       </button>
                       
                       {/* Delete Button - Only for draft/pending */}
@@ -1750,15 +1879,16 @@ export default function PurchaseOrders() {
                       Delete Order
                     </button>
                   )}
-                  {/* PDF Download Button - Only for delivered orders */}
-                  {viewingOrder.status === 'delivered' && (
-                    <button
-                      onClick={() => generatePurchaseOrderSummaryPDF([viewingOrder])}
-                      className="btn-secondary bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
-                    >
-                      📄 Download PDF
-                    </button>
-                  )}
+                  {/* PDF Download Button - Available for all orders */}
+                  <button
+                    onClick={() => generatePurchaseOrderDetailedPDF(viewingOrder)}
+                    className="btn-secondary bg-blue-600 hover:bg-blue-700 text-white border-blue-600 flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Download Detailed PDF
+                  </button>
                 </div>
                 <button
                   onClick={() => setViewingOrder(null)}

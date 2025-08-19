@@ -34,7 +34,7 @@ export default function BusinessReports() {
   
   const [isExporting, setIsExporting] = useState(false)
   const [exportType, setExportType] = useState<'analytics' | 'financial' | 'inventory'>('analytics')
-  const [exportDateRange, setExportDateRange] = useState<'shift' | 'today' | 'week' | 'month' | 'custom'>('shift')
+  const [exportDateRange, setExportDateRange] = useState<'today' | 'week' | 'month' | 'custom'>('today')
   const [exportCustomStartDate, setExportCustomStartDate] = useState('')
   const [exportCustomEndDate, setExportCustomEndDate] = useState('')
 
@@ -44,16 +44,6 @@ export default function BusinessReports() {
     let endDate = new Date()
 
     switch (exportDateRange) {
-      case 'shift':
-        if (currentShift?.startTime) {
-          startDate = currentShift.startTime.toDate()
-          endDate = currentShift.endTime ? currentShift.endTime.toDate() : new Date()
-        } else {
-          // Fallback to today if no shift
-          startDate.setHours(0, 0, 0, 0)
-          endDate.setHours(23, 59, 59, 999)
-        }
-        break
       case 'today':
         startDate.setHours(0, 0, 0, 0)
         endDate.setHours(23, 59, 59, 999)
@@ -133,7 +123,6 @@ export default function BusinessReports() {
 
     const getDateRangeLabel = () => {
       switch (exportDateRange) {
-        case 'shift': return currentShift ? 'Current Shift' : 'No Active Shift'
         case 'today': return 'Today'
         case 'week': return 'Last 7 Days'
         case 'month': return 'Last 30 Days'
@@ -456,16 +445,6 @@ export default function BusinessReports() {
       <div className="mb-8 bg-white rounded-lg shadow-sm border p-6">
         <h3 className="text-lg font-semibold mb-4">Select Date Range</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <button 
-            onClick={() => setExportDateRange('shift')}
-            className={`p-3 rounded-lg border text-center transition-colors ${
-              exportDateRange === 'shift' 
-                ? 'bg-blue-50 border-blue-300 text-blue-700' 
-                : 'bg-white border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            Current Shift
-          </button>
           <button 
             onClick={() => setExportDateRange('today')}
             className={`p-3 rounded-lg border text-center transition-colors ${

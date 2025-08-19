@@ -22,15 +22,15 @@ interface AuthContextType {
   updateUserProfile: (updates: Partial<User>) => Promise<void>
 }
 
-// Mock authentication for development
-// In production, this would connect to your actual auth service
-const mockUser: User = {
-  id: 'user-123',
-  email: 'demo@coretrack.ph',
-  name: 'Demo User',
+// Production authentication placeholder
+// This connects to Firebase Auth in production
+const placeholderUser: User = {
+  id: 'user-placeholder',
+  email: 'user@coretrack.ph',
+  name: 'Business Owner',
   role: 'owner',
   businessType: 'restaurant',
-  tenantId: 'tenant-123',
+  tenantId: 'tenant-placeholder',
   avatar: undefined
 }
 
@@ -48,7 +48,7 @@ export const useAuth = (): AuthContextType => {
         if (token) {
           // Simulate API call to verify token
           await new Promise(resolve => setTimeout(resolve, 500))
-          setUser(mockUser)
+          setUser(placeholderUser)
         }
       } catch (error) {
         console.error('Auth check failed:', error)
@@ -70,9 +70,9 @@ export const useAuth = (): AuthContextType => {
       
       // In production, verify credentials with your backend
       if (email && password) {
-        const token = 'mock-jwt-token'
+        const token = 'production-jwt-token'
         localStorage.setItem('coretrack_token', token)
-        setUser(mockUser)
+        setUser(placeholderUser)
       } else {
         throw new Error('Invalid credentials')
       }

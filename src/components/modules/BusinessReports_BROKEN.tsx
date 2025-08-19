@@ -567,7 +567,6 @@ export default function BusinessReports() {
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Time Period</h2>
             <div className="flex flex-wrap gap-3 mb-4">
               {[
-                { value: 'shift', label: 'Current Shift' },
                 { value: 'today', label: 'Today' },
                 { value: 'week', label: 'Last 7 Days' },
                 { value: 'month', label: 'Last 30 Days' },

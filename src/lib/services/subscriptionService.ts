@@ -113,9 +113,9 @@ export const SUBSCRIPTION_TIERS: Record<string, SubscriptionTier> = {
 
 // Enterprise account domains/emails
 export const ENTERPRISE_ACCOUNTS = [
-  'demo@coretrack.com',
   'admin@coretrack.com',
-  'test@coretrack.com'
+  'enterprise@coretrack.com',
+  'support@coretrack.com'
 ]
 
 export class SubscriptionService {
@@ -359,7 +359,7 @@ export class SubscriptionService {
     const domain = this.extractDomain(email)
     
     if (ENTERPRISE_ACCOUNTS.includes(email.toLowerCase())) {
-      return 'CoreTrack Demo Business'
+      return 'CoreTrack Enterprise'
     }
     
     return `${username}'s Business`

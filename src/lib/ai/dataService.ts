@@ -511,13 +511,14 @@ export class AIDataService {
       const totalExpenses = expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0)
       const totalRevenue = sales.reduce((sum, sale) => sum + (sale.total || 0), 0)
       
-      // If no data, show sample data for demonstration
+      // If no data, show empty state guidance
       if (totalRevenue === 0 && totalExpenses === 0) {
         return `💰 **Your Financial Overview (This Month):**
 
-📝 *Note: No financial data found for this month. Here's what your financial summary would look like:*
+� *Getting Started: No financial data found for this month.*
 
-• Revenue: ₱0 (No sales recorded this month)
+• Revenue: ₱0 (Start recording sales to see revenue data)
+• Expenses: ₱0 (Add expenses to track your costs)
 • Expenses: ₱0 (No expenses recorded this month)  
 • Net Profit: ₱0
 • Profit Margin: 0%

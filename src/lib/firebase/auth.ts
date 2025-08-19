@@ -259,68 +259,6 @@ export const onAuthStateChange = (callback: (user: User | null) => void) => {
   });
 };
 
-// Create demo account for development
-export const createDemoAccount = async (): Promise<{ user: User; profile: UserProfile }> => {
-  const demoEmail = process.env.NEXT_PUBLIC_DEMO_EMAIL || 'demo@coretrack.dev';
-  const demoPassword = process.env.NEXT_PUBLIC_DEMO_PASSWORD || 'SecureDemo123!';
-  
-  try {
-    // Try to sign in first to see if demo account exists
-    try {
-      return await signIn(demoEmail, demoPassword);
-    } catch (error: any) {
-      // If user doesn't exist, create the demo account
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-        console.log('Creating demo account...');
-        return await signUp(
-          demoEmail,
-          demoPassword,
-          'Demo User',
-          'CoreTrack Demo Restaurant',
-          'restaurant',
-          'starter'
-        );
-      }
-      throw error;
-    }
-  } catch (error) {
-    console.error('Error creating demo account:', error);
-    throw error;
-  }
-};
-
-// Create Professional demo account
-export const createProfessionalDemoAccount = async (): Promise<{ user: User; profile: UserProfile }> => {
-  const demoEmail = 'professional@coretrack.dev';
-  const demoPassword = 'ProfessionalDemo123!';
-  
-  try {
-    // Try to sign in first to see if professional demo account exists
-    try {
-      const result = await signIn(demoEmail, demoPassword);
-      console.log('✅ Signed into existing Professional demo account');
-      return result;
-    } catch (error: any) {
-      // If user doesn't exist, create the professional demo account
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-        console.log('🚀 Creating Professional demo account...');
-        return await signUp(
-          demoEmail,
-          demoPassword,
-          'Professional Demo User',
-          'CoreTrack Professional Demo Restaurant',
-          'restaurant',
-          'professional'
-        );
-      }
-      throw error;
-    }
-  } catch (error) {
-    console.error('Error creating Professional demo account:', error);
-    throw error;
-  }
-};
-
 // Reset password
 export const resetPassword = async (email: string): Promise<void> => {
   try {

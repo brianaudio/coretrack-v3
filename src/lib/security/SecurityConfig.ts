@@ -6,8 +6,8 @@ export const SecurityConfig = {
   // Force HTTPS in production
   FORCE_HTTPS: isProduction || process.env.NEXT_PUBLIC_FORCE_HTTPS === 'true',
   
-  // Demo mode (disable in production)
-  DEMO_MODE_ENABLED: isDevelopment && process.env.NEXT_PUBLIC_ENABLE_DEMO_MODE !== 'false',
+  // Demo mode (always disabled for production release)
+  DEMO_MODE_ENABLED: false,
   
   // Debug logging (disable in production)
   DEBUG_LOGS_ENABLED: isDevelopment && process.env.NEXT_PUBLIC_ENABLE_DEBUG_LOGS !== 'false',
@@ -46,10 +46,8 @@ export const SecurityConfig = {
           errors.push('CRITICAL: Development authentication bypass is active in production')
         }
 
-        // Check for demo mode
-        if (process.env.NEXT_PUBLIC_ENABLE_DEMO_MODE === 'true') {
-          errors.push('CRITICAL: Demo mode is active in production')
-        }
+        // Demo mode is always disabled in production builds
+        // No need to check environment variable
 
         // Check for debug logs
         if (process.env.NEXT_PUBLIC_ENABLE_DEBUG_LOGS === 'true') {

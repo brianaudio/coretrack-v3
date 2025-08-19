@@ -151,6 +151,9 @@ export default function POSEnhanced() {
   const [recentOrders, setRecentOrders] = useState<POSOrder[]>([])
   const [loadingOrders, setLoadingOrders] = useState(false)
   
+  // 📋 Held Orders State  
+  const [showHeldOrders, setShowHeldOrders] = useState(false)
+  
 
   
   // 📋 Inventory Loading State
@@ -1596,6 +1599,27 @@ export default function POSEnhanced() {
                 </svg>
                 <span className="hidden md:inline">Recent Orders</span>
               </button>
+
+              {/* Held Orders Button */}
+              <button
+                onClick={() => {
+                  // Show held orders modal or scroll to section
+                  setShowHeldOrders(true)
+                }}
+                className="inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-700 hover:text-amber-800 border border-amber-200 rounded-lg font-medium transition-colors text-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <span className="hidden md:inline">Held Orders</span>
+                <span className="bg-amber-200 text-amber-800 text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                  {(() => {
+                    // Count held orders from localStorage with the pattern used in POS_Enhanced
+                    const heldCount = Object.keys(localStorage).filter(key => key.startsWith('hold_order_')).length
+                    return heldCount
+                  })()}
+                </span>
+              </button>
               
               {!isOnline && (
                 <button
@@ -2690,6 +2714,124 @@ export default function POSEnhanced() {
         </div>
       )}
 
+        </div>
+      )}
+
+      {/* Held Orders Modal */}
+      {showHeldOrders && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl h-[80vh] flex flex-col overflow-hidden border border-gray-100">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border-b border-amber-200 p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-amber-900 mb-1">Held Orders</h2>
+                    <p className="text-amber-700">Resume suspended transactions quickly</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowHeldOrders(false)}
+                  className="w-10 h-10 bg-amber-100 hover:bg-amber-200 rounded-lg flex items-center justify-center transition-colors"
+                >
+                  <svg className="w-5 h-5 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {(() => {
+                // Get all held orders from localStorage
+                const heldOrderKeys = Object.keys(localStorage).filter(key => key.startsWith('hold_order_'))
+                const heldOrders = heldOrderKeys.map(key => {
+                  try {
+                    return JSON.parse(localStorage.getItem(key) || '{}')
+                  } catch {
+                    return null
+                  }
+                }).filter(Boolean)
+
+                if (heldOrders.length === 0) {
+                  return (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-8 h-8 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">No held orders</h3>
+                      <p className="text-gray-500 text-sm">Suspended orders will appear here for quick access</p>
+                    </div>
+                  )
+                }
+
+                return (
+                  <div className="grid gap-4">
+                    {heldOrders.map((order: any) => (
+                      <div key={order.id} className="group bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 hover:shadow-lg hover:border-amber-300 transition-all duration-200">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
+                              <span className="text-amber-600 font-bold">#{order.id.toString().slice(-2)}</span>
+                            </div>
+                            <div>
+                              <div className="font-semibold text-amber-900">
+                                Order #{order.id.toString().slice(-4)}
+                              </div>
+                              <div className="flex items-center gap-3 text-sm text-amber-700">
+                                <span>{order.items.length} items</span>
+                                <span>•</span>
+                                <span>{new Date(order.timestamp).toLocaleTimeString()}</span>
+                                <span>•</span>
+                                <span className="font-semibold text-amber-800">₱{order.total.toFixed(0)}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                setCart(order.items)
+                                localStorage.removeItem(`hold_order_${order.id}`)
+                                setShowHeldOrders(false)
+                                
+                                // Show success notification
+                                alert('Order restored to cart!')
+                              }}
+                              className="px-4 py-2 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-700 transition-colors font-medium"
+                            >
+                              Resume
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm('Are you sure you want to delete this held order?')) {
+                                  localStorage.removeItem(`hold_order_${order.id}`)
+                                  setShowHeldOrders(false)
+                                  setTimeout(() => setShowHeldOrders(true), 100) // Refresh the modal
+                                }
+                              }}
+                              className="p-2 text-amber-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
         </div>
       )}
     </>

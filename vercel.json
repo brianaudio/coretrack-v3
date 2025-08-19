@@ -8,6 +8,7 @@
     }
   },
   "regions": ["iad1"],
+  "public": true,
   "rewrites": [
     {
       "source": "/manifest.json",

@@ -1,0 +1,6 @@
+# Vercel ignore file
+.vercel
+.env.local
+debug-scripts-backup/
+*.log
+node_modules

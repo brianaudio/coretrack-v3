@@ -1413,6 +1413,28 @@ ${order.status === 'voided' ? `\nVOID REASON: ${order.voidReason || 'N/A'}` : ''
                             <span className="text-lg font-bold text-gray-900">{recentOrders.filter(o => o.status === 'completed').length}</span>
                           </div>
                         </div>
+                        {/* Held Orders Header Button */}
+                        <button 
+                          onClick={() => {
+                            // Scroll to held orders section
+                            const heldOrdersSection = document.querySelector('[data-held-orders-section]')
+                            if (heldOrdersSection) {
+                              heldOrdersSection.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                            }
+                          }}
+                          className="bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 rounded-xl px-4 py-3 border border-amber-200 shadow-sm transition-colors cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                            <span className="text-sm font-medium text-amber-700">Held Orders</span>
+                            <span className="text-lg font-bold text-amber-900">
+                              {(() => {
+                                const heldOrders = JSON.parse(localStorage.getItem('heldOrders') || '[]')
+                                return heldOrders.length
+                              })()}
+                            </span>
+                          </div>
+                        </button>
                       </div>
                       
                       <div className="h-8 w-px bg-gray-300"></div>
@@ -2027,7 +2049,7 @@ ${order.status === 'voided' ? `\nVOID REASON: ${order.voidReason || 'N/A'}` : ''
                   {/* Enhanced Held Orders & System Status */}
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Held Orders Section */}
-                    <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div data-held-orders-section className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                       <div className="bg-gradient-to-r from-amber-50 to-orange-50 px-6 py-4 border-b border-gray-200">
                         <div className="flex items-center justify-between">
                           <div>

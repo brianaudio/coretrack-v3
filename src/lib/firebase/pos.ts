@@ -112,7 +112,7 @@ const getPOSItemsCollection = (tenantId: string) => {
 
 // Get POS orders collection reference  
 const getPOSOrdersCollection = (tenantId: string) => {
-  return collection(db, `tenants/${tenantId}/orders`);
+  return collection(db, `tenants/${tenantId}/posOrders`);
 };
 
 // Get all POS menu items (with optional location filtering)
@@ -536,7 +536,7 @@ export const getTodaysSalesAnalytics = async (tenantId: string) => {
       
       // Fallback: Calculate from actual orders for today
       try {
-        const ordersRef = collection(db, `tenants/${tenantId}/orders`);
+        const ordersRef = collection(db, `tenants/${tenantId}/posOrders`);
         const startOfDay = new Date();
         startOfDay.setHours(0, 0, 0, 0);
         const endOfDay = new Date();

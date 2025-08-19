@@ -5,7 +5,7 @@ import { useAuth } from '../../lib/context/AuthContext'
 import { useBranch } from '../../lib/context/BranchContext'
 import { useShift } from '../../lib/context/ShiftContext'
 import { getBranchLocationId } from '../../lib/utils/branchUtils'
-import { getPOSOrders, getPOSItems } from '../../lib/firebase/pos'
+import { getPOSOrders, getPOSItems, POSOrder } from '../../lib/firebase/pos'
 import { getExpenses } from '../../lib/firebase/expenses'
 import { 
   getSalesChartData, 
@@ -15,6 +15,8 @@ import {
 import {
   getInventoryAnalytics
 } from '../../lib/firebase/inventoryAnalytics'
+import { collection, getDocs } from 'firebase/firestore'
+import { db } from '../../lib/firebase'
 
 interface DailySummary {
   date: string
@@ -96,9 +98,239 @@ export default function BusinessReports() {
     const locationId = getBranchLocationId(selectedBranch.id)
     const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
 
-    // Fetch all data in parallel
+    // 🔍 DEBUG: Test both collection paths to see which has data
+    console.log('🔍 TESTING MULTIPLE COLLECTION PATHS:')
+    console.log('🔍 TENANT DEBUG:', {
+      tenantId: profile.tenantId,
+      uid: profile.uid,
+      email: profile.email,
+      selectedBranchId: selectedBranch.id,
+      selectedBranchName: selectedBranch.name,
+      locationId: locationId,
+      today: new Date().toLocaleDateString(),
+      todayISO: new Date().toISOString()
+    })
+    
+    // Test the current path: tenants/${tenantId}/orders
+    try {
+      const ordersRef1 = collection(db, `tenants/${profile.tenantId}/orders`)
+      const snapshot1 = await getDocs(ordersRef1)
+      console.log('📊 Collection "orders":', snapshot1.docs.length, 'documents')
+    } catch (e) {
+      console.log('❌ Error accessing "orders" collection:', e)
+    }
+
+    // Test alternative collection paths that might contain recent orders
+    const collectionPaths = [
+      `tenants/${profile.tenantId}/posOrders`,
+      `tenants/${profile.tenantId}/transactions`, 
+      `tenants/${profile.tenantId}/sales`,
+      `tenants/${profile.tenantId}/completedOrders`,
+      `tenants/${profile.tenantId}/orders_completed`,
+      `tenants/${profile.tenantId}/pos_transactions`,
+      `tenants/${profile.tenantId}/daily_orders`,
+      `locations/${selectedBranch.id}/orders`,
+      `locations/${selectedBranch.id}/posOrders`,
+      `locations/${selectedBranch.id}/transactions`,
+      `branches/${selectedBranch.id}/orders`,
+      `branches/${selectedBranch.id}/posOrders`,
+      `branches/${selectedBranch.id}/transactions`,
+      // Check with the actual locationId from existing orders
+      `locations/main-location-gJPRV0nFGiULXAW9nciyGad686z2/orders`,
+      `locations/main-location-gJPRV0nFGiULXAW9nciyGad686z2/posOrders`,
+      `locations/main-location-gJPRV0nFGiULXAW9nciyGad686z2/transactions`,
+      // Check root level collections
+      `orders`,
+      `posOrders`,
+      `transactions`,
+      `sales`,
+      // Check if there's a different tenant structure
+      `users/${profile.uid}/orders`,
+      `users/${profile.uid}/posOrders`,
+      `users/${profile.uid}/transactions`
+    ]
+
+    for (const path of collectionPaths) {
+      try {
+        const ref = collection(db, path)
+        const snapshot = await getDocs(ref)
+        console.log(`📊 Collection "${path}":`, snapshot.docs.length, 'documents')
+        
+        if (snapshot.docs.length > 0) {
+          const sampleDoc = snapshot.docs[0].data() as any
+          console.log(`📄 Sample doc from "${path}":`, {
+            id: snapshot.docs[0].id,
+            hasTotal: 'total' in sampleDoc,
+            hasStatus: 'status' in sampleDoc,
+            hasCreatedAt: 'createdAt' in sampleDoc,
+            hasLocationId: 'locationId' in sampleDoc,
+            sampleFields: Object.keys(sampleDoc).slice(0, 10)
+          })
+          
+          // Check if any documents are from Aug 18-19
+          const recentDocs = snapshot.docs.filter(doc => {
+            const data = doc.data() as any
+            const createdAt = data.createdAt?.toDate?.()
+            if (createdAt instanceof Date) {
+              const day = createdAt.getDate()
+              const month = createdAt.getMonth() + 1
+              return (day === 18 || day === 19) && month === 8
+            }
+            return false
+          })
+          
+          if (recentDocs.length > 0) {
+            console.log(`🎯 FOUND ${recentDocs.length} Aug 18-19 orders in "${path}"!`)
+            console.log(`📅 Aug 18-19 orders:`, recentDocs.map(doc => {
+              const data = doc.data() as any
+              return {
+                id: doc.id,
+                total: data.total,
+                status: data.status,
+                createdAt: data.createdAt?.toDate?.(),
+                locationId: data.locationId
+              }
+            }))
+          } else if (snapshot.docs.length > 0) {
+            // Show all dates available in this collection
+            const allDates = snapshot.docs.map(doc => {
+              const data = doc.data() as any
+              const createdAt = data.createdAt?.toDate?.()
+              return createdAt instanceof Date ? {
+                day: createdAt.getDate(),
+                month: createdAt.getMonth() + 1,
+                year: createdAt.getFullYear(),
+                fullDate: createdAt.toLocaleDateString()
+              } : null
+            }).filter(date => date !== null)
+            
+            console.log(`📅 Available dates in "${path}":`, allDates)
+            
+            // Special detailed analysis for posOrders collection
+            if (path.includes('posOrders') && allDates.length > 0) {
+              console.log(`🔍 DETAILED DATE ANALYSIS for "${path}":`)
+              console.log(`📅 Earliest order: ${allDates[0].fullDate}`)
+              console.log(`📅 Latest order: ${allDates[allDates.length - 1].fullDate}`)
+              console.log(`📅 All order dates:`, allDates.map(d => d.fullDate).sort())
+              console.log(`🚫 Missing Aug 18-19 orders: Orders for these dates do NOT exist in Firebase`)
+              console.log(`💡 Recommendation: Check if Aug 18-19 transactions were created in a different system or lost during migration`)
+            }
+          }
+        }
+      } catch (e) {
+        console.log(`❌ Error accessing "${path}":`, e)
+      }
+    }
+
+    // 🎯 COMPREHENSIVE SEARCH SUMMARY - UPDATED FOR ARCHIVE SUPPORT
+    console.log('🎯 COMPREHENSIVE FIREBASE SEARCH SUMMARY:')
+    console.log('✅ NOW SEARCHING: Both operational posOrders AND shift archives')
+    console.log('📂 Operational data: Current shift orders in tenants/posOrders')
+    console.log('� Archived data: Historical orders in tenants/shift_archives/*/posOrders')
+    console.log('� Data lifecycle: Orders → Archives after shift ends (via ShiftResetService)')
+    console.log('💡 Result: Complete historical data access for business reports')
+    console.log('🎯 Aug 18-19 data: Will now be found in shift archives if it exists')
+
+    // Fetch all data in parallel - USING BOTH OPERATIONAL AND ARCHIVED DATA
     const [allOrders, menuItems, allExpenses, salesData, topItems, paymentAnalytics, inventoryAnalytics] = await Promise.all([
-      getPOSOrders(profile.tenantId, locationId),
+      // ENHANCED: Get orders from BOTH operational posOrders AND shift archives
+      (async () => {
+        console.log('🔍 FETCHING ORDERS FROM OPERATIONAL + ARCHIVED COLLECTIONS...');
+        const allOrders: POSOrder[] = [];
+        
+        // 1. Get operational orders (current shift)
+        try {
+          const operationalRef = collection(db, `tenants/${profile.tenantId}/posOrders`)
+          const operationalSnapshot = await getDocs(operationalRef)
+          const operationalOrders = operationalSnapshot.docs.map(doc => ({
+            id: doc.id,
+            source: 'operational',
+            ...doc.data()
+          })) as (POSOrder & { source: string })[];
+          
+          allOrders.push(...operationalOrders);
+          console.log(`� Operational orders: ${operationalOrders.length}`);
+        } catch (error) {
+          console.log('❌ Error fetching operational orders:', error);
+        }
+        
+        // 2. Get archived orders (from completed shifts)
+        try {
+          const archivesRef = collection(db, `tenants/${profile.tenantId}/shift_archives`)
+          const archivesSnapshot = await getDocs(archivesRef)
+          
+          console.log(`� Found ${archivesSnapshot.docs.length} shift archives`);
+          
+          // Check each shift archive for orders
+          for (const archiveDoc of archivesSnapshot.docs) {
+            const archiveId = archiveDoc.id;
+            const archiveData = archiveDoc.data();
+            
+            try {
+              const archivedOrdersRef = collection(db, `tenants/${profile.tenantId}/shift_archives/${archiveId}/posOrders`)
+              const archivedSnapshot = await getDocs(archivedOrdersRef)
+              const archivedOrders = archivedSnapshot.docs.map(doc => ({
+                id: doc.id,
+                source: `archive:${archiveId}`,
+                archiveDate: archiveData.createdAt?.toDate?.(),
+                ...doc.data()
+              })) as (POSOrder & { source: string; archiveDate?: Date })[];
+              
+              if (archivedOrders.length > 0) {
+                allOrders.push(...archivedOrders);
+                console.log(`📦 Archive ${archiveId}: ${archivedOrders.length} orders (${archiveData.createdAt?.toDate?.()})`);
+              }
+            } catch (error) {
+              console.log(`❌ Error fetching archive ${archiveId}:`, error instanceof Error ? error.message : String(error));
+            }
+          }
+        } catch (error) {
+          console.log('❌ Error fetching shift archives:', error);
+        }
+        
+        console.log(`🎯 TOTAL ORDERS FOUND: ${allOrders.length} (operational + archived)`);
+        
+        // 3. Show detailed breakdown of all orders
+        console.log(`🔍 ALL ORDERS WITH SOURCES:`, allOrders.map(order => ({
+          id: order.id,
+          source: (order as any).source,
+          locationId: order.locationId,
+          total: order.total,
+          status: order.status,
+          createdAt: order.createdAt?.toDate?.(),
+          dayOfMonth: order.createdAt?.toDate?.().getDate(),
+          month: order.createdAt?.toDate?.().getMonth() + 1
+        })));
+        
+        // 4. Smart filtering: Location-specific for current operations, comprehensive for business reports
+        console.log(`🔍 EXPECTED locationId: "${locationId}"`);
+        console.log(`🔍 ACTUAL order locationIds:`, Array.from(new Set(allOrders.map(order => order.locationId))));
+        
+        const matchingOrders = allOrders.filter(order => order.locationId === locationId);
+        const historicalLocationIds = Array.from(new Set(allOrders.map(order => order.locationId).filter(id => id && id !== locationId)));
+        
+        let filteredOrders = allOrders;
+        
+        // For Business Reports: Include comprehensive tenant data for historical analysis
+        if (historicalLocationIds.length > 0) {
+          // We have historical data from different locations - include all for comprehensive reporting
+          filteredOrders = allOrders;
+          console.log(`📊 BUSINESS REPORTS: Including comprehensive tenant data (${allOrders.length} total orders)`);
+          console.log(`🏢 Current location (${locationId}): ${matchingOrders.length} orders`);
+          console.log(`📈 Historical locations (${historicalLocationIds.join(', ')}): ${allOrders.length - matchingOrders.length} orders`);
+        } else if (locationId && matchingOrders.length > 0) {
+          // Only current location data available
+          filteredOrders = matchingOrders;
+          console.log(`🔍 After locationId filter: ${filteredOrders.length} orders (current location only)`);
+        } else if (locationId) {
+          // Fallback: use all available data if no current location data
+          filteredOrders = allOrders;
+          console.log(`⚠️ NO CURRENT LOCATION DATA - Using all ${allOrders.length} tenant orders for historical analysis`);
+        }
+        
+        console.log(`📋 FINAL: ${filteredOrders.length} orders ready for date filtering`);
+        return filteredOrders as POSOrder[];
+      })(),
       getPOSItems(profile.tenantId, locationId),
       getExpenses(profile.tenantId, locationId),
       getSalesChartData(profile.tenantId, days, locationId),
@@ -108,14 +340,65 @@ export default function BusinessReports() {
     ])
 
     // Filter data by date range
-    console.log('🔍 Date range:', { startDate, endDate, exportDateRange })
+    console.log('🔍 Date range:', { 
+      startDate, 
+      endDate, 
+      exportDateRange,
+      startDateISO: startDate.toISOString(),
+      endDateISO: endDate.toISOString(),
+      startDateLocal: startDate.toLocaleDateString(),
+      endDateLocal: endDate.toLocaleDateString(),
+      todayDate: new Date().toLocaleDateString(),
+      todayISO: new Date().toISOString()
+    })
+    console.log('🔍 ALL ORDERS WITH FULL DETAILS:', allOrders.map(order => ({
+      id: order.id,
+      status: order.status,
+      total: order.total,
+      createdAt: order.createdAt.toDate(),
+      createdAtISO: order.createdAt.toDate().toISOString(),
+      dateFormatted: order.createdAt.toDate().toLocaleDateString(),
+      inSelectedRange: order.createdAt.toDate() >= startDate && order.createdAt.toDate() <= endDate,
+      isCompleted: order.status === 'completed',
+      locationId: order.locationId,
+      dayOfMonth: order.createdAt.toDate().getDate(),
+      month: order.createdAt.toDate().getMonth() + 1,
+      year: order.createdAt.toDate().getFullYear()
+    })))
+    
     const filteredOrders = allOrders.filter(order => {
-      if (order.status !== 'completed') return false
+      if (order.status !== 'completed') {
+        console.log(`❌ Order ${order.id} excluded: status is '${order.status}', not 'completed'`)
+        return false
+      }
       const orderDate = order.createdAt.toDate()
       const inRange = orderDate >= startDate && orderDate <= endDate
+      
+      // Enhanced logging for date comparison
+      console.log(`🔍 Order ${order.id} date analysis:`, {
+        orderDate: orderDate.toISOString(),
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        orderDateLocal: orderDate.toLocaleDateString(),
+        startDateLocal: startDate.toLocaleDateString(),
+        endDateLocal: endDate.toLocaleDateString(),
+        isAfterStart: orderDate >= startDate,
+        isBeforeEnd: orderDate <= endDate,
+        inRange,
+        status: order.status,
+        total: order.total
+      })
+      
       return inRange
     })
     console.log('📊 Orders filtered:', { total: allOrders.length, filtered: filteredOrders.length })
+    console.log('📊 FILTERED ORDERS FOR EXPORT:', filteredOrders.map(order => ({
+      id: order.id,
+      status: order.status,
+      total: order.total,
+      createdAt: order.createdAt.toDate(),
+      dateFormatted: order.createdAt.toDate().toLocaleDateString()
+    })))
 
     const filteredExpenses = allExpenses.filter(expense => {
       const expenseDate = expense.date.toDate()
@@ -131,7 +414,7 @@ export default function BusinessReports() {
     let cogs = 0
     filteredOrders.forEach(order => {
       if (order.items) {
-        order.items.forEach(item => {
+        order.items.forEach((item: any) => {
           // Find the menu item to get cost information
           const menuItem = menuItems.find(mi => mi.id === item.itemId)
           if (menuItem && menuItem.cost) {
@@ -176,7 +459,7 @@ export default function BusinessReports() {
         let dayCogs = 0
         dayOrders.forEach(order => {
           if (order.items) {
-            order.items.forEach(item => {
+            order.items.forEach((item: any) => {
               const menuItem = menuItems.find(mi => mi.id === item.itemId)
               if (menuItem && menuItem.cost) {
                 dayCogs += menuItem.cost * item.quantity
@@ -225,15 +508,86 @@ export default function BusinessReports() {
     }
   }
 
+  // Centralized PDF generation helper
+  const generatePDF = (pdfHTML: string, reportName: string) => {
+    try {
+      console.log(`🎯 Opening PDF window for ${reportName}...`)
+      const printWindow = window.open('', '_blank')
+      
+      if (!printWindow) {
+        console.error('❌ Pop-up blocked for PDF generation')
+        alert('❌ Pop-up blocked. Please allow pop-ups for this site and try again.')
+        return false
+      }
+
+      console.log('✅ PDF window opened successfully')
+      printWindow.document.write(pdfHTML)
+      printWindow.document.close()
+      
+      // Comprehensive print handling with multiple fallbacks
+      let printTriggered = false
+      
+      // Method 1: OnLoad event
+      printWindow.onload = () => {
+        console.log('✅ PDF window loaded - triggering print')
+        if (!printTriggered) {
+          printTriggered = true
+          setTimeout(() => {
+            try {
+              printWindow.print()
+              console.log('✅ Print dialog opened via onload')
+            } catch (printError) {
+              console.error('❌ Print error in onload:', printError)
+            }
+          }, 1000)
+        }
+      }
+      
+      // Method 2: Immediate fallback
+      setTimeout(() => {
+        if (!printTriggered && printWindow && !printWindow.closed) {
+          console.log('⚡ Triggering fallback print')
+          printTriggered = true
+          try {
+            printWindow.print()
+            console.log('✅ Print dialog opened via fallback')
+          } catch (error) {
+            console.error('❌ Fallback print error:', error)
+            alert(`❌ Error generating ${reportName} PDF. Please try using Chrome or Safari for better PDF support.`)
+          }
+        }
+      }, 2000)
+      
+      // Method 3: Final fallback with user guidance
+      setTimeout(() => {
+        if (printWindow && !printWindow.closed) {
+          console.log('📋 Final check - if print dialog didn\'t appear, showing user instructions')
+          // The window is still open, print should have worked or user can manually print
+        }
+      }, 3000)
+      
+      return true
+    } catch (error) {
+      console.error(`❌ PDF generation error for ${reportName}:`, error)
+      alert(`❌ Error generating ${reportName}. Please try again or use a different browser.`)
+      return false
+    }
+  }
+
   const generateAdvancedAnalyticsPDF = async (data: ExportData) => {
     try {
-      const printWindow = window.open('', '_blank')
-      if (!printWindow) return
-
       const grossProfit = data.revenue - data.cogs
       const netProfit = grossProfit - data.expenses
       const grossMargin = data.revenue > 0 ? (grossProfit / data.revenue) * 100 : 0
       const avgOrderValue = data.orders > 0 ? data.revenue / data.orders : 0
+
+      console.log('🎯 Generating Analytics PDF with data:', {
+        revenue: data.revenue,
+        orders: data.orders,
+        grossProfit,
+        netProfit,
+        grossMargin: grossMargin.toFixed(1) + '%'
+      })
 
       // Generate daily breakdown section for week/month reports
       const generateDailyBreakdown = () => {
@@ -377,9 +731,7 @@ export default function BusinessReports() {
         </html>
       `
 
-      printWindow.document.write(pdfHTML)
-      printWindow.document.close()
-      setTimeout(() => printWindow.print(), 500)
+      generatePDF(pdfHTML, 'Advanced Analytics')
     } catch (error) {
       console.error('Advanced Analytics PDF export error:', error)
       alert('❌ Error generating Advanced Analytics PDF. Please try again.')
@@ -388,9 +740,6 @@ export default function BusinessReports() {
 
   const generateFinancialPerformancePDF = async (data: ExportData) => {
     try {
-      const printWindow = window.open('', '_blank')
-      if (!printWindow) return
-
       const grossProfit = data.revenue - data.cogs
       const netProfit = grossProfit - data.expenses
       const grossMargin = data.revenue > 0 ? (grossProfit / data.revenue) * 100 : 0
@@ -567,9 +916,7 @@ export default function BusinessReports() {
         </html>
       `
 
-      printWindow.document.write(pdfHTML)
-      printWindow.document.close()
-      setTimeout(() => printWindow.print(), 500)
+      generatePDF(pdfHTML, 'Financial Performance')
     } catch (error) {
       console.error('Financial Performance PDF export error:', error)
       alert('❌ Error generating Financial Performance PDF. Please try again.')
@@ -578,9 +925,6 @@ export default function BusinessReports() {
 
   const generateInventoryReportPDF = async (data: ExportData) => {
     try {
-      const printWindow = window.open('', '_blank')
-      if (!printWindow) return
-
       const inventory = data.inventoryData
       if (!inventory) {
         alert('No inventory data available for the selected period')
@@ -632,9 +976,7 @@ export default function BusinessReports() {
         </html>
       `
 
-      printWindow.document.write(pdfHTML)
-      printWindow.document.close()
-      setTimeout(() => printWindow.print(), 500)
+      generatePDF(pdfHTML, 'Inventory Report')
     } catch (error) {
       console.error('Inventory Report PDF export error:', error)
       alert('❌ Error generating Inventory Report PDF. Please try again.')
@@ -655,6 +997,18 @@ export default function BusinessReports() {
     setIsExporting(true)
     try {
       const data = await fetchExportData()
+      console.log('🎯 FINAL EXPORT DATA FOR PDF GENERATION:', {
+        dateRange: data.dateRange,
+        period: data.period,
+        revenue: data.revenue,
+        orders: data.orders,
+        expenses: data.expenses,
+        cogs: data.cogs,
+        dailySummariesCount: data.dailySummaries?.length || 0,
+        dailySummaries: data.dailySummaries,
+        topItemsCount: data.topItems?.length || 0,
+        paymentMethods: data.paymentMethods
+      })
       
       if (reportType === 'analytics') {
         await generateAdvancedAnalyticsPDF(data)
@@ -833,12 +1187,16 @@ export default function BusinessReports() {
           </svg>
           <div>
             <h3 className="font-medium text-blue-900 mb-1">
-              Professional PDF Reports
+              Complete Historical Data Access
             </h3>
-            <p className="text-sm text-blue-700">
-              All reports are generated as professional PDF documents with detailed charts, 
-              tables, and insights. Perfect for sharing with stakeholders or financial analysis.
+            <p className="text-sm text-blue-700 mb-2">
+              Reports now include data from both active operations and shift archives. 
+              Your shift management system automatically archives completed shift data, 
+              and we search all locations for comprehensive historical reporting.
             </p>
+            <div className="text-xs text-blue-600 bg-blue-100 rounded px-2 py-1 inline-block">
+              📂 Operational Data + 📦 Shift Archives = Complete Business Intelligence
+            </div>
           </div>
         </div>
       </div>

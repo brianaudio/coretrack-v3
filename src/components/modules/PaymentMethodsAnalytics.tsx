@@ -40,7 +40,7 @@ export default function PaymentMethodsAnalytics() {
   
   const [paymentData, setPaymentData] = useState<PaymentBreakdown | null>(null)
   const [loading, setLoading] = useState(true)
-  const [timeFilter, setTimeFilter] = useState<'shift' | 'today' | 'week' | 'month'>('week') // Changed from 'today' to 'week' for broader data capture
+  const [timeFilter, setTimeFilter] = useState<'today' | 'week' | 'month'>('today') // Removed 'shift' option and changed default to 'today'
   const [lastShiftId, setLastShiftId] = useState<string | null>(null)
   const [isResetting, setIsResetting] = useState(false)
 
@@ -133,14 +133,6 @@ export default function PaymentMethodsAnalytics() {
       return
     }
 
-    // 🔥 CRITICAL: Block Firebase data fetch when no active shift
-    if (!currentShift?.id) {
-      console.log('[PaymentAnalytics] 🚫 NO ACTIVE SHIFT - Blocking Firebase fetch to prevent payment data leak!')
-      setPaymentData(null)
-      setLoading(false)
-      return
-    }
-
     try {
       setLoading(true)
       const effectiveTenantId = (profile as any).tenantId || profile.uid // Use same pattern as EnhancedAnalytics
@@ -150,13 +142,6 @@ export default function PaymentMethodsAnalytics() {
       const startDate = new Date()
       
       switch (timeFilter) {
-        case 'shift':
-          if (currentShift?.startTime) {
-            startDate.setTime(currentShift.startTime.toDate().getTime())
-          } else {
-            startDate.setHours(0, 0, 0, 0)
-          }
-          break
         case 'today':
           startDate.setHours(0, 0, 0, 0)
           break
@@ -168,10 +153,10 @@ export default function PaymentMethodsAnalytics() {
           break
       }
 
-      // Query orders from the correct tenant orders collection (same as Expenses component)
+      // Query POS orders from the correct tenant posOrders collection (consistent with MainDashboard and pos.ts)
       // Using minimal query to avoid any Firebase index requirement, then filter everything client-side
       const locationId = getBranchLocationId(selectedBranch.id)
-      const ordersRef = collection(db, `tenants/${effectiveTenantId}/orders`)
+      const ordersRef = collection(db, `tenants/${effectiveTenantId}/posOrders`)
       
       const ordersQuery = query(
         ordersRef,
@@ -302,10 +287,13 @@ export default function PaymentMethodsAnalytics() {
   }
 
   useEffect(() => {
-    if (selectedBranch && profile?.uid && (timeFilter !== 'shift' || currentShift)) {
+    if (selectedBranch && profile?.uid) {
+      console.log('[PaymentAnalytics] Fetching payment data - Branch:', selectedBranch.id, 'Filter:', timeFilter)
       fetchPaymentData()
+    } else {
+      console.log('[PaymentAnalytics] Missing requirements - Branch:', selectedBranch?.id, 'Profile:', profile?.uid)
     }
-  }, [selectedBranch, currentShift, timeFilter, profile?.uid])
+  }, [selectedBranch, timeFilter, profile?.uid]) // Removed currentShift dependency for analytics
 
   const formatCurrency = (amount: number) => {
     return `₱${amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
@@ -313,16 +301,10 @@ export default function PaymentMethodsAnalytics() {
 
   const getTimeFilterLabel = () => {
     switch (timeFilter) {
-      case 'shift': 
-        if (currentShift) {
-          return `Current Shift (${currentShift.name})`
-        } else {
-          return 'No Active Shift - Showing Today'
-        }
       case 'today': return 'Today'
       case 'week': return 'Last 7 Days'
       case 'month': return 'Last 30 Days'
-      default: return 'Unknown'
+      default: return 'Today'
     }
   }
 

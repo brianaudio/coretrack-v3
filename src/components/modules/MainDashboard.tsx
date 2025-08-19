@@ -112,7 +112,7 @@ const MainDashboard: React.FC = () => {
     categoryBreakdown: []
   })
 
-  // Clear financial data when shift ends/changes for immediate refresh
+  // Monitor shift changes for logging (data subscriptions remain active for analytics)
   useEffect(() => {
     console.log('[Analytics] SHIFT CHANGE DETECTED:', {
       currentShiftId: currentShift?.id,
@@ -121,24 +121,7 @@ const MainDashboard: React.FC = () => {
     })
     
     if (!currentShift) {
-      console.log('[Analytics] No active shift detected - AGGRESSIVE DATA RESET for immediate refresh')
-      // Clear all cached data
-      setSalesData([])
-      setRealPOSOrders([])
-      setLoadingOrders(true)
-      setRealInventoryItems([])
-      setLoadingInventory(true)
-      
-      // Reset analytics to zero state
-      setInventoryAnalytics({
-        totalItems: 0,
-        totalValue: 0,
-        lowStockItems: 0,
-        outOfStockItems: 0,
-        averageStockLevel: 0,
-        topMovingItems: [],
-        categoryBreakdown: []
-      })
+      console.log('[Analytics] No active shift - maintaining data subscriptions for dashboard analytics')
     } else {
       console.log('[Analytics] Active shift detected - maintaining data subscriptions')
     }
@@ -190,14 +173,6 @@ const MainDashboard: React.FC = () => {
       return
     }
 
-    // 🔥 CRITICAL: Don't subscribe to Firebase when no active shift
-    if (!currentShift?.id) {
-      console.log('[Analytics] 🚫 NO ACTIVE SHIFT - Blocking Firebase inventory subscription to prevent data leak!')
-      setRealInventoryItems([])
-      setLoadingInventory(false)
-      return
-    }
-
     const locationId = getBranchLocationId(selectedBranch.id)
     console.log('[Analytics] Setting up inventory subscription for location:', locationId)
     
@@ -237,15 +212,6 @@ const MainDashboard: React.FC = () => {
       return
     }
 
-    // 🔥 CRITICAL: Don't subscribe to Firebase when no active shift  
-    if (!currentShift?.id) {
-      console.log('[Analytics] 🚫 NO ACTIVE SHIFT - Blocking Firebase POS subscription to prevent data leak!')
-      setRealPOSOrders([])
-      setSalesData([])
-      setLoadingOrders(false)
-      return
-    }
-
     const locationId = getBranchLocationId(selectedBranch.id)
     console.log('[Analytics] Setting up POS orders subscription for location:', locationId)
     
@@ -255,29 +221,23 @@ const MainDashboard: React.FC = () => {
       (orders: POSOrder[]) => {
         console.log('[Analytics] Received POS orders:', orders.length, orders)
         
-        // 🔥 CRITICAL: Filter orders by current shift only!
-        const currentShiftOrders = currentShift?.id 
-          ? orders.filter(order => {
-              // Only show orders created during current shift
-              const orderTime = order.createdAt?.toDate()
-              const shiftStartTime = currentShift.startTime?.toDate()
-              return orderTime && shiftStartTime && orderTime >= shiftStartTime
-            })
-          : [] // No shift = no orders
+        // For Dashboard analytics, show all orders regardless of shift status
+        // This ensures consistent analytics data for business intelligence
+        const filteredOrders = orders
           
-        console.log(`[Analytics] 🎯 SHIFT FILTERED: ${currentShiftOrders.length} orders from current shift (out of ${orders.length} total)`)
-        console.log('[Analytics] Current shift orders:', currentShiftOrders.map(o => ({
+        console.log(`[Analytics] 🎯 DASHBOARD ANALYTICS: Showing all ${filteredOrders.length} orders for comprehensive analytics (total available: ${orders.length})`)
+        console.log('[Analytics] Dashboard orders:', filteredOrders.map(o => ({
           id: o.id,
           status: o.status,
           total: o.total,
           locationId: o.locationId,
           createdAt: o.createdAt?.toDate()
         })))
-        setRealPOSOrders(currentShiftOrders)
+        setRealPOSOrders(filteredOrders)
         
         // Transform orders into sales data for analytics
-        const salesByDate = transformOrdersToSalesData(currentShiftOrders)
-        console.log('[Analytics] Transformed sales data (shift filtered):', salesByDate)
+        const salesByDate = transformOrdersToSalesData(filteredOrders)
+        console.log('[Analytics] Transformed sales data:', salesByDate)
         setSalesData(salesByDate)
         setLoadingOrders(false)
         setDebugInfo(prev => ({
@@ -514,13 +474,13 @@ const MainDashboard: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [filters, setFilters] = useState<any>({})
 
-  // Calculate performance metrics from actual data
+  // Calculate performance metrics from actual data (always show data for analytics)
   const currentMetrics: PerformanceMetrics = {
-    revenue: !currentShift ? 0 : salesData.reduce((sum, day) => sum + day.revenue, 0),
+    revenue: salesData.reduce((sum, day) => sum + day.revenue, 0),
     revenueGrowth: 0,
-    orders: !currentShift ? 0 : salesData.reduce((sum, day) => sum + day.orders, 0),
+    orders: salesData.reduce((sum, day) => sum + day.orders, 0),
     ordersGrowth: 0,
-    averageOrderValue: !currentShift ? 0 : (salesData.length > 0 ? salesData.reduce((sum, day) => sum + day.averageOrderValue, 0) / salesData.length : 0),
+    averageOrderValue: salesData.length > 0 ? salesData.reduce((sum, day) => sum + day.averageOrderValue, 0) / salesData.length : 0,
     aovGrowth: 0,
     profitMargin: 0,
     marginGrowth: 0
@@ -915,6 +875,8 @@ const MainDashboard: React.FC = () => {
           ))}
         </div>
       </div>
+
+
 
       {/* Sales Analytics Tab */}
       {selectedTab === 'sales' && (

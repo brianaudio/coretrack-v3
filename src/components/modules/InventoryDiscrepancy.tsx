@@ -88,26 +88,54 @@ export default function InventoryDiscrepancy() {
       const auditsRef = collection(db, `tenants/${profile.tenantId}/audits`);
       // Filter audits by branch location
       const locationId = `location_${selectedBranch.id}`;
-      const q = query(
-        auditsRef, 
-        where('locationId', '==', locationId),
-        orderBy('date', 'desc')
-      );
-      const snapshot = await getDocs(q);
       
-      const audits = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as AuditReport));
-      
-      console.log('🔍 Branch-specific audits loaded:', {
-        branchId: selectedBranch.id,
-        branchName: selectedBranch.name,
-        locationId: locationId,
-        auditCount: audits.length
-      });
-      
-      setAuditHistory(audits);
+      // Try branch-specific query first
+      try {
+        const q = query(
+          auditsRef, 
+          where('locationId', '==', locationId),
+          orderBy('date', 'desc')
+        );
+        const snapshot = await getDocs(q);
+        
+        const audits = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as AuditReport));
+        
+        console.log('🔍 Branch-specific audits loaded:', {
+          branchId: selectedBranch.id,
+          branchName: selectedBranch.name,
+          locationId: locationId,
+          auditCount: audits.length
+        });
+        
+        setAuditHistory(audits);
+      } catch (indexError: any) {
+        // Fallback: If index not ready, get all audits and filter client-side
+        console.warn('📋 Index building, using fallback query:', indexError.message);
+        const fallbackQuery = query(auditsRef, orderBy('createdAt', 'desc'));
+        const snapshot = await getDocs(fallbackQuery);
+        
+        const allAudits = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as AuditReport));
+        
+        // Filter by branch client-side
+        const branchAudits = allAudits.filter(audit => 
+          (audit as any).locationId === locationId || 
+          (audit as any).branchId === selectedBranch.id
+        );
+        
+        console.log('🔍 Client-side filtered audits:', {
+          total: allAudits.length,
+          filtered: branchAudits.length,
+          locationId
+        });
+        
+        setAuditHistory(branchAudits);
+      }
     } catch (error) {
       console.error('Error loading audit history:', error);
       addToast('Failed to load audit history', 'error');

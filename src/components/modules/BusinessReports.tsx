@@ -18,6 +18,7 @@ import {
 
 interface DailySummary {
   date: string
+  dateKey: string // Add unique identifier
   revenue: number
   orders: number
   expenses: number
@@ -186,6 +187,7 @@ export default function BusinessReports() {
         
         summaries.push({
           date: currentDate.toLocaleDateString(),
+          dateKey: currentDate.toISOString().split('T')[0], // Add unique date key
           revenue: dayRevenue,
           orders: dayOrders.length,
           expenses: dayExpenseAmount,
@@ -252,11 +254,11 @@ export default function BusinessReports() {
                 </tr>
               </thead>
               <tbody>
-                ${data.dailySummaries.map(day => {
+                ${data.dailySummaries.map((day, index) => {
                   const avgOrder = day.orders > 0 ? day.revenue / day.orders : 0
                   const profitClass = day.profit >= 0 ? 'positive' : 'negative'
                   return `
-                    <tr>
+                    <tr key="${day.dateKey || index}">
                       <td><strong>${day.date}</strong></td>
                       <td>₱${day.revenue.toLocaleString()}</td>
                       <td>${day.orders}</td>
@@ -414,13 +416,13 @@ export default function BusinessReports() {
                 </tr>
               </thead>
               <tbody>
-                ${data.dailySummaries.map(day => {
+                ${data.dailySummaries.map((day, index) => {
                   const dailyGrossProfit = day.revenue - day.cogs
                   const dailyNetProfit = dailyGrossProfit - day.expenses
                   const dailyMargin = day.revenue > 0 ? (dailyNetProfit / day.revenue) * 100 : 0
                   const profitClass = dailyNetProfit >= 0 ? 'positive' : 'negative'
                   return `
-                    <tr>
+                    <tr key="${day.dateKey || index}">
                       <td><strong>${day.date}</strong></td>
                       <td>₱${day.revenue.toLocaleString()}</td>
                       <td>₱${day.cogs.toLocaleString()}</td>

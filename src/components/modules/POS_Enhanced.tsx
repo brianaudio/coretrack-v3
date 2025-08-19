@@ -1100,7 +1100,20 @@ export default function POSEnhanced() {
           })
 
         // Combine Menu Builder items (priority) with unique POS items
-        const enhancedItems: POSItem[] = [...menuBuilderPOSItems, ...posItemsNotInMenuBuilder]
+        const combinedItems = [...menuBuilderPOSItems, ...posItemsNotInMenuBuilder]
+        
+        // 🔧 CRITICAL FIX: Ensure no duplicate IDs in final array
+        const uniqueItemsMap = new Map()
+        combinedItems.forEach((item, index) => {
+          // Use first occurrence of each ID, log duplicates
+          if (!uniqueItemsMap.has(item.id)) {
+            uniqueItemsMap.set(item.id, item)
+          } else {
+            console.warn(`⚠️ Duplicate item ID detected and skipped: ${item.id} (${item.name})`)
+          }
+        })
+        
+        const enhancedItems: POSItem[] = Array.from(uniqueItemsMap.values())
 
         setMenuItems(enhancedItems)
         

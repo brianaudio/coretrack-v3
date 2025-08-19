@@ -1,6 +1,48 @@
-# Vercel ignore file
-.vercel
-.env.local
-debug-scripts-backup/
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+
+# Production build
+.next/
+build/
+dist/
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 *.log
-node_modules
+
+# Local env files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Firebase
+firebase-debug.log
+firestore-debug.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vercel
+.vercel
+
+# Scripts and debug files
+debug-scripts-backup/
+scripts/
+comprehensive-reports-debug.js
+verify-reports-center.js
+*.sh
+DEBUGGING_GUIDE.md
+DEPLOYMENT_GUIDE.md

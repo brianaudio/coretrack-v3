@@ -16,6 +16,15 @@ import {
   getInventoryAnalytics
 } from '../../lib/firebase/inventoryAnalytics'
 
+interface DailySummary {
+  date: string
+  revenue: number
+  orders: number
+  expenses: number
+  cogs: number
+  profit: number
+}
+
 interface ExportData {
   revenue: number
   orders: number
@@ -25,6 +34,8 @@ interface ExportData {
   paymentMethods: any[]
   inventoryData?: any
   dateRange: string
+  dailySummaries?: DailySummary[] // For week/month reports
+  period: 'today' | 'week' | 'month' | 'custom'
 }
 
 export default function BusinessReports() {
@@ -49,12 +60,16 @@ export default function BusinessReports() {
         endDate.setHours(23, 59, 59, 999)
         break
       case 'week':
-        startDate.setDate(today.getDate() - 7)
+        // Get start of current week (last 7 days)
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - 6) // 6 days ago + today = 7 days
         startDate.setHours(0, 0, 0, 0)
         endDate.setHours(23, 59, 59, 999)
         break
       case 'month':
-        startDate.setDate(today.getDate() - 30)
+        // Get start of current month (last 30 days)
+        startDate = new Date(today)
+        startDate.setDate(today.getDate() - 29) // 29 days ago + today = 30 days
         startDate.setHours(0, 0, 0, 0)
         endDate.setHours(23, 59, 59, 999)
         break
@@ -92,16 +107,20 @@ export default function BusinessReports() {
     ])
 
     // Filter data by date range
+    console.log('🔍 Date range:', { startDate, endDate, exportDateRange })
     const filteredOrders = allOrders.filter(order => {
       if (order.status !== 'completed') return false
       const orderDate = order.createdAt.toDate()
-      return orderDate >= startDate && orderDate <= endDate
+      const inRange = orderDate >= startDate && orderDate <= endDate
+      return inRange
     })
+    console.log('📊 Orders filtered:', { total: allOrders.length, filtered: filteredOrders.length })
 
     const filteredExpenses = allExpenses.filter(expense => {
       const expenseDate = expense.date.toDate()
       return expenseDate >= startDate && expenseDate <= endDate
     })
+    console.log('💸 Expenses filtered:', { total: allExpenses.length, filtered: filteredExpenses.length })
 
     // Calculate metrics
     const revenue = filteredOrders.reduce((sum, order) => sum + order.total, 0)
@@ -121,6 +140,65 @@ export default function BusinessReports() {
       }
     })
 
+    // Generate daily summaries for week/month periods
+    const generateDailySummaries = (): DailySummary[] => {
+      if (exportDateRange === 'today') return []
+
+      const summaries: DailySummary[] = []
+      const { startDate, endDate } = calculateDateRange()
+      
+      // Create array of dates in the range
+      const currentDate = new Date(startDate)
+      while (currentDate <= endDate) {
+        const dateStr = currentDate.toISOString().split('T')[0]
+        const dayStart = new Date(currentDate)
+        dayStart.setHours(0, 0, 0, 0)
+        const dayEnd = new Date(currentDate)  
+        dayEnd.setHours(23, 59, 59, 999)
+        
+        // Filter orders for this specific day
+        const dayOrders = filteredOrders.filter(order => {
+          const orderDate = order.createdAt.toDate()
+          return orderDate >= dayStart && orderDate <= dayEnd
+        })
+        
+        // Filter expenses for this day
+        const dayExpenses = filteredExpenses.filter(expense => {
+          const expenseDate = expense.date.toDate()
+          return expenseDate >= dayStart && expenseDate <= dayEnd
+        })
+        
+        const dayRevenue = dayOrders.reduce((sum, order) => sum + order.total, 0)
+        const dayExpenseAmount = dayExpenses.reduce((sum, expense) => sum + expense.amount, 0)
+        
+        // Calculate day COGS
+        let dayCogs = 0
+        dayOrders.forEach(order => {
+          if (order.items) {
+            order.items.forEach(item => {
+              const menuItem = menuItems.find(mi => mi.id === item.itemId)
+              if (menuItem && menuItem.cost) {
+                dayCogs += menuItem.cost * item.quantity
+              }
+            })
+          }
+        })
+        
+        summaries.push({
+          date: currentDate.toLocaleDateString(),
+          revenue: dayRevenue,
+          orders: dayOrders.length,
+          expenses: dayExpenseAmount,
+          cogs: dayCogs,
+          profit: dayRevenue - dayCogs - dayExpenseAmount
+        })
+        
+        currentDate.setDate(currentDate.getDate() + 1)
+      }
+      
+      return summaries
+    }
+
     const getDateRangeLabel = () => {
       switch (exportDateRange) {
         case 'today': return 'Today'
@@ -139,7 +217,9 @@ export default function BusinessReports() {
       topItems: topItems || [],
       paymentMethods: paymentAnalytics || [],
       inventoryData: inventoryAnalytics,
-      dateRange: getDateRangeLabel()
+      dateRange: getDateRangeLabel(),
+      dailySummaries: generateDailySummaries(),
+      period: exportDateRange
     }
   }
 
@@ -152,6 +232,73 @@ export default function BusinessReports() {
       const netProfit = grossProfit - data.expenses
       const grossMargin = data.revenue > 0 ? (grossProfit / data.revenue) * 100 : 0
       const avgOrderValue = data.orders > 0 ? data.revenue / data.orders : 0
+
+      // Generate daily breakdown section for week/month reports
+      const generateDailyBreakdown = () => {
+        if (!data.dailySummaries || data.dailySummaries.length === 0) return ''
+        
+        return `
+          <div class="section">
+            <h2 class="section-title">📈 Daily Performance Breakdown</h2>
+            <table class="performance-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Revenue</th>
+                  <th>Orders</th>
+                  <th>Expenses</th>
+                  <th>Profit</th>
+                  <th>Avg Order</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data.dailySummaries.map(day => {
+                  const avgOrder = day.orders > 0 ? day.revenue / day.orders : 0
+                  const profitClass = day.profit >= 0 ? 'positive' : 'negative'
+                  return `
+                    <tr>
+                      <td><strong>${day.date}</strong></td>
+                      <td>₱${day.revenue.toLocaleString()}</td>
+                      <td>${day.orders}</td>
+                      <td>₱${day.expenses.toLocaleString()}</td>
+                      <td class="${profitClass}">₱${day.profit.toLocaleString()}</td>
+                      <td>₱${avgOrder.toFixed(2)}</td>
+                    </tr>
+                  `
+                }).join('')}
+              </tbody>
+            </table>
+            
+            <div style="margin-top: 20px; background: #f9fafb; padding: 15px; border-radius: 8px;">
+              <h3 style="margin: 0 0 10px 0; color: #374151;">📊 ${data.period === 'week' ? 'Weekly' : 'Monthly'} Insights</h3>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                  <strong>Best Day:</strong> ${(() => {
+                    const bestDay = data.dailySummaries.reduce((best, current) => 
+                      current.revenue > best.revenue ? current : best
+                    )
+                    return `${bestDay.date} (₱${bestDay.revenue.toLocaleString()})`
+                  })()}
+                </div>
+                <div>
+                  <strong>Avg Daily Revenue:</strong> ₱${(data.revenue / data.dailySummaries.length).toFixed(2)}
+                </div>
+                <div>
+                  <strong>Most Active Day:</strong> ${(() => {
+                    const busiestDay = data.dailySummaries.reduce((best, current) => 
+                      current.orders > best.orders ? current : best
+                    )
+                    return `${busiestDay.date} (${busiestDay.orders} orders)`
+                  })()}
+                </div>
+                <div>
+                  <strong>Avg Daily Orders:</strong> ${(data.orders / data.dailySummaries.length).toFixed(1)}
+                </div>
+              </div>
+            </div>
+          </div>
+        `
+      }
 
       const pdfHTML = `
         <!DOCTYPE html>
@@ -168,8 +315,9 @@ export default function BusinessReports() {
               .performance-table th, .performance-table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
               .performance-table th { background-color: #f8fafc; font-weight: 600; color: #374151; }
               .footer { text-align: center; margin-top: 40px; color: #6b7280; font-size: 0.9em; border-top: 1px solid #e5e7eb; padding-top: 20px; }
-              .positive { color: #059669; }
-              .negative { color: #dc2626; }
+              .positive { color: #059669; font-weight: bold; }
+              .negative { color: #dc2626; font-weight: bold; }
+              .section { margin-bottom: 30px; }
             </style>
           </head>
           <body>
@@ -180,34 +328,43 @@ export default function BusinessReports() {
               <p><strong>Period:</strong> ${data.dateRange}</p>
             </div>
             
-            <h2>📊 Business Overview</h2>
-            <p><strong>Total Orders:</strong> ${data.orders.toLocaleString()}</p>
-            <p><strong>Gross Revenue:</strong> ₱${data.revenue.toLocaleString()}</p>
-            <p><strong>Net Profit:</strong> <span class="${netProfit >= 0 ? 'positive' : 'negative'}">₱${netProfit.toLocaleString()}</span></p>
-            <p><strong>Average Order Value:</strong> ₱${avgOrderValue.toFixed(2)}</p>
+            ${generateDailyBreakdown()}
+            
+            <div class="section">
+              <h2 class="section-title">📊 Business Overview</h2>
+              <p><strong>Total Orders:</strong> ${data.orders.toLocaleString()}</p>
+              <p><strong>Gross Revenue:</strong> ₱${data.revenue.toLocaleString()}</p>
+              <p><strong>Net Profit:</strong> <span class="${netProfit >= 0 ? 'positive' : 'negative'}">₱${netProfit.toLocaleString()}</span></p>
+              <p><strong>Average Order Value:</strong> ₱${avgOrderValue.toFixed(2)}</p>
+              <p><strong>Gross Margin:</strong> ${grossMargin.toFixed(1)}%</p>
+            </div>
             
             ${data.topItems.length > 0 ? `
-            <h2 class="section-title">🏆 Top Performing Products</h2>
-            <table class="performance-table">
-              <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>Product Name</th>
-                  <th>Units Sold</th>
-                  <th>Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${data.topItems.slice(0, 10).map((item, index) => `
+            <div class="section">
+              <h2 class="section-title">🏆 Top Performing Products</h2>
+              <table class="performance-table">
+                <thead>
                   <tr>
-                    <td><strong>#${index + 1}</strong></td>
-                    <td>${item.name}</td>
-                    <td>${item.quantity.toLocaleString()}</td>
-                    <td>₱${item.revenue.toLocaleString()}</td>
+                    <th>Rank</th>
+                    <th>Product Name</th>
+                    <th>Units Sold</th>
+                    <th>Revenue</th>
+                    <th>% of Total</th>
                   </tr>
-                `).join('')}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  ${data.topItems.slice(0, 10).map((item, index) => `
+                    <tr>
+                      <td><strong>#${index + 1}</strong></td>
+                      <td>${item.name}</td>
+                      <td>${item.quantity.toLocaleString()}</td>
+                      <td>₱${item.revenue.toLocaleString()}</td>
+                      <td>${data.revenue > 0 ? ((item.revenue / data.revenue) * 100).toFixed(1) : '0'}%</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
             ` : ''}
             
             <div class="footer">
@@ -237,6 +394,78 @@ export default function BusinessReports() {
       const grossMargin = data.revenue > 0 ? (grossProfit / data.revenue) * 100 : 0
       const netMargin = data.revenue > 0 ? (netProfit / data.revenue) * 100 : 0
 
+      // Generate daily financial breakdown for week/month reports
+      const generateDailyFinancialBreakdown = () => {
+        if (!data.dailySummaries || data.dailySummaries.length === 0) return ''
+        
+        return `
+          <div class="section">
+            <h2 class="section-title">📈 Daily Financial Performance</h2>
+            <table class="performance-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Revenue</th>
+                  <th>COGS</th>
+                  <th>Expenses</th>
+                  <th>Gross Profit</th>
+                  <th>Net Profit</th>
+                  <th>Margin %</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data.dailySummaries.map(day => {
+                  const dailyGrossProfit = day.revenue - day.cogs
+                  const dailyNetProfit = dailyGrossProfit - day.expenses
+                  const dailyMargin = day.revenue > 0 ? (dailyNetProfit / day.revenue) * 100 : 0
+                  const profitClass = dailyNetProfit >= 0 ? 'positive' : 'negative'
+                  return `
+                    <tr>
+                      <td><strong>${day.date}</strong></td>
+                      <td>₱${day.revenue.toLocaleString()}</td>
+                      <td>₱${day.cogs.toLocaleString()}</td>
+                      <td>₱${day.expenses.toLocaleString()}</td>
+                      <td class="${dailyGrossProfit >= 0 ? 'positive' : 'negative'}">₱${dailyGrossProfit.toLocaleString()}</td>
+                      <td class="${profitClass}">₱${dailyNetProfit.toLocaleString()}</td>
+                      <td class="${profitClass}">${dailyMargin.toFixed(1)}%</td>
+                    </tr>
+                  `
+                }).join('')}
+              </tbody>
+            </table>
+            
+            <div style="margin-top: 20px; background: #f0f9ff; padding: 15px; border-radius: 8px; border-left: 4px solid #0284c7;">
+              <h3 style="margin: 0 0 10px 0; color: #0f172a;">💡 Financial Insights</h3>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                  <strong>Most Profitable Day:</strong> ${(() => {
+                    const mostProfitable = data.dailySummaries.reduce((best, current) => 
+                      current.profit > best.profit ? current : best
+                    )
+                    return `${mostProfitable.date} (₱${mostProfitable.profit.toLocaleString()})`
+                  })()}
+                </div>
+                <div>
+                  <strong>Average Daily Margin:</strong> ${(() => {
+                    const avgMargin = data.dailySummaries.reduce((sum, day) => {
+                      const margin = day.revenue > 0 ? (day.profit / day.revenue) * 100 : 0
+                      return sum + margin
+                    }, 0) / data.dailySummaries.length
+                    return `${avgMargin.toFixed(1)}%`
+                  })()}
+                </div>
+                <div>
+                  <strong>Total Gross Profit:</strong> ₱${(data.revenue - data.cogs).toLocaleString()}
+                </div>
+                <div>
+                  <strong>Break-even Revenue:</strong> ₱${(data.cogs + data.expenses).toLocaleString()}
+                </div>
+              </div>
+            </div>
+          </div>
+        `
+      }
+
       const pdfHTML = `
         <!DOCTYPE html>
         <html>
@@ -255,6 +484,11 @@ export default function BusinessReports() {
               .financial-label { font-weight: 600; color: #374151; }
               .financial-value { font-weight: bold; color: #111827; }
               .subtotal { background-color: #f8fafc; padding: 12px; border-radius: 6px; margin: 16px 0; }
+              .section { margin-bottom: 30px; }
+              .section-title { color: #059669; font-size: 1.4em; font-weight: bold; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; }
+              .performance-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+              .performance-table th, .performance-table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+              .performance-table th { background-color: #f8fafc; font-weight: 600; color: #374151; }
             </style>
           </head>
           <body>
@@ -265,32 +499,36 @@ export default function BusinessReports() {
               <p><strong>Period:</strong> ${data.dateRange}</p>
             </div>
             
-            <h2>💰 Profit & Loss Statement</h2>
+            ${generateDailyFinancialBreakdown()}
             
-            <div class="financial-line">
-              <span class="financial-label">Gross Revenue:</span>
-              <span class="financial-value">₱${data.revenue.toLocaleString()}</span>
-            </div>
-            
-            <div class="financial-line">
-              <span class="financial-label">Cost of Goods Sold:</span>
-              <span class="financial-value">₱${data.cogs.toLocaleString()}</span>
-            </div>
-            
-            <div class="subtotal">
+            <div class="section">
+              <h2>💰 Profit & Loss Statement</h2>
+              
               <div class="financial-line">
-                <span class="financial-label">Gross Profit:</span>
-                <span class="financial-value positive">₱${grossProfit.toLocaleString()}</span>
+                <span class="financial-label">Gross Revenue:</span>
+                <span class="financial-value">₱${data.revenue.toLocaleString()}</span>
               </div>
+              
               <div class="financial-line">
-                <span class="financial-label">Gross Margin:</span>
-                <span class="financial-value">${grossMargin.toFixed(1)}%</span>
+                <span class="financial-label">Cost of Goods Sold:</span>
+                <span class="financial-value">₱${data.cogs.toLocaleString()}</span>
               </div>
-            </div>
-            
-            <div class="financial-line">
-              <span class="financial-label">Total Expenses:</span>
-              <span class="financial-value ${data.expenses > 0 ? 'negative' : 'neutral'}">₱${data.expenses.toLocaleString()}</span>
+              
+              <div class="subtotal">
+                <div class="financial-line">
+                  <span class="financial-label">Gross Profit:</span>
+                  <span class="financial-value positive">₱${grossProfit.toLocaleString()}</span>
+                </div>
+                <div class="financial-line">
+                  <span class="financial-label">Gross Margin:</span>
+                  <span class="financial-value">${grossMargin.toFixed(1)}%</span>
+                </div>
+              </div>
+              
+              <div class="financial-line">
+                <span class="financial-label">Total Expenses:</span>
+                <span class="financial-value ${data.expenses > 0 ? 'negative' : 'neutral'}">₱${data.expenses.toLocaleString()}</span>
+              </div>
             </div>
             
             <div class="subtotal">

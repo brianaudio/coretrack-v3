@@ -81,18 +81,31 @@ export default function InventoryDiscrepancy() {
   }, [profile?.tenantId, selectedBranch]);
 
   const loadAuditHistory = async () => {
-    if (!profile?.tenantId) return;
+    if (!profile?.tenantId || !selectedBranch) return;
     
     try {
       setLoading(true);
       const auditsRef = collection(db, `tenants/${profile.tenantId}/audits`);
-      const q = query(auditsRef, orderBy('date', 'desc'));
+      // Filter audits by branch location
+      const locationId = `location_${selectedBranch.id}`;
+      const q = query(
+        auditsRef, 
+        where('locationId', '==', locationId),
+        orderBy('date', 'desc')
+      );
       const snapshot = await getDocs(q);
       
       const audits = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       } as AuditReport));
+      
+      console.log('🔍 Branch-specific audits loaded:', {
+        branchId: selectedBranch.id,
+        branchName: selectedBranch.name,
+        locationId: locationId,
+        auditCount: audits.length
+      });
       
       setAuditHistory(audits);
     } catch (error) {
@@ -240,15 +253,19 @@ export default function InventoryDiscrepancy() {
       const itemsWithIssues = inventoryCounts.filter(item => Math.abs(item.discrepancy) > 0).length;
       const totalCostImpact = inventoryCounts.reduce((sum, item) => sum + item.totalCost, 0);
 
-      // Save to Firebase
+      // Save to Firebase with branch information
       const auditData = {
         date: new Date().toISOString().split('T')[0],
+        branchId: selectedBranch!.id,
+        branchName: selectedBranch!.name,
+        locationId: `location_${selectedBranch!.id}`,
         totalItems: quickCheckItems.length,
         itemsWithIssues,
         totalCostImpact,
         status: itemsWithIssues > 0 ? 'needs-review' : 'completed',
         createdBy: user?.email || 'unknown',
         inventoryCounts,
+        auditType: 'quick-check',
         createdAt: Timestamp.now()
       };
 
@@ -413,9 +430,12 @@ export default function InventoryDiscrepancy() {
       const itemsWithIssues = inventoryCounts.filter(item => Math.abs(item.discrepancy) > 0).length;
       const totalCostImpact = inventoryCounts.reduce((sum, item) => sum + item.totalCost, 0);
 
-      // Save full audit to Firebase
+      // Save full audit to Firebase with branch information
       const auditData = {
         date: new Date().toISOString().split('T')[0],
+        branchId: selectedBranch!.id,
+        branchName: selectedBranch!.name,
+        locationId: `location_${selectedBranch!.id}`,
         totalItems: fullAuditItems.length,
         itemsWithIssues,
         totalCostImpact,

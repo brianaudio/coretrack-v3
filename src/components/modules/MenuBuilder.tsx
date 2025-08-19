@@ -1285,21 +1285,6 @@ export default function MenuBuilder() {
                   {menuItems.filter(item => item.status === 'active').length}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-gray-500">In Stock:</span>
-                <span className="font-semibold text-blue-600">
-                  {menuItems.filter(item => {
-                    const status = getStockStatus(item)
-                    return status === 'in_stock' || status === 'medium_stock'
-                  }).length}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-gray-500">Low Stock:</span>
-                <span className="font-semibold text-orange-600">
-                  {menuItems.filter(item => getStockStatus(item) === 'low_stock').length}
-                </span>
-              </div>
             </div>
           </div>
         )}
@@ -1456,14 +1441,11 @@ export default function MenuBuilder() {
                     
                     {/* Card Header */}
                     <div className="p-4 pb-2">
-                      <div className="flex items-start justify-between mb-2">
-                        <h3 className="font-semibold text-gray-900 text-sm truncate flex-1 flex items-center gap-2">
+                      <div className="mb-2">
+                        <h3 className="font-semibold text-gray-900 text-sm truncate flex items-center gap-2">
                           {item.emoji && <span className="text-lg">{item.emoji}</span>}
                           {item.name}
                         </h3>
-                        <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(item.status)}`}>
-                          {item.status}
-                        </span>
                       </div>
                       <p className="text-xs text-gray-600 line-clamp-2 mb-2">{item.description}</p>
                       <div className="text-xs text-gray-500">{item.category}</div>

@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import CoreTrackLogo from './CoreTrackLogo'
-import PWAInstaller from './PWAInstaller'
-import { trackButtonClick, trackPageView, trackScrollDepth } from '../lib/analytics'
+import PWAInstallButton from './PWAInstallButton';
+import { trackButtonClick, trackPageView, trackScrollDepth } from '../lib/analytics';
 
 interface LandingPageProps {
   onGetStarted: (selectedTier?: string) => void
@@ -13,9 +13,6 @@ interface LandingPageProps {
 export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
   const [isVisible, setIsVisible] = useState(false)
   const [currentFeature, setCurrentFeature] = useState(0)
-  
-  // PWA Install Prompt State
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   
   // Tier Selection Modal State
   const [showTierModal, setShowTierModal] = useState(false)
@@ -92,38 +89,14 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
 
   // PWA Install Prompt Handler
   useEffect(() => {
-    let promptCaught = false;
-    
-    const handleBeforeInstallPrompt = (e: any) => {
-      console.log('PWA install prompt intercepted');
-      // Prevent the mini-infobar from appearing on mobile
-      e.preventDefault();
-      // Stash the event so it can be triggered later
-      setDeferredPrompt(e);
-      // Store on window for access in onClick handlers
-      (window as any).deferredPrompt = e;
-      promptCaught = true;
-      console.log('PWA install prompt saved and ready');
-    }
-
+    // This is now handled by PWAInstallButton.tsx
+    // but we can keep listeners for analytics or other purposes if needed.
     const handleAppInstalled = () => {
       console.log('PWA was installed');
-      setDeferredPrompt(null);
-      (window as any).deferredPrompt = null;
+      // You could trigger an analytics event here
     }
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
-
-    // Fallback: Check if we can install after page load
-    setTimeout(() => {
-      if (!promptCaught && 'serviceWorker' in navigator) {
-        console.log('No install prompt caught, PWA might still be installable');
-      }
-    }, 2000);
-
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
     }
   }, [])
@@ -254,48 +227,7 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
               >
                 Sign in
               </button>
-              <button
-                onClick={() => {
-                  // Try to trigger PWA installation first
-                  if (deferredPrompt) {
-                    deferredPrompt.prompt()
-                    deferredPrompt.userChoice.then((choiceResult: any) => {
-                      if (choiceResult.outcome === 'accepted') {
-                        console.log('User accepted the install prompt')
-                        setDeferredPrompt(null)
-                      } else {
-                        console.log('User dismissed the install prompt')
-                      }
-                    })
-                  } else {
-                    // If no deferred prompt, scroll to instructions and show alert
-                    const pwaSection = document.getElementById('pwa-install-section')
-                    if (pwaSection) {
-                      pwaSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                    }
-                    
-                    // Show platform-specific instructions
-                    const userAgent = navigator.userAgent
-                    let instructions = 'To install CoreTrack:\n\n'
-                    
-                    if (userAgent.includes('iPhone') || userAgent.includes('iPad')) {
-                      instructions += '1. Tap the Share button (⬆️)\n2. Select "Add to Home Screen"\n3. Tap "Add"'
-                    } else if (userAgent.includes('Chrome')) {
-                      instructions += '1. Look for the install button (⬇️) in the address bar\n2. Click "Install"\n3. Confirm installation'
-                    } else {
-                      instructions += '• Chrome/Edge: Look for install button in address bar\n• Safari: Share > Add to Home Screen\n• Firefox: Menu > Install'
-                    }
-                    
-                    setTimeout(() => alert(instructions), 500)
-                  }
-                  
-                  trackButtonClick('Navigation', 'Install App')
-                }}
-                className="flex items-center space-x-2 text-gray-300 hover:text-white text-sm font-medium transition-colors duration-200 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/10 hover:border-white/20"
-              >
-                <span className="text-lg">📱</span>
-                <span>Install App</span>
-              </button>
+              <PWAInstallButton />
               <button
                 onClick={() => handleGetStarted('Navigation')}
                 className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-6 py-2.5 rounded-full text-sm font-medium transition-all duration-200 shadow-lg hover:shadow-xl"
@@ -557,7 +489,7 @@ export default function LandingPage({ onGetStarted, onSignIn }: LandingPageProps
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                <PWAInstaller />
+                <PWAInstallButton />
                 
                 <div className="flex items-center space-x-2 text-gray-400">
                   <span className="w-2 h-2 bg-green-400 rounded-full"></span>

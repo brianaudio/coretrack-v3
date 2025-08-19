@@ -2,7 +2,7 @@ const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
   skipWaiting: true,
-  disable: process.env.NODE_ENV === 'development', // Disable in development
+  disable: false,
   runtimeCaching: [
     {
       urlPattern: /^https?.*/,
@@ -15,7 +15,7 @@ const withPWA = require('next-pwa')({
       },
     },
   ],
-  buildExcludes: [/app-build-manifest\.json$/], // Exclude problematic files
+  buildExcludes: [/app-build-manifest\.json$/],
 });
 
 /** @type {import('next').NextConfig} */

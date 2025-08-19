@@ -8,6 +8,7 @@ import { useHelp } from '../lib/context/HelpContext'
 import { handleLogoutWithShiftEnd } from '../lib/utils/logoutUtils'
 import BranchSelector from './BranchSelector'
 import NotificationCenter from './NotificationCenter'
+import PWAInstallButton from './ui/PWAInstallButton'
 
 interface HeaderProps {
   activeModule: ModuleType
@@ -188,6 +189,11 @@ export default function Header({ activeModule, onSidebarToggle, onLogout }: Head
             {/* Notification Center - Cleaner */}
             <div className="flex items-center">
               <NotificationCenter />
+            </div>
+
+            {/* PWA Install Button */}
+            <div className="flex items-center">
+              <PWAInstallButton />
             </div>
 
             {/* Modern User Profile Section */}

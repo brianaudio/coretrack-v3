@@ -7,6 +7,7 @@ import { useAuth } from '../../lib/context/AuthContext'
 import { collection, query, where, getDocs, orderBy, limit, Timestamp } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { getBranchLocationId } from '../../lib/utils/branchUtils'
+import { subscribeToPOSOrders, POSOrder } from '../../lib/firebase/pos'
 
 // Import development utilities
 if (process.env.NODE_ENV === 'development') {
@@ -40,15 +41,17 @@ export default function PaymentMethodsAnalytics() {
   
   const [paymentData, setPaymentData] = useState<PaymentBreakdown | null>(null)
   const [loading, setLoading] = useState(true)
-  const [timeFilter, setTimeFilter] = useState<'today' | 'week' | 'month'>('today') // Removed 'shift' option and changed default to 'today'
+  const [timeFilter, setTimeFilter] = useState<'shift' | 'today' | 'week' | 'month'>('today') // Keep 'shift' option but default to 'today' for broader compatibility
   const [lastShiftId, setLastShiftId] = useState<string | null>(null)
   const [isResetting, setIsResetting] = useState(false)
+  const [realPOSOrders, setRealPOSOrders] = useState<POSOrder[]>([])
 
   // Clear analytics data when shift resets
   const clearAnalyticsData = useCallback(() => {
     setPaymentData(null)
     setLoading(true)
     setIsResetting(true)
+    setRealPOSOrders([])
   }, [])
 
   // Detect shift changes/resets
@@ -66,18 +69,11 @@ export default function PaymentMethodsAnalytics() {
   useEffect(() => {
     const handleShiftReset = (event: CustomEvent) => {
       clearAnalyticsData()
-      // Delay refetch to allow reset to complete
-      setTimeout(() => {
-        if (selectedBranch && profile?.uid) {
-          fetchPaymentData()
-        }
-        setIsResetting(false)
-      }, 2000) // Longer delay to ensure reset is complete
+      setIsResetting(false)
     }
 
     // 🔥 NUCLEAR FIREBASE RESET - Listen for forced reset events
     const handleForceReset = (event: any) => {
-      console.log('💥 PAYMENT ANALYTICS NUCLEAR RESET TRIGGERED:', event.detail);
       setPaymentData(null);
       setLoading(true);
       setIsResetting(false);
@@ -126,103 +122,30 @@ export default function PaymentMethodsAnalytics() {
     }
   }
 
-    const fetchPaymentData = async () => {
-    if (!selectedBranch || !profile?.uid) {
-      setPaymentData(null)
-      setLoading(false)
-      return
+  // Process orders into payment method breakdown
+  const processPaymentData = (orders: POSOrder[]): PaymentBreakdown => {
+    const totals = {
+      cash: { amount: 0, count: 0 },
+      maya: { amount: 0, count: 0 },
+      gcash: { amount: 0, count: 0 },
+      card: { amount: 0, count: 0 }
     }
 
-    try {
-      setLoading(true)
-      const effectiveTenantId = (profile as any).tenantId || profile.uid // Use same pattern as EnhancedAnalytics
-      
-      // Calculate start date based on filter
-      const now = new Date()
-      const startDate = new Date()
-      
-      switch (timeFilter) {
-        case 'today':
-          startDate.setHours(0, 0, 0, 0)
-          break
-        case 'week':
-          startDate.setDate(startDate.getDate() - 7)
-          break
-        case 'month':
-          startDate.setDate(startDate.getDate() - 30)
-          break
-      }
+    let totalAmount = 0
+    let totalTransactions = orders.length
 
-      // Query POS orders from the correct tenant posOrders collection (consistent with MainDashboard and pos.ts)
-      // Using minimal query to avoid any Firebase index requirement, then filter everything client-side
-      const locationId = getBranchLocationId(selectedBranch.id)
-      const ordersRef = collection(db, `tenants/${effectiveTenantId}/posOrders`)
-      
-      const ordersQuery = query(
-        ordersRef,
-        orderBy('createdAt', 'desc'),
-        limit(1000)
-      )
+    // Process each order
+    orders.forEach((order: any) => {
+      const orderTotal = order.total || 0
+      totalAmount += orderTotal
 
-      const ordersSnapshot = await getDocs(ordersQuery)
-      const allOrders = ordersSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }))
+      // Process payment methods - prioritize paymentMethods array for detailed breakdown
+      if (order.paymentMethods && Array.isArray(order.paymentMethods) && order.paymentMethods.length > 0) {
+        // Handle multiple payment methods (detailed breakdown)
+        order.paymentMethods.forEach((payment: any) => {
+          const method = payment.method?.toLowerCase()
+          const amount = payment.amount || 0
 
-      // Filter client-side for status, location and date to avoid any index requirements
-      const orders = allOrders.filter((order: any) => {
-        const matchesStatus = order.status === 'completed'
-        const matchesLocation = !locationId || order.locationId === locationId
-        const orderDate = order.createdAt?.toDate ? order.createdAt.toDate() : new Date(order.createdAt)
-        const matchesDate = orderDate >= startDate
-        return matchesStatus && matchesLocation && matchesDate
-      })
-
-      // Initialize payment totals
-      const totals = {
-        cash: { amount: 0, count: 0 },
-        maya: { amount: 0, count: 0 },
-        gcash: { amount: 0, count: 0 },
-        card: { amount: 0, count: 0 }
-      }
-
-      let totalAmount = 0
-      let totalTransactions = orders.length
-
-      // Process each order
-      orders.forEach((order: any) => {
-        const orderTotal = order.total || 0
-        totalAmount += orderTotal
-
-        // Process payment methods - prioritize paymentMethods array for detailed breakdown
-        if (order.paymentMethods && Array.isArray(order.paymentMethods) && order.paymentMethods.length > 0) {
-          // Handle multiple payment methods (detailed breakdown)
-          order.paymentMethods.forEach((payment: any) => {
-            const method = payment.method?.toLowerCase()
-            const amount = payment.amount || 0
-
-            // Map payment method names to our categories
-            let mappedMethod = method
-            if (method === 'paymaya' || method === 'maya') {
-              mappedMethod = 'maya'
-            } else if (method === 'cash') {
-              mappedMethod = 'cash'
-            } else if (method === 'gcash') {
-              mappedMethod = 'gcash'
-            } else if (method === 'card' || method === 'credit_card' || method === 'debit_card') {
-              mappedMethod = 'card'
-            }
-
-            if (totals[mappedMethod as keyof typeof totals]) {
-              totals[mappedMethod as keyof typeof totals].amount += amount
-              totals[mappedMethod as keyof typeof totals].count += 1
-            }
-          })
-        } else if (order.paymentMethod) {
-          // Handle single payment method (fallback for legacy data)
-          const method = order.paymentMethod.toLowerCase()
-          
           // Map payment method names to our categories
           let mappedMethod = method
           if (method === 'paymaya' || method === 'maya') {
@@ -236,64 +159,214 @@ export default function PaymentMethodsAnalytics() {
           }
 
           if (totals[mappedMethod as keyof typeof totals]) {
-            totals[mappedMethod as keyof typeof totals].amount += orderTotal
+            totals[mappedMethod as keyof typeof totals].amount += amount
             totals[mappedMethod as keyof typeof totals].count += 1
           }
-        } else {
-          // If no payment method specified, assume cash (fallback)
-          totals.cash.amount += orderTotal
-          totals.cash.count += 1
+        })
+      } else if (order.paymentMethod) {
+        // Handle single payment method (fallback for legacy data)
+        const method = order.paymentMethod.toLowerCase()
+        
+        // Map payment method names to our categories
+        let mappedMethod = method
+        if (method === 'paymaya' || method === 'maya') {
+          mappedMethod = 'maya'
+        } else if (method === 'cash') {
+          mappedMethod = 'cash'
+        } else if (method === 'gcash') {
+          mappedMethod = 'gcash'
+        } else if (method === 'card' || method === 'credit_card' || method === 'debit_card') {
+          mappedMethod = 'card'
         }
-      })
 
-      // Build final data structure
-      const breakdown: PaymentBreakdown = {
-        cash: {
-          ...paymentMethods.cash,
-          amount: totals.cash.amount,
-          count: totals.cash.count,
-          percentage: totalAmount > 0 ? (totals.cash.amount / totalAmount) * 100 : 0
-        },
-        maya: {
-          ...paymentMethods.maya,
-          amount: totals.maya.amount,
-          count: totals.maya.count,
-          percentage: totalAmount > 0 ? (totals.maya.amount / totalAmount) * 100 : 0
-        },
-        gcash: {
-          ...paymentMethods.gcash,
-          amount: totals.gcash.amount,
-          count: totals.gcash.count,
-          percentage: totalAmount > 0 ? (totals.gcash.amount / totalAmount) * 100 : 0
-        },
-        card: {
-          ...paymentMethods.card,
-          amount: totals.card.amount,
-          count: totals.card.count,
-          percentage: totalAmount > 0 ? (totals.card.amount / totalAmount) * 100 : 0
-        },
-        total: totalAmount,
-        totalTransactions
+        if (totals[mappedMethod as keyof typeof totals]) {
+          totals[mappedMethod as keyof typeof totals].amount += orderTotal
+          totals[mappedMethod as keyof typeof totals].count += 1
+        }
+      } else {
+        // If no payment method specified, assume cash (fallback)
+        totals.cash.amount += orderTotal
+        totals.cash.count += 1
       }
+    })
 
-      setPaymentData(breakdown)
-      setIsResetting(false) // Clear reset state when data is loaded
-    } catch (error) {
-      console.error('Failed to fetch payment data:', error)
-      setIsResetting(false) // Clear reset state even on error
-    } finally {
-      setLoading(false)
+    // Build final data structure
+    const breakdown: PaymentBreakdown = {
+      cash: {
+        ...paymentMethods.cash,
+        amount: totals.cash.amount,
+        count: totals.cash.count,
+        percentage: totalAmount > 0 ? (totals.cash.amount / totalAmount) * 100 : 0
+      },
+      maya: {
+        ...paymentMethods.maya,
+        amount: totals.maya.amount,
+        count: totals.maya.count,
+        percentage: totalAmount > 0 ? (totals.maya.amount / totalAmount) * 100 : 0
+      },
+      gcash: {
+        ...paymentMethods.gcash,
+        amount: totals.gcash.amount,
+        count: totals.gcash.count,
+        percentage: totalAmount > 0 ? (totals.gcash.amount / totalAmount) * 100 : 0
+      },
+      card: {
+        ...paymentMethods.card,
+        amount: totals.card.amount,
+        count: totals.card.count,
+        percentage: totalAmount > 0 ? (totals.card.amount / totalAmount) * 100 : 0
+      },
+      total: totalAmount,
+      totalTransactions
     }
+
+    return breakdown
   }
 
   useEffect(() => {
-    if (selectedBranch && profile?.uid) {
-      console.log('[PaymentAnalytics] Fetching payment data - Branch:', selectedBranch.id, 'Filter:', timeFilter)
-      fetchPaymentData()
-    } else {
+    console.log('[PaymentAnalytics] useEffect triggered with:', {
+      selectedBranch: selectedBranch?.id,
+      profileUid: profile?.uid,
+      timeFilter,
+      currentShiftId: currentShift?.id
+    })
+    
+    if (!selectedBranch || !profile?.uid) {
       console.log('[PaymentAnalytics] Missing requirements - Branch:', selectedBranch?.id, 'Profile:', profile?.uid)
+      setPaymentData(null)
+      setLoading(false)
+      return
     }
-  }, [selectedBranch, timeFilter, profile?.uid]) // Removed currentShift dependency for analytics
+
+    setLoading(true)
+
+    // � ALWAYS use real-time subscription when we have an active shift (like MainDashboard)
+    if (currentShift?.id) {
+      const effectiveTenantId = (profile as any).tenantId || profile.uid
+      
+      console.log('[PaymentAnalytics] 🔍 Setting up real-time subscription for shift:', currentShift.id)
+      console.log('[PaymentAnalytics] Tenant ID:', effectiveTenantId)
+      console.log('[PaymentAnalytics] Time filter:', timeFilter)
+      
+      const unsubscribe = subscribeToPOSOrders(
+        effectiveTenantId,
+        (orders: POSOrder[]) => {
+          console.log('[PaymentAnalytics] 📋 Received POS orders:', orders.length, orders)
+          
+          // Filter orders by current shift only
+          const currentShiftOrders = orders.filter(order => {
+            const orderTime = order.createdAt?.toDate()
+            const shiftStartTime = currentShift.startTime?.toDate()
+            return orderTime && shiftStartTime && orderTime >= shiftStartTime
+          })
+          
+          console.log(`[PaymentAnalytics] 🎯 SHIFT FILTERED: ${currentShiftOrders.length} orders from current shift (out of ${orders.length} total)`)
+          console.log('[PaymentAnalytics] Current shift orders:', currentShiftOrders.map(o => ({
+            id: o.id,
+            total: o.total,
+            paymentMethod: o.paymentMethod,
+            createdAt: o.createdAt?.toDate()
+          })))
+          
+          // Apply time-based filtering based on timeFilter
+          let filteredOrders = currentShiftOrders;
+          
+          if (timeFilter === 'week') {
+            const oneWeekAgo = new Date()
+            oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+            filteredOrders = currentShiftOrders.filter(order => {
+              const orderTime = order.createdAt?.toDate()
+              return orderTime && orderTime >= oneWeekAgo
+            })
+          } else if (timeFilter === 'month') {
+            const oneMonthAgo = new Date()
+            oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
+            filteredOrders = currentShiftOrders.filter(order => {
+              const orderTime = order.createdAt?.toDate()
+              return orderTime && orderTime >= oneMonthAgo
+            })
+          }
+          // For 'shift' timeFilter, use all currentShiftOrders (no additional filtering)
+          
+          console.log(`[PaymentAnalytics] 📅 TIME FILTERED (${timeFilter}): ${filteredOrders.length} orders`)
+          
+          // Process payment breakdown from filtered orders
+          const paymentBreakdown = processPaymentData(filteredOrders)
+          console.log('[PaymentAnalytics] 💰 Payment breakdown:', paymentBreakdown)
+          setPaymentData(paymentBreakdown)
+          setLoading(false)
+        }
+      )
+
+      return () => {
+        console.log('[PaymentAnalytics] 🧹 Cleaning up real-time subscription')
+        unsubscribe?.()
+      }
+    }
+
+    // 🔥 CRITICAL: Block Firebase subscription when no active shift 
+    if (!currentShift?.id) {
+      console.log('[PaymentAnalytics] 🚫 NO ACTIVE SHIFT - Blocking Firebase subscription to prevent payment data leak!')
+      setPaymentData(null)
+      setLoading(false)
+      return
+    }
+  }, [selectedBranch, currentShift?.id, timeFilter, profile?.uid])
+
+  const fetchPaymentDataAsync = async () => {
+    if (!selectedBranch || !profile?.uid) {
+      setLoading(false)
+      return
+    }
+
+    try {
+      const effectiveTenantId = (profile as any).tenantId || profile.uid
+      
+      // Calculate start date based on filter
+      const now = new Date()
+      const startDate = new Date()
+      
+      switch (timeFilter) {
+        case 'today':
+          startDate.setHours(0, 0, 0, 0)
+          break
+        case 'week':
+          startDate.setDate(now.getDate() - 7)
+          startDate.setHours(0, 0, 0, 0)
+          break
+        case 'month':
+          startDate.setMonth(now.getMonth() - 1)
+          startDate.setHours(0, 0, 0, 0)
+          break
+      }
+
+      const startTimestamp = Timestamp.fromDate(startDate)
+      const locationId = getBranchLocationId(selectedBranch.id)
+      
+      // FIXED: Use posOrders collection like MainDashboard
+      const ordersCollection = collection(db, `tenants/${effectiveTenantId}/posOrders`)
+      const ordersQuery = query(
+        ordersCollection,
+        where('locationId', '==', locationId),
+        where('createdAt', '>=', startTimestamp)
+      )
+      
+      const querySnapshot = await getDocs(ordersQuery)
+      const orders = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as POSOrder[]
+
+      // Process orders to get payment method breakdown
+      const paymentBreakdown = processPaymentData(orders)
+      setPaymentData(paymentBreakdown)
+      setLoading(false)
+    } catch (error) {
+      console.error('Error fetching payment data:', error)
+      setPaymentData(null)
+      setLoading(false)
+    }
+  }
 
   const formatCurrency = (amount: number) => {
     return `₱${amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`

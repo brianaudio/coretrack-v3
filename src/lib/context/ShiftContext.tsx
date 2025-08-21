@@ -6,6 +6,7 @@ import { useBranch } from './BranchContext'
 import { getBranchLocationId } from '../utils/branchUtils'
 import { generateUniqueReactKey } from '../utils/reactKeyUtils'
 import { generateDailyResetKey } from '../utils/shiftKeyDebugger'
+import { ShiftResetService } from '../services/ShiftResetService'
 import { Timestamp } from 'firebase/firestore'
 import {
   createShift,
@@ -214,6 +215,10 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       await resetDailyData()
       console.log('✅ Data reset completed for next shift')
       
+      // Set current shift to null so user can manually start new shift
+      setCurrentShift(null)
+      console.log('✅ Shift ended - ready for manual shift start')
+      
     } catch (err) {
       console.error('Error ending shift:', err)
       setError('Failed to end shift')
@@ -262,8 +267,7 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
 
       const locationId = getBranchLocationId(selectedBranch.id)
       
-      // Import and use the ShiftResetService for proper reset
-      const { ShiftResetService } = await import('../services/ShiftResetService')
+      // Use the ShiftResetService for proper reset
       const resetService = new ShiftResetService(profile.tenantId, selectedBranch.id)
       
       // Create a daily reset with unique timestamp and random component

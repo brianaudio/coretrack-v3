@@ -4,6 +4,7 @@ import {
   collection, 
   doc, 
   getDocs, 
+  getDoc,
   writeBatch, 
   query, 
   where, 
@@ -104,8 +105,8 @@ export class ShiftResetService {
       // Step 2: Archive operational data
       await this.archiveOperationalData(summary.archiveId)
       
-      // Step 3: Reset operational collections
-      await this.resetOperationalCollections()
+      // Step 3: Reset operational collections (pass archiveId for verification)
+      await this.resetOperationalCollections(summary.archiveId)
       
       // Step 4: Update inventory levels
       if (options.preserveInventoryLevels !== false) {
@@ -318,55 +319,166 @@ export class ShiftResetService {
 
   /**
    * Archive operational data to dated collections
+   * CRITICAL FIX: Enhanced archival with verification and error handling
    */
   private async archiveOperationalData(archiveId: string): Promise<void> {
+    console.log(`📦 CRITICAL ARCHIVAL: Starting archive process for ${archiveId}`)
+    
     const batch = writeBatch(db)
     const collectionsToArchive = ['posOrders', 'expenses', 'inventory_transactions']
+    let totalDocumentsArchived = 0
     
     for (const collectionName of collectionsToArchive) {
       const sourceRef = collection(db, `tenants/${this.tenantId}/${collectionName}`)
       const sourceQuery = query(sourceRef, where('locationId', '==', this.locationId))
       const sourceSnapshot = await getDocs(sourceQuery)
       
-      // Archive each document
+      console.log(`📋 ARCHIVING: ${sourceSnapshot.size} documents from ${collectionName}`)
+      
+      if (sourceSnapshot.size === 0) {
+        console.log(`⚠️ WARNING: No documents found in ${collectionName} for location ${this.locationId}`)
+        continue
+      }
+      
+      // Archive each document with enhanced metadata
       sourceSnapshot.docs.forEach((docSnapshot) => {
         const archiveRef = doc(db, `tenants/${this.tenantId}/shift_archives/${archiveId}/${collectionName}`, docSnapshot.id)
         batch.set(archiveRef, {
           ...docSnapshot.data(),
           archivedAt: Timestamp.now(),
-          originalCollection: collectionName
+          originalCollection: collectionName,
+          archiveId: archiveId,
+          locationId: this.locationId, // Ensure location is preserved
+          archivalVersion: '2.0' // Version tracking for future compatibility
         })
+        totalDocumentsArchived++
       })
     }
     
+    if (totalDocumentsArchived === 0) {
+      console.log('⚠️ WARNING: No documents were archived - this might indicate no data to archive or a query issue')
+      // Don't throw error here as this might be legitimate (empty shift)
+    }
+    
+    // Create archive metadata document  
+    const archiveMetadataRef = doc(db, `tenants/${this.tenantId}/shift_archives`, archiveId)
+    batch.set(archiveMetadataRef, {
+      archiveId,
+      locationId: this.locationId,
+      archivedAt: Timestamp.now(),
+      totalDocuments: totalDocumentsArchived,
+      collections: collectionsToArchive,
+      archivalVersion: '2.0',
+      status: 'completed'
+    })
+    
     await batch.commit()
-    console.log(`📦 Archived ${collectionsToArchive.length} collections to ${archiveId}`)
+    console.log(`✅ ARCHIVAL COMPLETE: ${totalDocumentsArchived} documents archived to ${archiveId}`)
+    
+    // WAIT: Give Firestore a moment to propagate the metadata document
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    // VERIFICATION: Immediately verify the archive was created
+    const verificationResult = await this.verifyArchiveExists(archiveId)
+    if (!verificationResult) {
+      throw new Error(`🚨 CRITICAL: Archive creation failed verification for ${archiveId}!`)
+    }
+    
+    console.log(`✅ ARCHIVE VERIFICATION PASSED: ${archiveId}`)
+  }
+
+  /**
+   * CRITICAL FIX: Verify archive exists before any deletion
+   */
+  private async verifyArchiveExists(archiveId: string): Promise<boolean> {
+    try {
+      console.log(`🔍 VERIFICATION: Checking if archive ${archiveId} exists...`)
+      
+      // First check if the archive metadata document exists
+      const archiveDocRef = doc(db, `tenants/${this.tenantId}/shift_archives/${archiveId}`)
+      const archiveDocSnap = await getDoc(archiveDocRef)
+      
+      if (!archiveDocSnap.exists()) {
+        console.error(`❌ Archive metadata document does not exist for ${archiveId}`)
+        return false
+      }
+      
+      console.log(`✓ Archive metadata document exists for ${archiveId}`)
+      
+      // If the metadata document exists, the archive is valid
+      // Even if no operational data was archived (e.g., empty shift)
+      const archiveData = archiveDocSnap.data()
+      console.log(`📊 Archive metadata:`, {
+        totalDocuments: archiveData?.totalDocuments || 0,
+        createdAt: archiveData?.createdAt?.toDate?.(),
+        status: archiveData?.status
+      })
+      
+      // Archive is valid if metadata exists, regardless of data count
+      console.log(`✅ VERIFICATION PASSED: Archive metadata confirms creation`)
+      return true
+    } catch (error) {
+      console.error('❌ VERIFICATION FAILED:', error)
+      return false
+    }
   }
 
   /**
    * Reset operational collections (clear current data)
+   * CRITICAL FIX: Added archive verification before deletion
    */
-  private async resetOperationalCollections(): Promise<void> {
+  private async resetOperationalCollections(archiveId: string): Promise<void> {
+    console.log(`🚨 CRITICAL SAFETY CHECK: Verifying archive ${archiveId} exists before deletion...`)
+    
+    // DIRECT VERIFICATION: Check the specific archive that was just created
+    const archiveExists = await this.verifyArchiveExists(archiveId)
+    
+    if (!archiveExists) {
+      console.log('⚠️ Archive verification failed - checking if there is any data to delete...')
+      
+      // Check if there's actually any data to delete
+      const collectionsToCheck = ['posOrders', 'expenses', 'inventory_transactions']
+      let totalDataToDelete = 0
+      
+      for (const collectionName of collectionsToCheck) {
+        const collectionRef = collection(db, `tenants/${this.tenantId}/${collectionName}`)
+        const locationQuery = query(collectionRef, where('locationId', '==', this.locationId))
+        const snapshot = await getDocs(locationQuery)
+        totalDataToDelete += snapshot.size
+        console.log(`   ${collectionName}: ${snapshot.size} documents to delete`)
+      }
+      
+      if (totalDataToDelete === 0) {
+        console.log('✅ SAFE: No data to delete, proceeding with empty reset')
+        return // Nothing to delete, safe to proceed
+      } else {
+        throw new Error(`🚨 CRITICAL ERROR: Archive ${archiveId} verification failed but found ${totalDataToDelete} documents to delete! Data deletion ABORTED to prevent loss.`)
+      }
+    }
+    
+    console.log(`✅ SAFETY CHECK PASSED: Archive ${archiveId} verified, proceeding with deletion...`)
+    
     const batch = writeBatch(db)
-    const collectionsToReset = ['orders', 'expenses', 'inventory_transactions'] // Fixed: 'orders' not 'posOrders'
+    // FIXED: Use correct collection names that match what we archive
+    const collectionsToReset = ['posOrders', 'expenses', 'inventory_transactions'] 
     
     for (const collectionName of collectionsToReset) {
       const collectionRef = collection(db, `tenants/${this.tenantId}/${collectionName}`)
       
-      // 🔥 NUCLEAR DELETE: Get ALL documents, not just by locationId
-      // This fixes the issue where orders without locationId weren't being deleted
-      const snapshot = await getDocs(collectionRef)
+      // Only delete documents for this specific location to maintain branch isolation
+      const locationQuery = query(collectionRef, where('locationId', '==', this.locationId))
+      const snapshot = await getDocs(locationQuery)
       
-      console.log(`🗑️ DELETING ${snapshot.size} documents from ${collectionName} collection`)
+      console.log(`🗑️ SAFE DELETE: ${snapshot.size} documents from ${collectionName} collection (location: ${this.locationId})`)
       
-      // Delete all documents in this collection for this tenant
+      // Delete documents only for this location
       snapshot.docs.forEach((docSnapshot) => {
         batch.delete(docSnapshot.ref)
       })
     }
     
     await batch.commit()
-    console.log(`✅ NUCLEAR RESET: Completely cleared ${collectionsToReset.length} operational collections`)
+    console.log(`✅ SAFE RESET COMPLETE: Cleared ${collectionsToReset.length} operational collections with archive verification`)
   }
 
   /**

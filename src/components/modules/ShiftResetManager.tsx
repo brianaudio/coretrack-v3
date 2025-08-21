@@ -6,6 +6,7 @@ import { useAuth } from '../../lib/context/AuthContext'
 import { useBranch } from '../../lib/context/BranchContext'
 import { useShiftReset } from '../../lib/hooks/useShiftReset'
 import { useShift } from '../../lib/context/ShiftContext'
+import { ShiftResetService } from '../../lib/services/ShiftResetService'
 import type { ShiftResetSummary } from '../../lib/services/ShiftResetService'
 import { generateUniqueReactKey } from '../../lib/utils/reactKeyUtils'
 
@@ -71,8 +72,7 @@ export default function ShiftResetManager({ onResetComplete, className = '' }: S
         throw new Error('Missing tenant or branch information')
       }
       
-      // Import and use the actual ShiftResetService
-      const { ShiftResetService } = await import('../../lib/services/ShiftResetService')
+      // Use the ShiftResetService
       const resetService = new ShiftResetService(profile.tenantId, selectedBranch.id)
       
       // Create a manual shift reset with default values

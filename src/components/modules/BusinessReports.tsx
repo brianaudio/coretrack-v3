@@ -332,12 +332,68 @@ export default function BusinessReports() {
         return filteredOrders as POSOrder[];
       })(),
       getPOSItems(profile.tenantId, locationId),
-      getExpenses(profile.tenantId, locationId),
+      // 🔥 COMPREHENSIVE EXPENSES FETCH (operational + archived like orders)
+      (async () => {
+        const allExpenses: any[] = [];
+        
+        // 1. Get operational expenses (current active expenses)
+        try {
+          const operationalExpenses = await getExpenses(profile.tenantId, locationId);
+          allExpenses.push(...operationalExpenses);
+          console.log(`💰 Operational expenses: ${operationalExpenses.length}`);
+        } catch (error) {
+          console.log('❌ Error fetching operational expenses:', error);
+        }
+        
+        // 2. Get archived expenses (from completed shifts)
+        try {
+          const archivesRef = collection(db, `tenants/${profile.tenantId}/shift_archives`)
+          const archivesSnapshot = await getDocs(archivesRef)
+          
+          console.log(`📁 Checking ${archivesSnapshot.docs.length} shift archives for expenses...`);
+          
+          // Check each shift archive for expenses
+          for (const archiveDoc of archivesSnapshot.docs) {
+            const archiveId = archiveDoc.id;
+            const archiveData = archiveDoc.data();
+            
+            try {
+              const archivedExpensesRef = collection(db, `tenants/${profile.tenantId}/shift_archives/${archiveId}/expenses`)
+              const archivedSnapshot = await getDocs(archivedExpensesRef)
+              const archivedExpenses = archivedSnapshot.docs.map(doc => ({
+                id: doc.id,
+                source: `archive:${archiveId}`,
+                archiveDate: archiveData.createdAt?.toDate?.(),
+                ...doc.data()
+              }));
+              
+              if (archivedExpenses.length > 0) {
+                allExpenses.push(...archivedExpenses);
+                console.log(`💸 Archive ${archiveId}: ${archivedExpenses.length} expenses`);
+              }
+            } catch (error) {
+              console.log(`❌ Error fetching expenses from archive ${archiveId}:`, error);
+            }
+          }
+        } catch (error) {
+          console.log('❌ Error fetching archived expenses:', error);
+        }
+        
+        console.log(`💰 TOTAL EXPENSES FOUND: ${allExpenses.length} (operational + archived)`);
+        console.log('💸 Expenses fetch completed successfully');
+        return allExpenses;
+      })(),
       getSalesChartData(profile.tenantId, days, locationId),
       getTopSellingItems(profile.tenantId, days, 10, locationId),
       getPaymentAnalytics(profile.tenantId, locationId, startDate, endDate),
       getInventoryAnalytics(profile.tenantId, days, locationId)
     ])
+
+    // 🔍 DEBUG: Check what we got from Promise.all
+    console.log('🎯 Promise.all results:');
+    console.log('📦 Orders length:', allOrders.length);
+    console.log('💸 Expenses length:', allExpenses.length);
+    console.log('💸 Expenses sample:', allExpenses.slice(0, 3));
 
     // Filter data by date range
     console.log('🔍 Date range:', { 

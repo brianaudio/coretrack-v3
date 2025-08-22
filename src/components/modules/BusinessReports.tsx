@@ -90,146 +90,20 @@ export default function BusinessReports() {
   }
 
   const fetchExportData = async (): Promise<ExportData> => {
+    console.log('🔍 Starting fetchExportData...')
+    
     if (!profile?.tenantId || !selectedBranch) {
+      console.error('❌ Missing tenant or branch:', { tenantId: profile?.tenantId, branch: selectedBranch?.name })
       throw new Error('Missing tenant or branch information')
     }
 
     const { startDate, endDate } = calculateDateRange()
+    console.log('📅 Date range:', { startDate, endDate, range: exportDateRange })
+    
     const locationId = getBranchLocationId(selectedBranch.id)
     const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
 
-    // 🔍 DEBUG: Test both collection paths to see which has data
-    console.log('🔍 TESTING MULTIPLE COLLECTION PATHS:')
-    console.log('🔍 TENANT DEBUG:', {
-      tenantId: profile.tenantId,
-      uid: profile.uid,
-      email: profile.email,
-      selectedBranchId: selectedBranch.id,
-      selectedBranchName: selectedBranch.name,
-      locationId: locationId,
-      today: new Date().toLocaleDateString(),
-      todayISO: new Date().toISOString()
-    })
-    
-    // Test the current path: tenants/${tenantId}/orders
-    try {
-      const ordersRef1 = collection(db, `tenants/${profile.tenantId}/orders`)
-      const snapshot1 = await getDocs(ordersRef1)
-      console.log('📊 Collection "orders":', snapshot1.docs.length, 'documents')
-    } catch (e) {
-      console.log('❌ Error accessing "orders" collection:', e)
-    }
-
-    // Test alternative collection paths that might contain recent orders
-    const collectionPaths = [
-      `tenants/${profile.tenantId}/posOrders`,
-      `tenants/${profile.tenantId}/transactions`, 
-      `tenants/${profile.tenantId}/sales`,
-      `tenants/${profile.tenantId}/completedOrders`,
-      `tenants/${profile.tenantId}/orders_completed`,
-      `tenants/${profile.tenantId}/pos_transactions`,
-      `tenants/${profile.tenantId}/daily_orders`,
-      `locations/${selectedBranch.id}/orders`,
-      `locations/${selectedBranch.id}/posOrders`,
-      `locations/${selectedBranch.id}/transactions`,
-      `branches/${selectedBranch.id}/orders`,
-      `branches/${selectedBranch.id}/posOrders`,
-      `branches/${selectedBranch.id}/transactions`,
-      // Check with the actual locationId from existing orders
-      `locations/main-location-gJPRV0nFGiULXAW9nciyGad686z2/orders`,
-      `locations/main-location-gJPRV0nFGiULXAW9nciyGad686z2/posOrders`,
-      `locations/main-location-gJPRV0nFGiULXAW9nciyGad686z2/transactions`,
-      // Check root level collections
-      `orders`,
-      `posOrders`,
-      `transactions`,
-      `sales`,
-      // Check if there's a different tenant structure
-      `users/${profile.uid}/orders`,
-      `users/${profile.uid}/posOrders`,
-      `users/${profile.uid}/transactions`
-    ]
-
-    for (const path of collectionPaths) {
-      try {
-        const ref = collection(db, path)
-        const snapshot = await getDocs(ref)
-        console.log(`📊 Collection "${path}":`, snapshot.docs.length, 'documents')
-        
-        if (snapshot.docs.length > 0) {
-          const sampleDoc = snapshot.docs[0].data() as any
-          console.log(`📄 Sample doc from "${path}":`, {
-            id: snapshot.docs[0].id,
-            hasTotal: 'total' in sampleDoc,
-            hasStatus: 'status' in sampleDoc,
-            hasCreatedAt: 'createdAt' in sampleDoc,
-            hasLocationId: 'locationId' in sampleDoc,
-            sampleFields: Object.keys(sampleDoc).slice(0, 10)
-          })
-          
-          // Check if any documents are from Aug 18-19
-          const recentDocs = snapshot.docs.filter(doc => {
-            const data = doc.data() as any
-            const createdAt = data.createdAt?.toDate?.()
-            if (createdAt instanceof Date) {
-              const day = createdAt.getDate()
-              const month = createdAt.getMonth() + 1
-              return (day === 18 || day === 19) && month === 8
-            }
-            return false
-          })
-          
-          if (recentDocs.length > 0) {
-            console.log(`🎯 FOUND ${recentDocs.length} Aug 18-19 orders in "${path}"!`)
-            console.log(`📅 Aug 18-19 orders:`, recentDocs.map(doc => {
-              const data = doc.data() as any
-              return {
-                id: doc.id,
-                total: data.total,
-                status: data.status,
-                createdAt: data.createdAt?.toDate?.(),
-                locationId: data.locationId
-              }
-            }))
-          } else if (snapshot.docs.length > 0) {
-            // Show all dates available in this collection
-            const allDates = snapshot.docs.map(doc => {
-              const data = doc.data() as any
-              const createdAt = data.createdAt?.toDate?.()
-              return createdAt instanceof Date ? {
-                day: createdAt.getDate(),
-                month: createdAt.getMonth() + 1,
-                year: createdAt.getFullYear(),
-                fullDate: createdAt.toLocaleDateString()
-              } : null
-            }).filter(date => date !== null)
-            
-            console.log(`📅 Available dates in "${path}":`, allDates)
-            
-            // Special detailed analysis for posOrders collection
-            if (path.includes('posOrders') && allDates.length > 0) {
-              console.log(`🔍 DETAILED DATE ANALYSIS for "${path}":`)
-              console.log(`📅 Earliest order: ${allDates[0].fullDate}`)
-              console.log(`📅 Latest order: ${allDates[allDates.length - 1].fullDate}`)
-              console.log(`📅 All order dates:`, allDates.map(d => d.fullDate).sort())
-              console.log(`🚫 Missing Aug 18-19 orders: Orders for these dates do NOT exist in Firebase`)
-              console.log(`💡 Recommendation: Check if Aug 18-19 transactions were created in a different system or lost during migration`)
-            }
-          }
-        }
-      } catch (e) {
-        console.log(`❌ Error accessing "${path}":`, e)
-      }
-    }
-
-    // 🎯 COMPREHENSIVE SEARCH SUMMARY - UPDATED FOR ARCHIVE SUPPORT
-    console.log('🎯 COMPREHENSIVE FIREBASE SEARCH SUMMARY:')
-    console.log('✅ NOW SEARCHING: Both operational posOrders AND shift archives')
-    console.log('📂 Operational data: Current shift orders in tenants/posOrders')
-    console.log('� Archived data: Historical orders in tenants/shift_archives/*/posOrders')
-    console.log('� Data lifecycle: Orders → Archives after shift ends (via ShiftResetService)')
-    console.log('💡 Result: Complete historical data access for business reports')
-    console.log('🎯 Aug 18-19 data: Will now be found in shift archives if it exists')
+    console.log('🏢 Branch info:', { locationId, selectedBranch: selectedBranch.name, days })
 
     // Fetch all data in parallel - USING BOTH OPERATIONAL AND ARCHIVED DATA
     const [allOrders, menuItems, allExpenses, salesData, topItems, paymentAnalytics, inventoryAnalytics] = await Promise.all([
@@ -290,21 +164,8 @@ export default function BusinessReports() {
         
         console.log(`🎯 TOTAL ORDERS FOUND: ${allOrders.length} (operational + archived)`);
         
-        // 3. Show detailed breakdown of all orders
-        console.log(`🔍 ALL ORDERS WITH SOURCES:`, allOrders.map(order => ({
-          id: order.id,
-          source: (order as any).source,
-          locationId: order.locationId,
-          total: order.total,
-          status: order.status,
-          createdAt: order.createdAt?.toDate?.(),
-          dayOfMonth: order.createdAt?.toDate?.().getDate(),
-          month: order.createdAt?.toDate?.().getMonth() + 1
-        })));
-        
         // 4. Smart filtering: Location-specific for current operations, comprehensive for business reports
         console.log(`🔍 EXPECTED locationId: "${locationId}"`);
-        console.log(`🔍 ACTUAL order locationIds:`, Array.from(new Set(allOrders.map(order => order.locationId))));
         
         const matchingOrders = allOrders.filter(order => order.locationId === locationId);
         const historicalLocationIds = Array.from(new Set(allOrders.map(order => order.locationId).filter(id => id && id !== locationId)));
@@ -389,78 +250,20 @@ export default function BusinessReports() {
       getInventoryAnalytics(profile.tenantId, days, locationId)
     ])
 
-    // 🔍 DEBUG: Check what we got from Promise.all
-    console.log('🎯 Promise.all results:');
-    console.log('📦 Orders length:', allOrders.length);
-    console.log('💸 Expenses length:', allExpenses.length);
-    console.log('💸 Expenses sample:', allExpenses.slice(0, 3));
-
     // Filter data by date range
-    console.log('🔍 Date range:', { 
-      startDate, 
-      endDate, 
-      exportDateRange,
-      startDateISO: startDate.toISOString(),
-      endDateISO: endDate.toISOString(),
-      startDateLocal: startDate.toLocaleDateString(),
-      endDateLocal: endDate.toLocaleDateString(),
-      todayDate: new Date().toLocaleDateString(),
-      todayISO: new Date().toISOString()
-    })
-    console.log('🔍 ALL ORDERS WITH FULL DETAILS:', allOrders.map(order => ({
-      id: order.id,
-      status: order.status,
-      total: order.total,
-      createdAt: order.createdAt.toDate(),
-      createdAtISO: order.createdAt.toDate().toISOString(),
-      dateFormatted: order.createdAt.toDate().toLocaleDateString(),
-      inSelectedRange: order.createdAt.toDate() >= startDate && order.createdAt.toDate() <= endDate,
-      isCompleted: order.status === 'completed',
-      locationId: order.locationId,
-      dayOfMonth: order.createdAt.toDate().getDate(),
-      month: order.createdAt.toDate().getMonth() + 1,
-      year: order.createdAt.toDate().getFullYear()
-    })))
-    
     const filteredOrders = allOrders.filter(order => {
       if (order.status !== 'completed') {
-        console.log(`❌ Order ${order.id} excluded: status is '${order.status}', not 'completed'`)
         return false
       }
       const orderDate = order.createdAt.toDate()
       const inRange = orderDate >= startDate && orderDate <= endDate
-      
-      // Enhanced logging for date comparison
-      console.log(`🔍 Order ${order.id} date analysis:`, {
-        orderDate: orderDate.toISOString(),
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-        orderDateLocal: orderDate.toLocaleDateString(),
-        startDateLocal: startDate.toLocaleDateString(),
-        endDateLocal: endDate.toLocaleDateString(),
-        isAfterStart: orderDate >= startDate,
-        isBeforeEnd: orderDate <= endDate,
-        inRange,
-        status: order.status,
-        total: order.total
-      })
-      
       return inRange
     })
-    console.log('📊 Orders filtered:', { total: allOrders.length, filtered: filteredOrders.length })
-    console.log('📊 FILTERED ORDERS FOR EXPORT:', filteredOrders.map(order => ({
-      id: order.id,
-      status: order.status,
-      total: order.total,
-      createdAt: order.createdAt.toDate(),
-      dateFormatted: order.createdAt.toDate().toLocaleDateString()
-    })))
 
     const filteredExpenses = allExpenses.filter(expense => {
       const expenseDate = expense.date.toDate()
       return expenseDate >= startDate && expenseDate <= endDate
     })
-    console.log('💸 Expenses filtered:', { total: allExpenses.length, filtered: filteredExpenses.length })
 
     // Calculate metrics
     const revenue = filteredOrders.reduce((sum, order) => sum + order.total, 0)
@@ -550,7 +353,7 @@ export default function BusinessReports() {
       }
     }
 
-    return {
+    const exportData = {
       revenue,
       orders: filteredOrders.length,
       expenses: totalExpenses,
@@ -562,70 +365,87 @@ export default function BusinessReports() {
       dailySummaries: generateDailySummaries(),
       period: exportDateRange
     }
+
+    console.log('✅ Export data prepared:', {
+      revenue,
+      orders: filteredOrders.length,
+      expenses: totalExpenses,
+      topItemsCount: (topItems || []).length,
+      hasInventoryData: !!inventoryAnalytics
+    })
+
+    return exportData
   }
 
   // Centralized PDF generation helper
   const generatePDF = (pdfHTML: string, reportName: string) => {
     try {
-      console.log(`🎯 Opening PDF window for ${reportName}...`)
-      const printWindow = window.open('', '_blank')
+      console.log(`🎯 Generating PDF for ${reportName}...`)
+      console.log('📄 PDF HTML length:', pdfHTML.length)
+      
+      // Try to open print window
+      const printWindow = window.open('', '_blank', 'width=800,height=600')
       
       if (!printWindow) {
         console.error('❌ Pop-up blocked for PDF generation')
-        alert('❌ Pop-up blocked. Please allow pop-ups for this site and try again.')
-        return false
+        // Fallback: try to use current window
+        const fallbackWindow = window.open('', '_blank')
+        if (!fallbackWindow) {
+          alert('❌ Pop-up blocked. Please allow pop-ups for this site and try again.')
+          return false
+        }
+        console.log('✅ Using fallback window')
+        return generatePDFInWindow(fallbackWindow, pdfHTML, reportName)
       }
 
+      return generatePDFInWindow(printWindow, pdfHTML, reportName)
+    } catch (error) {
+      console.error(`❌ PDF generation error for ${reportName}:`, error)
+      alert(`❌ Error generating ${reportName}. Please try again or use a different browser.`)
+      return false
+    }
+  }
+
+  const generatePDFInWindow = (printWindow: Window, pdfHTML: string, reportName: string) => {
+    try {
       console.log('✅ PDF window opened successfully')
       printWindow.document.write(pdfHTML)
       printWindow.document.close()
       
-      // Comprehensive print handling with multiple fallbacks
+      // Enhanced print handling
       let printTriggered = false
       
-      // Method 1: OnLoad event
-      printWindow.onload = () => {
-        console.log('✅ PDF window loaded - triggering print')
-        if (!printTriggered) {
+      const triggerPrint = () => {
+        if (!printTriggered && printWindow && !printWindow.closed) {
           printTriggered = true
-          setTimeout(() => {
-            try {
-              printWindow.print()
-              console.log('✅ Print dialog opened via onload')
-            } catch (printError) {
-              console.error('❌ Print error in onload:', printError)
-            }
-          }, 1000)
+          try {
+            console.log('🖨️ Triggering print dialog...')
+            printWindow.print()
+            console.log('✅ Print dialog opened successfully')
+          } catch (printError) {
+            console.error('❌ Print error:', printError)
+            alert(`❌ Error opening print dialog for ${reportName}. You can manually print the opened window.`)
+          }
         }
       }
       
-      // Method 2: Immediate fallback
+      // Method 1: OnLoad event (most reliable)
+      printWindow.addEventListener('load', () => {
+        console.log('� PDF content loaded')
+        setTimeout(triggerPrint, 500)
+      })
+      
+      // Method 2: Fallback timeout
       setTimeout(() => {
-        if (!printTriggered && printWindow && !printWindow.closed) {
-          console.log('⚡ Triggering fallback print')
-          printTriggered = true
-          try {
-            printWindow.print()
-            console.log('✅ Print dialog opened via fallback')
-          } catch (error) {
-            console.error('❌ Fallback print error:', error)
-            alert(`❌ Error generating ${reportName} PDF. Please try using Chrome or Safari for better PDF support.`)
-          }
+        if (!printTriggered) {
+          console.log('⏰ Using fallback print trigger')
+          triggerPrint()
         }
       }, 2000)
       
-      // Method 3: Final fallback with user guidance
-      setTimeout(() => {
-        if (printWindow && !printWindow.closed) {
-          console.log('📋 Final check - if print dialog didn\'t appear, showing user instructions')
-          // The window is still open, print should have worked or user can manually print
-        }
-      }, 3000)
-      
       return true
     } catch (error) {
-      console.error(`❌ PDF generation error for ${reportName}:`, error)
-      alert(`❌ Error generating ${reportName}. Please try again or use a different browser.`)
+      console.error('❌ Error in generatePDFInWindow:', error)
       return false
     }
   }
@@ -636,14 +456,6 @@ export default function BusinessReports() {
       const netProfit = grossProfit - data.expenses
       const grossMargin = data.revenue > 0 ? (grossProfit / data.revenue) * 100 : 0
       const avgOrderValue = data.orders > 0 ? data.revenue / data.orders : 0
-
-      console.log('🎯 Generating Analytics PDF with data:', {
-        revenue: data.revenue,
-        orders: data.orders,
-        grossProfit,
-        netProfit,
-        grossMargin: grossMargin.toFixed(1) + '%'
-      })
 
       // Generate daily breakdown section for week/month reports
       const generateDailyBreakdown = () => {
@@ -1040,6 +852,8 @@ export default function BusinessReports() {
   }
 
   const handleExport = async (reportType: string) => {
+    console.log(`🚀 Starting export for: ${reportType}`)
+    
     if (!profile?.tenantId || !selectedBranch) {
       alert('Please ensure you are logged in and have selected a branch')
       return
@@ -1052,30 +866,55 @@ export default function BusinessReports() {
 
     setIsExporting(true)
     try {
+      console.log('📊 Fetching export data...')
       const data = await fetchExportData()
-      console.log('🎯 FINAL EXPORT DATA FOR PDF GENERATION:', {
-        dateRange: data.dateRange,
-        period: data.period,
-        revenue: data.revenue,
-        orders: data.orders,
-        expenses: data.expenses,
-        cogs: data.cogs,
-        dailySummariesCount: data.dailySummaries?.length || 0,
-        dailySummaries: data.dailySummaries,
-        topItemsCount: data.topItems?.length || 0,
-        paymentMethods: data.paymentMethods
-      })
+      console.log('✅ Data fetched successfully:', data)
       
+      // Add user feedback
+      const statusDiv = document.createElement('div')
+      statusDiv.style.cssText = `
+        position: fixed; top: 20px; right: 20px; 
+        background: #2563eb; color: white; 
+        padding: 15px; border-radius: 8px; 
+        z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      `
+      statusDiv.innerHTML = `🔄 Generating ${reportType} report...`
+      document.body.appendChild(statusDiv)
+      
+      // Generate report based on type
       if (reportType === 'analytics') {
         await generateAdvancedAnalyticsPDF(data)
       } else if (reportType === 'financial') {
         await generateFinancialPerformancePDF(data)
       } else if (reportType === 'inventory') {
         await generateInventoryReportPDF(data)
+      } else {
+        console.error('Unknown report type:', reportType)
+        alert('Unknown report type. Please try again.')
+        return
       }
+      
+      // Update status
+      statusDiv.innerHTML = `✅ ${reportType} report generated successfully!`
+      statusDiv.style.background = '#059669'
+      setTimeout(() => document.body.removeChild(statusDiv), 3000)
+      
     } catch (error) {
       console.error('Export error:', error)
-      alert('Failed to generate export. Please try again.')
+      
+      // Show error to user
+      const errorDiv = document.createElement('div')
+      errorDiv.style.cssText = `
+        position: fixed; top: 20px; right: 20px; 
+        background: #dc2626; color: white; 
+        padding: 15px; border-radius: 8px; 
+        z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      `
+      errorDiv.innerHTML = `❌ Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      document.body.appendChild(errorDiv)
+      setTimeout(() => document.body.removeChild(errorDiv), 5000)
+      
+      alert('Failed to generate export. Please check the console for details and try again.')
     } finally {
       setIsExporting(false)
     }
@@ -1085,10 +924,12 @@ export default function BusinessReports() {
     <div className="p-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Data Export Center</h1>
-        <p className="text-gray-600 mt-2">
-          Generate and download comprehensive business reports for your analysis.
-        </p>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Data Export Center</h1>
+          <p className="text-gray-600 mt-2">
+            Generate and download comprehensive business reports for your analysis.
+          </p>
+        </div>
       </div>
 
       {/* Date Range Selector */}
@@ -1182,7 +1023,10 @@ export default function BusinessReports() {
             </p>
           </div>
           <button 
-            onClick={() => handleExport('analytics')}
+            onClick={() => {
+              console.log('🔥 Analytics button clicked!')
+              handleExport('analytics')
+            }}
             disabled={isExporting}
             className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
@@ -1204,7 +1048,10 @@ export default function BusinessReports() {
             </p>
           </div>
           <button 
-            onClick={() => handleExport('financial')}
+            onClick={() => {
+              console.log('🔥 Financial button clicked!')
+              handleExport('financial')
+            }}
             disabled={isExporting}
             className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
@@ -1233,28 +1080,7 @@ export default function BusinessReports() {
             {isExporting ? 'Generating...' : 'Export Inventory'}
           </button>
         </div>
-      </div>
 
-      {/* Info Banner */}
-      <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <div className="flex items-start space-x-3">
-          <svg className="w-6 h-6 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <div>
-            <h3 className="font-medium text-blue-900 mb-1">
-              Complete Historical Data Access
-            </h3>
-            <p className="text-sm text-blue-700 mb-2">
-              Reports now include data from both active operations and shift archives. 
-              Your shift management system automatically archives completed shift data, 
-              and we search all locations for comprehensive historical reporting.
-            </p>
-            <div className="text-xs text-blue-600 bg-blue-100 rounded px-2 py-1 inline-block">
-              📂 Operational Data + 📦 Shift Archives = Complete Business Intelligence
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   )

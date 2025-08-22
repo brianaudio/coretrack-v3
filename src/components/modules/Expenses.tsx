@@ -174,20 +174,20 @@ export default function Expenses() {
           // Additional date filtering is not needed for current shift view
           // but keeping the logic for potential future use
           const orderDate = order.createdAt.toDate()
+          
+          switch (dateFilter) {
+            case 'today':
+              return orderDate >= startOfToday
+            case 'week':
+              return orderDate >= startOfWeek
+            case 'month':
+              return orderDate >= startOfMonth
+            default:
+              return true
+          }
         } catch (error) {
           console.warn('[FinancialPerformance] Error filtering order:', error)
           return false
-        }
-        
-        switch (dateFilter) {
-          case 'today':
-            return orderDate >= startOfToday
-          case 'week':
-            return orderDate >= startOfWeek
-          case 'month':
-            return orderDate >= startOfMonth
-          default:
-            return true
         }
       })
       
@@ -487,72 +487,109 @@ export default function Expenses() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Financial Management Hub */}
-      <div className="bg-gradient-to-r from-primary-600 to-primary-700 rounded-xl p-6 text-white">
-        <div className="flex justify-between items-center">
-          <div>
-            <h3 className="text-xl font-bold mb-1">Financials</h3>
-            <p className="text-primary-100 text-sm">Manage expenses, track budgets, and analyze your business financial health</p>
-          </div>
-          <div className="flex space-x-3">
-            <button
-              onClick={() => setShowCategoryModal(true)}
-              className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-              </svg>
-              Add Category
-            </button>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="bg-white text-primary-600 hover:bg-gray-50 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              Add Expense
-            </button>
+    <div className="space-y-8">
+      {/* Modern Financial Header */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        {/* Header Section */}
+        <div className="px-8 py-6 border-b border-gray-50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-sm">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Financials</h1>
+                <p className="text-sm text-gray-500 font-medium">Manage expenses, track budgets, and analyze your business financial health</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => setShowCategoryModal(true)}
+                className="group flex items-center space-x-2 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl font-medium transition-all duration-200 border border-gray-200 hover:border-gray-300"
+              >
+                <svg className="w-4 h-4 text-gray-500 group-hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+                <span>Add Category</span>
+              </button>
+              
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="group flex items-center space-x-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-all duration-200 shadow-sm hover:shadow-md"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                <span>Add Expense</span>
+              </button>
+            </div>
           </div>
         </div>
         
-        {/* Quick Financial Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 pt-4 border-t border-white/20">
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-              </svg>
-              <span className="text-sm font-medium">Revenue</span>
+        {/* Clean Financial Metrics */}
+        <div className="px-8 py-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Revenue Card */}
+            <div className="group">
+              <div className="flex items-center space-x-3 mb-2">
+                <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center">
+                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Revenue</p>
+                  <p className="text-2xl font-semibold text-gray-900 tracking-tight">₱{profitData.totalRevenue.toLocaleString()}</p>
+                </div>
+              </div>
             </div>
-            <p className="text-lg font-bold">₱{profitData.totalRevenue.toLocaleString()}</p>
-          </div>
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-              </svg>
-              <span className="text-sm font-medium">Costs</span>
+            
+            {/* Costs Card */}
+            <div className="group">
+              <div className="flex items-center space-x-3 mb-2">
+                <div className="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center">
+                  <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Costs</p>
+                  <p className="text-2xl font-semibold text-gray-900 tracking-tight">₱{profitData.totalExpenses.toLocaleString()}</p>
+                </div>
+              </div>
             </div>
-            <p className="text-lg font-bold">₱{profitData.totalExpenses.toLocaleString()}</p>
-          </div>
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-              </svg>
-              <span className="text-sm font-medium">Net Profit</span>
+            
+            {/* Net Profit Card */}
+            <div className="group">
+              <div className="flex items-center space-x-3 mb-2">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                  profitData.netProfit >= 0 ? 'bg-emerald-50' : 'bg-red-50'
+                }`}>
+                  <svg className={`w-4 h-4 ${
+                    profitData.netProfit >= 0 ? 'text-emerald-600' : 'text-red-600'
+                  }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Net Profit</p>
+                  <p className={`text-2xl font-semibold tracking-tight ${
+                    profitData.netProfit >= 0 ? 'text-emerald-600' : 'text-red-600'
+                  }`}>
+                    ₱{profitData.netProfit.toLocaleString()}
+                  </p>
+                </div>
+              </div>
             </div>
-            <p className={`text-lg font-bold ${profitData.netProfit >= 0 ? 'text-white' : 'text-red-200'}`}>
-              ₱{profitData.netProfit.toLocaleString()}
-            </p>
           </div>
         </div>
       </div>
 
       {/* Enhanced Profit Analysis Section */}
-      <div className="bg-white rounded-xl shadow-lg border border-surface-200 p-6">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
             <h3 className="text-xl font-bold text-surface-900">Financial Performance</h3>

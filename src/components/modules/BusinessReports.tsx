@@ -409,7 +409,78 @@ export default function BusinessReports() {
   const generatePDFInWindow = (printWindow: Window, pdfHTML: string, reportName: string) => {
     try {
       console.log('✅ PDF window opened successfully')
-      printWindow.document.write(pdfHTML)
+      
+      // Enhanced HTML with download capability
+      const enhancedHTML = pdfHTML.replace('<head>', `<head>
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+        `).replace('<body>', `<body>
+          <div style="position: fixed; top: 10px; right: 10px; z-index: 1000; background: white; padding: 10px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <button onclick="downloadAsPDF()" style="background: #2563eb; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-right: 8px; font-size: 14px;">
+              📥 Download PDF
+            </button>
+            <button onclick="window.print()" style="background: #059669; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">
+              🖨️ Print
+            </button>
+          </div>
+          <script>
+            async function downloadAsPDF() {
+              try {
+                // Hide the button controls during capture
+                const controls = document.querySelector('div[style*="position: fixed"]');
+                if (controls) controls.style.display = 'none';
+                
+                const canvas = await html2canvas(document.body, {
+                  scale: 2,
+                  useCORS: true,
+                  allowTaint: true,
+                  backgroundColor: '#ffffff'
+                });
+                
+                // Show controls again
+                if (controls) controls.style.display = 'block';
+                
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({
+                  orientation: 'portrait',
+                  unit: 'mm',
+                  format: 'a4'
+                });
+                
+                const imgData = canvas.toDataURL('image/png');
+                const imgWidth = 210; // A4 width in mm
+                const pageHeight = 295; // A4 height in mm
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                let heightLeft = imgHeight;
+                let position = 0;
+                
+                // Add first page
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+                
+                // Add additional pages if needed
+                while (heightLeft >= 0) {
+                  position = heightLeft - imgHeight;
+                  pdf.addPage();
+                  pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                  heightLeft -= pageHeight;
+                }
+                
+                // Generate filename with timestamp
+                const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+                const filename = '${reportName.replace(/\s+/g, '_')}_' + timestamp + '.pdf';
+                
+                pdf.save(filename);
+                console.log('✅ PDF downloaded successfully:', filename);
+              } catch (error) {
+                console.error('❌ Download error:', error);
+                alert('Error generating PDF download. Please try the print option instead.');
+              }
+            }
+          </script>
+        `)
+      
+      printWindow.document.write(enhancedHTML)
       printWindow.document.close()
       
       // Enhanced print handling
@@ -419,26 +490,25 @@ export default function BusinessReports() {
         if (!printTriggered && printWindow && !printWindow.closed) {
           printTriggered = true
           try {
-            console.log('🖨️ Triggering print dialog...')
-            printWindow.print()
-            console.log('✅ Print dialog opened successfully')
+            console.log('🖨️ PDF window ready with download option')
+            // Don't auto-trigger print, let user choose
           } catch (printError) {
             console.error('❌ Print error:', printError)
-            alert(`❌ Error opening print dialog for ${reportName}. You can manually print the opened window.`)
+            alert(`❌ Error with PDF window for ${reportName}.`)
           }
         }
       }
       
       // Method 1: OnLoad event (most reliable)
       printWindow.addEventListener('load', () => {
-        console.log('� PDF content loaded')
+        console.log('📄 PDF content loaded with download capability')
         setTimeout(triggerPrint, 500)
       })
       
       // Method 2: Fallback timeout
       setTimeout(() => {
         if (!printTriggered) {
-          console.log('⏰ Using fallback print trigger')
+          console.log('⏰ Using fallback trigger')
           triggerPrint()
         }
       }, 2000)

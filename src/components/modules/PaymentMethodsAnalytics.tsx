@@ -439,19 +439,8 @@ export default function PaymentMethodsAnalytics() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="text-lg font-semibold text-surface-900">Payment Summary</h3>
-          <p className="text-sm text-surface-600">{getTimeFilterLabel()}</p>
+          <p className="text-sm text-surface-600">Current Shift</p>
         </div>
-
-        {/* Time Filter */}
-        <select
-          value={timeFilter}
-          onChange={(e) => setTimeFilter(e.target.value as any)}
-          className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
-        >
-          <option value="today">Today</option>
-          <option value="week">Last 7 Days</option>
-          <option value="month">Last 30 Days</option>
-        </select>
       </div>
 
       {/* Payment Method Cards */}

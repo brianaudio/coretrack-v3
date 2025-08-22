@@ -124,22 +124,14 @@ export default function Expenses() {
   const calculateProfitMetrics = useCallback(async () => {
     if (!profile?.tenantId || !selectedBranch) return
 
-    // 🔥 CRITICAL: Block calculation when no active shift
-    if (!currentShift?.id) {
-      console.log('[FinancialPerformance] 🚫 NO ACTIVE SHIFT - Showing clean 0 values for new shift')
-      setProfitData({
-        totalRevenue: 0,
-        totalCOGS: 0,
-        grossProfit: 0,
-        totalExpenses: 0,
-        netProfit: 0
-      })
-      setProfitLoading(false)
-      return
-    }
-
     try {
       setProfitLoading(true)
+      console.log('[FinancialPerformance] Starting calculation with:', {
+        expensesCount: expenses.length,
+        dateFilter,
+        tenantId: profile.tenantId,
+        branchId: selectedBranch.id
+      })
       
       const locationId = getBranchLocationId(selectedBranch.id)
       // Get orders and menu items for the selected date range
@@ -155,24 +147,9 @@ export default function Expenses() {
       startOfWeek.setDate(now.getDate() - now.getDay())
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
 
-      // 🎯 CRITICAL: Filter orders to ONLY current shift data  
+      // Filter orders based on date range
       const filteredOrders = orders.filter(order => {
-        // MANDATORY: Only orders from the current active shift period
-        if (!currentShift?.id || !currentShift?.startTime) {
-          return false
-        }
-        
         try {
-          // Filter by shift start time (same logic as MainDashboard)
-          const orderTime = order.createdAt?.toDate()
-          const shiftStartTime = currentShift.startTime?.toDate()
-          
-          if (!orderTime || !shiftStartTime || orderTime < shiftStartTime) {
-            return false
-          }
-          
-          // Additional date filtering is not needed for current shift view
-          // but keeping the logic for potential future use
           const orderDate = order.createdAt.toDate()
           
           switch (dateFilter) {
@@ -212,21 +189,43 @@ export default function Expenses() {
       // Calculate gross profit
       const grossProfit = totalRevenue - totalCOGS
 
-      // 🎯 CRITICAL: Filter expenses to ONLY current shift period
+      // 🎯 Filter expenses based on date filter (same logic as orders)
       const filteredExpenses = expenses.filter(expense => {
-        // MANDATORY: Only expenses from current shift period
-        if (!currentShift?.startTime) {
-          return false // No shift, no expenses should count
+        try {
+          const expenseDate = expense.date.toDate()
+          
+          // Apply the same date filtering logic as orders
+          switch (dateFilter) {
+            case 'today':
+              return expenseDate >= startOfToday
+            case 'week':
+              return expenseDate >= startOfWeek
+            case 'month':
+              return expenseDate >= startOfMonth
+            default:
+              // For 'all' filter, include all expenses
+              return true
+          }
+        } catch (error) {
+          console.warn('[FinancialPerformance] Error filtering expense:', error)
+          return false
         }
-        
-        const expenseDate = expense.date.toDate()
-        const shiftStartDate = currentShift.startTime.toDate()
-        
-        // Only include expenses created during or after the current shift started
-        return expenseDate >= shiftStartDate
       })
       
       const totalExpenses = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0)
+      
+      // Debug logging
+      console.log('[FinancialPerformance] Expense calculation:', {
+        totalExpensesInState: expenses.length,
+        filteredExpenses: filteredExpenses.length,
+        totalExpenseAmount: totalExpenses,
+        dateFilter,
+        expenses: filteredExpenses.map(e => ({
+          title: e.title,
+          amount: e.amount,
+          date: e.date.toDate().toLocaleDateString()
+        }))
+      })
 
       // Calculate net profit (gross profit minus expenses)
       const netProfit = grossProfit - totalExpenses
@@ -285,10 +284,10 @@ export default function Expenses() {
 
   // Separate effect to calculate profit metrics when expenses or date filter changes
   useEffect(() => {
-    if (profile?.tenantId && expenses.length >= 0) { // Allow empty expenses array
+    if (profile?.tenantId && selectedBranch && expenses.length >= 0) { // Allow empty expenses array
       calculateProfitMetrics()
     }
-  }, [profile?.tenantId, expenses, dateFilter, currentShift]) // Include currentShift in dependencies
+  }, [profile?.tenantId, selectedBranch?.id, expenses, dateFilter, calculateProfitMetrics]) // Removed currentShift dependency
 
   const handleCreateExpense = async (formData: any) => {
     if (!profile?.tenantId || !selectedBranch) return

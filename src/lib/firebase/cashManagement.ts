@@ -559,11 +559,81 @@ export const getCashDrawerBalance = async (tenantId: string): Promise<number> =>
   }
 };
 
-export const getPaymentMethodSummary = async (tenantId: string): Promise<PaymentMethodSummary> => {
+export const getPaymentMethodSummary = async (tenantId: string, locationId?: string): Promise<PaymentMethodSummary> => {
   try {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     
+    // BRANCH ISOLATION FIX: Get payment data from POS orders instead of payment transactions
+    // since orders have locationId but payment transactions don't
+    if (locationId) {
+      // Import Firebase functions for querying orders
+      const { collection, query, where, getDocs, Timestamp } = await import('firebase/firestore');
+      const { db } = await import('../firebase');
+      
+      const startTimestamp = Timestamp.fromDate(todayStart);
+      const ordersCollection = collection(db, `tenants/${tenantId}/posOrders`);
+      const ordersQuery = query(
+        ordersCollection,
+        where('locationId', '==', locationId),
+        where('createdAt', '>=', startTimestamp)
+      );
+      
+      const querySnapshot = await getDocs(ordersQuery);
+      const orders = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as any[];
+
+      console.log(`💳 [PaymentMethodSummary] BRANCH FILTERED: ${orders.length} orders for location "${locationId}"`);
+      
+      const summary = {
+        cashTotal: 0,
+        cardTotal: 0,
+        digitalTotal: 0,
+        totalTransactions: orders.length
+      };
+      
+      // Process orders to calculate payment method totals
+      orders.forEach(order => {
+        const orderTotal = order.total || 0;
+        
+        // Check payment methods in order
+        if (order.paymentMethods && Array.isArray(order.paymentMethods)) {
+          // Handle split payments
+          order.paymentMethods.forEach((payment: any) => {
+            const method = payment.method?.toLowerCase();
+            const amount = payment.amount || 0;
+            
+            if (method === 'cash') {
+              summary.cashTotal += amount;
+            } else if (method === 'card' || method === 'credit_card' || method === 'debit_card') {
+              summary.cardTotal += amount;
+            } else if (method === 'digital' || method === 'gcash' || method === 'maya' || method === 'paymaya') {
+              summary.digitalTotal += amount;
+            }
+          });
+        } else if (order.paymentMethod) {
+          // Handle single payment method
+          const method = order.paymentMethod.toLowerCase();
+          
+          if (method === 'cash') {
+            summary.cashTotal += orderTotal;
+          } else if (method === 'card' || method === 'credit_card' || method === 'debit_card') {
+            summary.cardTotal += orderTotal;
+          } else if (method === 'digital' || method === 'gcash' || method === 'maya' || method === 'paymaya') {
+            summary.digitalTotal += orderTotal;
+          }
+        } else {
+          // Default to cash if no payment method specified
+          summary.cashTotal += orderTotal;
+        }
+      });
+      
+      return summary;
+    }
+    
+    // Fallback to transaction-based method for backward compatibility (when no locationId)
     const transactions = await getPaymentTransactions(tenantId, 1000);
     const todaysTransactions = transactions.filter(t => 
       t.timestamp.toDate() >= todayStart && t.transactionType === 'sale'

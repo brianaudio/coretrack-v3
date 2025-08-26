@@ -243,9 +243,11 @@ export default function PaymentMethodsAnalytics() {
     // � ALWAYS use real-time subscription when we have an active shift (like MainDashboard)
     if (currentShift?.id) {
       const effectiveTenantId = (profile as any).tenantId || profile.uid
+      const locationId = getBranchLocationId(selectedBranch.id)
       
       console.log('[PaymentAnalytics] 🔍 Setting up real-time subscription for shift:', currentShift.id)
       console.log('[PaymentAnalytics] Tenant ID:', effectiveTenantId)
+      console.log('[PaymentAnalytics] Location ID:', locationId)
       console.log('[PaymentAnalytics] Time filter:', timeFilter)
       
       const unsubscribe = subscribeToPOSOrders(
@@ -295,7 +297,8 @@ export default function PaymentMethodsAnalytics() {
           console.log('[PaymentAnalytics] 💰 Payment breakdown:', paymentBreakdown)
           setPaymentData(paymentBreakdown)
           setLoading(false)
-        }
+        },
+        locationId
       )
 
       return () => {

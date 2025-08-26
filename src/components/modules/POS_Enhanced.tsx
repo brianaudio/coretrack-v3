@@ -850,46 +850,27 @@ export default function POSEnhanced() {
         return;
       }
       
-      // Check if we're using the new data structure (tenants/orders) or old (businesses/branches/orders)
+      // Check if we're using the new data structure (tenants/posOrders)
       let orderRef;
       let documentExists = false;
       
-      // First try the new path (correct collection name)
+      // Check the correct path where POS orders are actually stored
       try {
-        orderRef = doc(db, `tenants/${businessId}/orders`, orderToVoid.id);
+        orderRef = doc(db, `tenants/${businessId}/posOrders`, orderToVoid.id);
         const orderDoc = await getDoc(orderRef);
         documentExists = orderDoc.exists();
-      } catch (error) {
-        console.error('Error checking new path:', error);
-      }
-      
-      // If document doesn't exist at new path, try the old path (if we have a branch ID)
-      if (!documentExists) {
-        if (!branchId) {
-          console.error('Missing branch ID. Cannot check legacy path.');
-          alert('Error: Missing branch information. Please select a branch and try again.');
-          setIsVoiding(false);
-          return;
-        }
         
-        try {
-          orderRef = doc(db, `businesses/${businessId}/branches/${branchId}/orders`, orderToVoid.id);
-          // Check if it exists in the old path too
-          const oldPathDoc = await getDoc(orderRef);
-          documentExists = oldPathDoc.exists();
-          
-          if (!documentExists) {
-            console.error(`Order ${orderToVoid.id} not found in any expected location`);
-            alert('Error: Order not found. It may have been deleted or moved.');
-            setIsVoiding(false);
-            return;
-          }
-        } catch (error) {
-          console.error('Error checking old path:', error);
-          alert('Error accessing order data. Please try again.');
+        if (!documentExists) {
+          console.error(`Order ${orderToVoid.id} not found in posOrders collection`);
+          alert('Error: Order not found. It may have been deleted or moved.');
           setIsVoiding(false);
           return;
         }
+      } catch (error) {
+        console.error('Error checking posOrders collection:', error);
+        alert('Error accessing order data. Please try again.');
+        setIsVoiding(false);
+        return;
       }
       
       // Ensure we have a valid orderRef before proceeding

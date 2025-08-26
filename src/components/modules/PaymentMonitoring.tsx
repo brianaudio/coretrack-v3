@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
+import { useBranch } from '../../lib/context/BranchContext'
+import { getBranchLocationId } from '../../lib/utils/branchUtils'
 import { 
   getCashDrawerBalance, 
   getCashCounts, 
@@ -23,6 +25,7 @@ import {
 
 export default function PaymentMonitoring() {
   const { user, profile } = useAuth()
+  const { selectedBranch } = useBranch()
   const [loading, setLoading] = useState(true)
   const [cashDrawerBalance, setCashDrawerBalance] = useState(0)
   const [paymentSummary, setPaymentSummary] = useState<PaymentMethodSummary | null>(null)
@@ -52,9 +55,12 @@ export default function PaymentMonitoring() {
           initializeDefaultCashDrawer(profile.tenantId)
         ])
         
+        // Get locationId for branch filtering
+        const locationId = selectedBranch ? getBranchLocationId(selectedBranch.id) : undefined
+        
         const [balance, summary, daily, counts, methods] = await Promise.all([
           getCashDrawerBalance(profile.tenantId),
-          getPaymentMethodSummary(profile.tenantId),
+          getPaymentMethodSummary(profile.tenantId, locationId),
           getDailyCashSummary(profile.tenantId),
           getCashCounts(profile.tenantId),
           getPaymentMethods(profile.tenantId)
@@ -77,9 +83,12 @@ export default function PaymentMonitoring() {
     // Set up real-time refresh every 30 seconds to catch updates from POS
     const refreshInterval = setInterval(async () => {
       try {
+        // Get locationId for branch filtering
+        const locationId = selectedBranch ? getBranchLocationId(selectedBranch.id) : undefined
+        
         const [balance, summary, daily] = await Promise.all([
           getCashDrawerBalance(profile.tenantId),
-          getPaymentMethodSummary(profile.tenantId),
+          getPaymentMethodSummary(profile.tenantId, locationId),
           getDailyCashSummary(profile.tenantId)
         ])
         
@@ -92,7 +101,7 @@ export default function PaymentMonitoring() {
     }, 30000) // Refresh every 30 seconds
 
     return () => clearInterval(refreshInterval)
-  }, [profile?.tenantId])
+  }, [profile?.tenantId, selectedBranch?.id]) // Add selectedBranch dependency
 
   const handleAddCashCount = async () => {
     if (!profile?.tenantId || !newCashCount.amount) return
@@ -128,10 +137,11 @@ export default function PaymentMonitoring() {
         tenantId: profile.tenantId
       })
 
-      // Refresh payment methods and summary
+            // Refresh payment methods and summary
+      const locationId = selectedBranch ? getBranchLocationId(selectedBranch.id) : undefined
       const [methods, summary] = await Promise.all([
         getPaymentMethods(profile.tenantId),
-        getPaymentMethodSummary(profile.tenantId)
+        getPaymentMethodSummary(profile.tenantId, locationId)
       ])
       
       setPaymentMethods(methods)
@@ -139,6 +149,7 @@ export default function PaymentMonitoring() {
       setNewPaymentMethod({
         type: 'digital',
         name: '',
+        isActive: true,
         tenantId: profile.tenantId
       })
       setShowPaymentMethodManager(false)
@@ -158,9 +169,10 @@ export default function PaymentMonitoring() {
       })
 
       // Refresh payment methods and summary
+      const locationId = selectedBranch ? getBranchLocationId(selectedBranch.id) : undefined
       const [methods, summary] = await Promise.all([
         getPaymentMethods(profile.tenantId),
-        getPaymentMethodSummary(profile.tenantId)
+        getPaymentMethodSummary(profile.tenantId, locationId)
       ])
       
       setPaymentMethods(methods)
@@ -179,9 +191,10 @@ export default function PaymentMonitoring() {
         await deletePaymentMethod(profile.tenantId, methodId)
 
         // Refresh payment methods and summary
+        const locationId = selectedBranch ? getBranchLocationId(selectedBranch.id) : undefined
         const [methods, summary] = await Promise.all([
           getPaymentMethods(profile.tenantId),
-          getPaymentMethodSummary(profile.tenantId)
+          getPaymentMethodSummary(profile.tenantId, locationId)
         ])
         
         setPaymentMethods(methods)
@@ -197,9 +210,10 @@ export default function PaymentMonitoring() {
 
     try {
       setLoading(true)
+      const locationId = selectedBranch ? getBranchLocationId(selectedBranch.id) : undefined
       const [balance, summary, daily, counts] = await Promise.all([
         getCashDrawerBalance(profile.tenantId),
-        getPaymentMethodSummary(profile.tenantId),
+        getPaymentMethodSummary(profile.tenantId, locationId),
         getDailyCashSummary(profile.tenantId),
         getCashCounts(profile.tenantId)
       ])

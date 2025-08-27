@@ -254,12 +254,32 @@ export default function PaymentMethodsAnalytics() {
         effectiveTenantId,
         (orders: POSOrder[]) => {
           console.log('[PaymentAnalytics] 📋 Received POS orders:', orders.length, orders)
+          console.log('[PaymentAnalytics] 🔍 Sample order locationIds:', orders.slice(0, 3).map(o => ({ id: o.id, locationId: o.locationId })))
           
           // Filter orders by current shift only
           const currentShiftOrders = orders.filter(order => {
             const orderTime = order.createdAt?.toDate()
-            const shiftStartTime = currentShift.startTime?.toDate()
-            return orderTime && shiftStartTime && orderTime >= shiftStartTime
+            
+            // 🔧 FIX: Handle both Timestamp and string startTime formats
+            let shiftStartTime: Date | null = null
+            if (currentShift.startTime) {
+              if (typeof currentShift.startTime === 'string') {
+                // If startTime is a string like "00:00", create Date from today with that time
+                const today = new Date()
+                const timeStr = currentShift.startTime as string
+                const [hours, minutes] = timeStr.split(':').map(Number)
+                today.setHours(hours, minutes, 0, 0)
+                shiftStartTime = today
+              } else if (typeof currentShift.startTime === 'object' && 'toDate' in currentShift.startTime) {
+                // If it's a Timestamp, convert to Date
+                shiftStartTime = (currentShift.startTime as any).toDate()
+              }
+            }
+            
+            const inShift = orderTime && shiftStartTime && orderTime >= shiftStartTime
+            console.log(`🔍 Order ${order.id}: orderTime=${orderTime}, shiftStartTime=${shiftStartTime}, inShift=${inShift}`)
+            
+            return inShift
           })
           
           console.log(`[PaymentAnalytics] 🎯 SHIFT FILTERED: ${currentShiftOrders.length} orders from current shift (out of ${orders.length} total)`)
@@ -297,8 +317,8 @@ export default function PaymentMethodsAnalytics() {
           console.log('[PaymentAnalytics] 💰 Payment breakdown:', paymentBreakdown)
           setPaymentData(paymentBreakdown)
           setLoading(false)
-        },
-        locationId
+        }
+        // ✅ REMOVED locationId parameter - let all orders through, filter by time/shift only
       )
 
       return () => {

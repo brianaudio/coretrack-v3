@@ -26,6 +26,7 @@ import {
   type POSItem 
 } from '../../lib/firebase/pos'
 import { Timestamp } from 'firebase/firestore'
+import { waitForOfflinePersistence, isOfflinePersistenceEnabled } from '../../lib/firebase'
 export default function Expenses() {
   const { user, profile } = useAuth()
   const { selectedBranch } = useBranch()
@@ -34,10 +35,7 @@ export default function Expenses() {
   const [categories, setCategories] = useState<ExpenseCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [showCategoryModal, setShowCategoryModal] = useState(false)
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
-  const [dateFilter, setDateFilter] = useState('all')
-  const [categoryFilter, setCategoryFilter] = useState('all')
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
 
   // Profit tracking state
@@ -61,64 +59,12 @@ export default function Expenses() {
     date: new Date().toISOString().split('T')[0]
   })
 
-  const [newCategory, setNewCategory] = useState({
-    name: '',
-    description: '',
-    budget: 0
-  })
-
   // Helper functions
   const getTotalExpenses = useCallback((filtered: Expense[]) => {
     return filtered.reduce((sum, expense) => sum + expense.amount, 0)
   }, [])
 
   // Filter expenses for profit calculation using the same date logic as orders
-  const getFilteredExpensesForProfitCalculation = useCallback(() => {
-    const now = new Date()
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const startOfWeek = new Date(now)
-    startOfWeek.setDate(now.getDate() - now.getDay())
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-
-    return expenses.filter(expense => {
-      const expenseDate = expense.date.toDate()
-      
-      switch (dateFilter) {
-        case 'today':
-          return expenseDate >= startOfToday
-        case 'week':
-          return expenseDate >= startOfWeek
-        case 'month':
-          return expenseDate >= startOfMonth
-        default:
-          return true
-      }
-    })
-  }, [expenses, dateFilter])
-
-  // Filter orders based on date filter
-  const getFilteredOrders = useCallback((orders: POSOrder[]) => {
-    const now = new Date()
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const startOfWeek = new Date(now)
-    startOfWeek.setDate(now.getDate() - now.getDay())
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-
-    return orders.filter(order => {
-      const orderDate = order.createdAt.toDate()
-      
-      switch (dateFilter) {
-        case 'today':
-          return orderDate >= startOfToday
-        case 'week':
-          return orderDate >= startOfWeek
-        case 'month':
-          return orderDate >= startOfMonth
-        default:
-          return true
-      }
-    })
-  }, [dateFilter])
 
   // Calculate profit metrics
   const calculateProfitMetrics = useCallback(async () => {
@@ -128,54 +74,28 @@ export default function Expenses() {
       setProfitLoading(true)
       console.log('[FinancialPerformance] Starting calculation with:', {
         expensesCount: expenses.length,
-        dateFilter,
         tenantId: profile.tenantId,
         branchId: selectedBranch.id
       })
       
+      // Wait for Firebase offline persistence to be ready
+      await waitForOfflinePersistence()
+      
       const locationId = getBranchLocationId(selectedBranch.id)
-      // Get orders and menu items for the selected date range
+      // Get orders and menu items
       const [orders, menuItems] = await Promise.all([
         getPOSOrders(profile.tenantId, locationId),
         getPOSItems(profile.tenantId, locationId)
       ])
 
-      // Filter orders based on date filter - inline filtering to avoid dependency
-      const now = new Date()
-      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-      const startOfWeek = new Date(now)
-      startOfWeek.setDate(now.getDate() - now.getDay())
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-
-      // Filter orders based on date range
-      const filteredOrders = orders.filter(order => {
-        try {
-          const orderDate = order.createdAt.toDate()
-          
-          switch (dateFilter) {
-            case 'today':
-              return orderDate >= startOfToday
-            case 'week':
-              return orderDate >= startOfWeek
-            case 'month':
-              return orderDate >= startOfMonth
-            default:
-              return true
-          }
-        } catch (error) {
-          console.warn('[FinancialPerformance] Error filtering order:', error)
-          return false
-        }
-      })
-      
-      // Calculate total revenue from completed orders
-      const totalRevenue = filteredOrders
+      // Calculate total revenue from completed orders (no filtering)
+      const totalRevenue = orders
         .filter(order => order.status === 'completed')
         .reduce((sum, order) => sum + order.total, 0)
 
       // Calculate COGS by matching order items with menu item costs
       let totalCOGS = 0
-      filteredOrders
+      orders
         .filter(order => order.status === 'completed')
         .forEach(order => {
           order.items.forEach(orderItem => {
@@ -189,38 +109,14 @@ export default function Expenses() {
       // Calculate gross profit
       const grossProfit = totalRevenue - totalCOGS
 
-      // 🎯 Filter expenses based on date filter (same logic as orders)
-      const filteredExpenses = expenses.filter(expense => {
-        try {
-          const expenseDate = expense.date.toDate()
-          
-          // Apply the same date filtering logic as orders
-          switch (dateFilter) {
-            case 'today':
-              return expenseDate >= startOfToday
-            case 'week':
-              return expenseDate >= startOfWeek
-            case 'month':
-              return expenseDate >= startOfMonth
-            default:
-              // For 'all' filter, include all expenses
-              return true
-          }
-        } catch (error) {
-          console.warn('[FinancialPerformance] Error filtering expense:', error)
-          return false
-        }
-      })
-      
-      const totalExpenses = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0)
+      // Calculate total expenses (no filtering)
+      const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0)
       
       // Debug logging
       console.log('[FinancialPerformance] Expense calculation:', {
         totalExpensesInState: expenses.length,
-        filteredExpenses: filteredExpenses.length,
         totalExpenseAmount: totalExpenses,
-        dateFilter,
-        expenses: filteredExpenses.map(e => ({
+        expenses: expenses.map(e => ({
           title: e.title,
           amount: e.amount,
           date: e.date.toDate().toLocaleDateString()
@@ -242,7 +138,7 @@ export default function Expenses() {
     } finally {
       setProfitLoading(false)
     }
-  }, [profile?.tenantId, selectedBranch?.id, dateFilter, expenses]) // Include selectedBranch in dependencies
+  }, [profile?.tenantId, selectedBranch?.id, expenses])
 
   // Load expenses and categories
   useEffect(() => {
@@ -265,6 +161,10 @@ export default function Expenses() {
     const loadData = async () => {
       try {
         setLoading(true)
+        
+        // Wait for Firebase offline persistence to be ready
+        await waitForOfflinePersistence()
+        
         const locationId = getBranchLocationId(selectedBranch.id)
         const [expensesData, categoriesData] = await Promise.all([
           getExpenses(profile.tenantId, locationId),
@@ -274,6 +174,12 @@ export default function Expenses() {
         setCategories(categoriesData)
       } catch (error) {
         console.error('Error loading expenses:', error)
+        // Even if Firebase is offline, still set empty arrays to show UI
+        if (!isOfflinePersistenceEnabled()) {
+          console.warn('Firebase offline persistence not enabled - some data may not be available')
+        }
+        setExpenses([])
+        setCategories([])
       } finally {
         setLoading(false)
       }
@@ -287,12 +193,15 @@ export default function Expenses() {
     if (profile?.tenantId && selectedBranch && expenses.length >= 0) { // Allow empty expenses array
       calculateProfitMetrics()
     }
-  }, [profile?.tenantId, selectedBranch?.id, expenses, dateFilter, calculateProfitMetrics]) // Removed currentShift dependency
+  }, [profile?.tenantId, selectedBranch?.id, expenses, calculateProfitMetrics])
 
   const handleCreateExpense = async (formData: any) => {
     if (!profile?.tenantId || !selectedBranch) return
 
     try {
+      // Wait for Firebase offline persistence to be ready before operations
+      await waitForOfflinePersistence()
+      
       const locationId = getBranchLocationId(selectedBranch.id)
       const expenseData: CreateExpense = {
         title: formData.title,
@@ -320,40 +229,10 @@ export default function Expenses() {
       setShowCreateModal(false)
     } catch (error) {
       console.error('Error creating expense:', error)
+      if (!isOfflinePersistenceEnabled()) {
+        console.warn('Firebase offline persistence not enabled - expense may not sync properly')
+      }
       throw error // Re-throw to let modal handle the error
-    }
-  }
-
-  const handleCreateCategory = async () => {
-    if (!profile?.tenantId || !newCategory.name) return
-
-    try {
-      const categoryData: CreateExpenseCategory = {
-        name: newCategory.name,
-        description: newCategory.description,
-        tenantId: profile.tenantId
-      }
-
-      // Only include budget if it has a valid value
-      if (newCategory.budget && newCategory.budget > 0) {
-        categoryData.budget = newCategory.budget
-      }
-
-      await addExpenseCategory(categoryData)
-      
-      // Refresh categories
-      const updatedCategories = await getExpenseCategories(profile.tenantId)
-      setCategories(updatedCategories)
-      
-      // Reset form
-      setNewCategory({
-        name: '',
-        description: '',
-        budget: 0
-      })
-      setShowCategoryModal(false)
-    } catch (error) {
-      console.error('Error creating category:', error)
     }
   }
 
@@ -429,39 +308,7 @@ export default function Expenses() {
   }
 
   const getFilteredExpenses = () => {
-    let filtered = expenses
-
-    if (categoryFilter !== 'all') {
-      filtered = filtered.filter(expense => expense.category === categoryFilter)
-    }
-
-    if (dateFilter !== 'all') {
-      const now = new Date()
-      const startDate = new Date()
-
-      switch (dateFilter) {
-        case 'today':
-          startDate.setHours(0, 0, 0, 0)
-          break
-        case 'week':
-          startDate.setDate(now.getDate() - 7)
-          break
-        case 'month':
-          startDate.setMonth(now.getMonth() - 1)
-          break
-        case 'year':
-          startDate.setFullYear(now.getFullYear() - 1)
-          break
-      }
-
-      if (dateFilter !== 'all') {
-        filtered = filtered.filter(expense => 
-          expense.date.toDate() >= startDate
-        )
-      }
-    }
-
-    return filtered.sort((a, b) => b.date.toDate().getTime() - a.date.toDate().getTime())
+    return expenses.sort((a, b) => b.date.toDate().getTime() - a.date.toDate().getTime())
   }
 
   const getStatusColor = (status: string) => {
@@ -505,16 +352,6 @@ export default function Expenses() {
             </div>
             
             <div className="flex items-center space-x-3">
-              <button
-                onClick={() => setShowCategoryModal(true)}
-                className="group flex items-center space-x-2 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl font-medium transition-all duration-200 border border-gray-200 hover:border-gray-300"
-              >
-                <svg className="w-4 h-4 text-gray-500 group-hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                </svg>
-                <span>Add Category</span>
-              </button>
-              
               <button
                 onClick={() => setShowCreateModal(true)}
                 className="group flex items-center space-x-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-all duration-200 shadow-sm hover:shadow-md"
@@ -805,33 +642,6 @@ export default function Expenses() {
         </div>
       </div>
 
-      {/* Enhanced Filters */}
-      <div className="flex flex-wrap gap-4">
-        <select
-          value={dateFilter}
-          onChange={(e) => setDateFilter(e.target.value)}
-          className="px-4 py-2 bg-white border border-surface-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-medium text-surface-700 hover:border-surface-400 transition-colors"
-        >
-          <option value="all">All Time</option>
-          <option value="today">Today</option>
-          <option value="week">Last 7 Days</option>
-          <option value="month">Last 30 Days</option>
-          <option value="year">Last Year</option>
-        </select>
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="px-4 py-2 bg-white border border-surface-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-medium text-surface-700 hover:border-surface-400 transition-colors"
-        >
-          <option value="all">All Categories</option>
-          {categories.map((category) => (
-            <option key={category.id} value={category.name}>
-              {category.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
       {/* Enhanced Expenses List */}
       <div className="bg-white rounded-xl shadow-sm border border-surface-200 overflow-hidden">
         <div className="overflow-x-auto">
@@ -1000,74 +810,6 @@ export default function Expenses() {
         }))}
         mode="create"
       />
-
-      {/* Create Category Modal */}
-      {showCategoryModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Add Category</h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Name
-                </label>
-                <input
-                  type="text"
-                  value={newCategory.name}
-                  onChange={(e) => setNewCategory(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Category name"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
-                <textarea
-                  value={newCategory.description}
-                  onChange={(e) => setNewCategory(prev => ({ ...prev, description: e.target.value }))}
-                  rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Category description (optional)"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Budget (Optional)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={newCategory.budget}
-                  onChange={(e) => setNewCategory(prev => ({ ...prev, budget: parseFloat(e.target.value) || 0 }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="0.00"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end space-x-3 mt-6">
-              <button
-                onClick={() => setShowCategoryModal(false)}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateCategory}
-                disabled={!newCategory.name}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300"
-              >
-                Add Category
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Edit Expense Modal */}
       {editingExpense && (

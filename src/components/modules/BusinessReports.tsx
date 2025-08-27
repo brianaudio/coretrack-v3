@@ -170,23 +170,12 @@ export default function BusinessReports() {
         const matchingOrders = allOrders.filter(order => order.locationId === locationId);
         const historicalLocationIds = Array.from(new Set(allOrders.map(order => order.locationId).filter(id => id && id !== locationId)));
         
-        let filteredOrders = allOrders;
+        // BRANCH ISOLATION FIX: Always filter by locationId for proper branch separation
+        let filteredOrders = matchingOrders;
+        console.log(`� BRANCH ISOLATED: ${filteredOrders.length} orders for location "${locationId}"`);
         
-        // For Business Reports: Include comprehensive tenant data for historical analysis
         if (historicalLocationIds.length > 0) {
-          // We have historical data from different locations - include all for comprehensive reporting
-          filteredOrders = allOrders;
-          console.log(`📊 BUSINESS REPORTS: Including comprehensive tenant data (${allOrders.length} total orders)`);
-          console.log(`🏢 Current location (${locationId}): ${matchingOrders.length} orders`);
-          console.log(`📈 Historical locations (${historicalLocationIds.join(', ')}): ${allOrders.length - matchingOrders.length} orders`);
-        } else if (locationId && matchingOrders.length > 0) {
-          // Only current location data available
-          filteredOrders = matchingOrders;
-          console.log(`🔍 After locationId filter: ${filteredOrders.length} orders (current location only)`);
-        } else if (locationId) {
-          // Fallback: use all available data if no current location data
-          filteredOrders = allOrders;
-          console.log(`⚠️ NO CURRENT LOCATION DATA - Using all ${allOrders.length} tenant orders for historical analysis`);
+          console.log(`� Other locations found (${historicalLocationIds.join(', ')}): ${allOrders.length - matchingOrders.length} orders (filtered out)`);
         }
         
         console.log(`📋 FINAL: ${filteredOrders.length} orders ready for date filtering`);
@@ -262,12 +251,33 @@ export default function BusinessReports() {
 
     const filteredExpenses = allExpenses.filter(expense => {
       const expenseDate = expense.date.toDate()
-      return expenseDate >= startDate && expenseDate <= endDate
+      const inDateRange = expenseDate >= startDate && expenseDate <= endDate
+      return inDateRange
     })
 
     // Calculate metrics
     const revenue = filteredOrders.reduce((sum, order) => sum + order.total, 0)
     const totalExpenses = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0)
+    
+    // Debug expense calculations with better user feedback
+    console.log('💰 Expense filtering results:', {
+      totalExpensesFound: allExpenses.length,
+      expensesAfterDateFilter: filteredExpenses.length,
+      totalExpenseAmount: totalExpenses,
+      dateRange: exportDateRange,
+      startDate: startDate.toLocaleDateString(),
+      endDate: endDate.toLocaleDateString(),
+      sampleExpenses: filteredExpenses.slice(0, 3).map(e => ({
+        title: e.title,
+        amount: e.amount,
+        date: e.date.toDate().toLocaleDateString()
+      })),
+      // Add helpful context for when no expenses are found
+      ...(filteredExpenses.length === 0 && allExpenses.length > 0 && {
+        helpMessage: `No expenses found for ${exportDateRange}. Found ${allExpenses.length} expenses from other dates. Consider using 'Last 7 Days' or 'Last 30 Days' for broader coverage.`,
+        allExpenseDates: allExpenses.map(e => e.date.toDate().toLocaleDateString()).slice(0, 5)
+      })
+    })
     
     // Calculate COGS from order items
     let cogs = 0
@@ -848,7 +858,7 @@ export default function BusinessReports() {
             <div class="footer">
               <p><strong>CoreTrack Financial Analysis</strong></p>
               <p>Generated ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
-              <p>Note: Expenses data from selected period - ${data.expenses === 0 ? 'No expenses found for this period' : 'Including all recorded expenses'}</p>
+              <p>Note: ${data.expenses === 0 ? 'No expenses found for this period' : 'Including all recorded expenses for selected period'}</p>
             </div>
           </body>
         </html>
@@ -988,6 +998,21 @@ export default function BusinessReports() {
     } finally {
       setIsExporting(false)
     }
+  }
+
+  // Loading state: Wait for branch selection
+  if (!selectedBranch) {
+    return (
+      <div className="p-6 max-w-6xl mx-auto">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading branch data...</p>
+            <p className="text-sm text-gray-500 mt-2">Please wait while we initialize your branch settings</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

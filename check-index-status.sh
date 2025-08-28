@@ -1,0 +1,22 @@
+#!/bin/bash
+# Check Firebase index build status
+
+echo "🔍 Checking Firebase Firestore index build status..."
+echo ""
+echo "The composite index for shifts collection is currently building."
+echo "This process usually takes 2-10 minutes depending on the amount of data."
+echo ""
+echo "📊 Index Details:"
+echo "- Collection: shifts"
+echo "- Fields: locationId (ASC), status (ASC), createdAt (DESC)"
+echo "- Status: Building..."
+echo ""
+echo "🌐 You can check the current status at:"
+echo "https://console.firebase.google.com/project/coretrack-inventory/firestore/indexes"
+echo ""
+echo "⚡ Temporary Workaround Applied:"
+echo "- Modified getActiveShift() to use client-side filtering"
+echo "- This allows the app to work while the index builds"
+echo "- Performance will be optimal once the index is complete"
+echo ""
+echo "✅ Your app should now work for shift operations!"

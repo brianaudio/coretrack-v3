@@ -47,7 +47,7 @@ export function useShiftReset(options: UseShiftResetOptions = {}) {
         tenantId: profile.tenantId,
         branchId: selectedBranch.id,
         shiftId: customOptions?.shiftId || currentShift.id,
-        shiftName: customOptions?.shiftName || currentShift.name,
+        shiftName: customOptions?.shiftName || currentShift.name || 'Unnamed Shift',
         startTime: customOptions?.startTime || currentShift.startTime,
         resetBy: profile.uid || profile.email || 'system',
         resetReason: customOptions?.resetReason || 'shift_end',

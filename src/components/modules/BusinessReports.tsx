@@ -235,11 +235,17 @@ export default function BusinessReports() {
                 source: `archive:${archiveId}`,
                 archiveDate: archiveData.createdAt?.toDate?.(),
                 ...doc.data()
-              }));
+              })) as any[];
               
               if (archivedExpenses.length > 0) {
-                allExpenses.push(...archivedExpenses);
-                console.log(`💸 Archive ${archiveId}: ${archivedExpenses.length} expenses`);
+                // 🔥 IMMEDIATE BRANCH FILTERING: Filter archived expenses by locationId right here
+                const branchFilteredArchiveExpenses = archivedExpenses.filter((expense: any) => expense.locationId === locationId);
+                console.log(`💸 Archive ${archiveId}: ${archivedExpenses.length} total expenses, ${branchFilteredArchiveExpenses.length} for branch "${locationId}"`);
+                
+                if (branchFilteredArchiveExpenses.length > 0) {
+                  allExpenses.push(...branchFilteredArchiveExpenses);
+                  console.log(`✅ Added ${branchFilteredArchiveExpenses.length} branch-specific archived expenses from ${archiveId}`);
+                }
               }
             } catch (error) {
               console.log(`❌ Error fetching expenses from archive ${archiveId}:`, error);
@@ -250,8 +256,24 @@ export default function BusinessReports() {
         }
         
         console.log(`💰 TOTAL EXPENSES FOUND: ${allExpenses.length} (operational + archived)`);
-        console.log('💸 Expenses fetch completed successfully');
-        return allExpenses;
+        
+        // 🔥 BRANCH ISOLATION FIX: Apply same locationId filtering to expenses as orders
+        console.log(`🔍 EXPECTED locationId for expenses: "${locationId}"`);
+        
+        const matchingExpenses = allExpenses.filter((expense: any) => expense.locationId === locationId);
+        const historicalExpenseLocationIds = Array.from(new Set(allExpenses.map((expense: any) => expense.locationId).filter(id => id && id !== locationId)));
+        
+        // BRANCH ISOLATION FIX: Always filter expenses by locationId for proper branch separation
+        let filteredExpensesByLocation = matchingExpenses;
+        console.log(`🏢 BRANCH ISOLATED EXPENSES: ${filteredExpensesByLocation.length} expenses for location "${locationId}"`);
+        
+        if (historicalExpenseLocationIds.length > 0) {
+          console.log(`💸 Other expense locations found (${historicalExpenseLocationIds.join(', ')}): ${allExpenses.length - matchingExpenses.length} expenses (filtered out)`);
+        }
+        
+        console.log(`� FINAL EXPENSES: ${filteredExpensesByLocation.length} expenses ready for date filtering`);
+        console.log('�💸 Branch-filtered expenses fetch completed successfully');
+        return filteredExpensesByLocation;
       })(),
       getSalesChartData(profile.tenantId, days, locationId),
       getTopSellingItems(profile.tenantId, days, 10, locationId),

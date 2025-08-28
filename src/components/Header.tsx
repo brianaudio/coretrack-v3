@@ -246,7 +246,12 @@ export default function Header({ activeModule, onSidebarToggle, onLogout }: Head
                 )}
 
                 {/* End Shift Button - Ultra Minimalist & Sleek */}
-                {isShiftActive && (currentShift?.createdBy === user?.uid || currentRole === 'cashier') && (
+                {isShiftActive && (
+                  currentShift?.createdBy === user?.uid || 
+                  currentRole === 'cashier' || 
+                  currentRole === 'manager' || 
+                  currentRole === 'owner'
+                ) && (
                   <button 
                     onClick={handleEndShift}
                     disabled={loading || isResetting}
@@ -282,7 +287,11 @@ export default function Header({ activeModule, onSidebarToggle, onLogout }: Head
                 </button>
                 
                 {/* Active Shift Indicator - Elegant Badge */}
-                {isShiftActive && currentShift?.createdBy !== user?.uid && currentRole !== 'cashier' && (
+                {isShiftActive && 
+                 currentShift?.createdBy !== user?.uid && 
+                 currentRole !== 'cashier' && 
+                 currentRole !== 'manager' && 
+                 currentRole !== 'owner' && (
                   <div className="hidden lg:flex items-center text-xs text-amber-700 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/50 px-3 py-1.5 rounded-full shadow-sm">
                     <div className="w-1.5 h-1.5 bg-amber-500 rounded-full mr-1.5 animate-pulse"></div>
                     Active Shift

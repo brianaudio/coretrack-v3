@@ -4,22 +4,11 @@ import React, { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
 import { useBranch } from '../../lib/context/BranchContext'
 import { useUser } from '../../lib/rbac/UserContext'
-import { collection, addDoc, query, where, getDocs, updateDoc, doc, Timestamp } from 'firebase/firestore'
+import { collection, query, where, getDocs, updateDoc, doc, Timestamp } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { getBranchLocationId } from '../../lib/utils/branchUtils'
-
-interface ShiftData {
-  id: string
-  date: string
-  shiftType: 'morning' | 'afternoon' | 'evening' | 'overnight'
-  startTime: string
-  endTime: string
-  staffOnDuty: string[]
-  managerId: string
-  status: 'active' | 'completed'
-  createdAt: Timestamp
-  completedAt?: Timestamp
-}
+import { createShift } from '../../lib/firebase/shifts'
+import type { CreateShiftData, ShiftData } from '../../lib/types/shift'
 
 interface ShiftLockScreenProps {
   children: React.ReactNode
@@ -117,6 +106,7 @@ export default function ShiftLockScreen({ children }: ShiftLockScreenProps) {
     // Use fallback values for demo auth system
     const tenantId = profile?.tenantId || currentUser?.email?.split('@')[0] || 'demo-tenant'
     const userId = user?.uid || currentUser?.uid || 'demo-user'
+    const locationId = selectedBranch ? getBranchLocationId(selectedBranch.id) : 'default-location'
     
     if (!tenantId || !userId) return
 
@@ -127,26 +117,43 @@ export default function ShiftLockScreen({ children }: ShiftLockScreenProps) {
         return
       }
 
-      const newShift: Omit<ShiftData, 'id'> = {
+      const newShift: CreateShiftData = {
+        tenantId,
+        locationId,
         date: new Date().toISOString().split('T')[0],
         shiftType: shiftForm.shiftType,
         startTime: shiftForm.startTime,
         endTime: shiftForm.endTime,
         staffOnDuty: validStaff,
         managerId: userId,
-        status: 'active',
+        status: 'active' as const,
         createdAt: Timestamp.now()
       }
 
-      const shiftsRef = collection(db, `tenants/${tenantId}/shifts`)
-      const docRef = await addDoc(shiftsRef, newShift)
+      // Use the enhanced offline-aware shift creation function
+      const shiftId = await createShift(newShift)
       
-      setActiveShift({ ...newShift, id: docRef.id })
+      // Convert the created shift to ShiftData format with proper Timestamp fields
+      const activeShiftData: ShiftData = {
+        ...newShift,
+        id: shiftId,
+        startTime: Timestamp.fromDate(new Date(`${new Date().toDateString()} ${newShift.startTime}`)),
+        endTime: newShift.endTime ? Timestamp.fromDate(new Date(`${new Date().toDateString()} ${newShift.endTime}`)) : null
+      }
+      
+      setActiveShift(activeShiftData)
       setShowStartShiftModal(false)
       showMessage('Shift started successfully! System is now unlocked.', 'success')
+      
     } catch (error) {
       console.error('Error starting shift:', error)
-      showMessage('Failed to start shift', 'error')
+      
+      // Check if this is an offline-related error
+      if (error instanceof Error && error.message.includes('offline')) {
+        showMessage(error.message, 'warning')
+      } else {
+        showMessage('Failed to start shift. Please check your connection.', 'error')
+      }
     }
   }
 
@@ -334,9 +341,9 @@ export default function ShiftLockScreen({ children }: ShiftLockScreenProps) {
                   <span className="font-semibold">Active Shift</span>
                 </div>
                 <div className="text-green-100">
-                  {activeShift.shiftType.charAt(0).toUpperCase() + activeShift.shiftType.slice(1)} • 
-                  {activeShift.startTime} - {activeShift.endTime} • 
-                  Staff: {activeShift.staffOnDuty.join(', ')}
+                  {(activeShift.shiftType || 'General').charAt(0).toUpperCase() + (activeShift.shiftType || 'General').slice(1)} • 
+                  {activeShift.startTime.toDate().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} - {activeShift.endTime?.toDate().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) || 'Ongoing'} • 
+                  Staff: {(activeShift.staffOnDuty || []).join(', ') || 'TBD'}
                 </div>
               </div>
               {(profile?.role === 'manager' || profile?.role === 'owner') && (

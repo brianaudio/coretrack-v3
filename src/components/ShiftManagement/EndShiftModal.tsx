@@ -213,7 +213,7 @@ const EndShiftModal: React.FC<EndShiftModalProps> = ({
         topItems,
         grossProfit,
         netProfit,
-        expectedCash: currentShift.metadata?.cashFloat || 0
+        expectedCash: 0 // Default cash float
       };
 
       setShiftSummary(calculatedSummary);
@@ -233,7 +233,7 @@ const EndShiftModal: React.FC<EndShiftModalProps> = ({
         topItems: [],
         grossProfit: (currentShift.totalSales || 0) * 0.65,
         netProfit: ((currentShift.totalSales || 0) * 0.65) - (currentShift.totalExpenses || 0),
-        expectedCash: currentShift.metadata?.cashFloat || 0
+        expectedCash: 0 // Default cash float
       };
       setShiftSummary(fallbackSummary);
     } finally {
@@ -315,7 +315,7 @@ const EndShiftModal: React.FC<EndShiftModalProps> = ({
     
     const reportData = {
       shiftId: currentShift.id,
-      startTime: currentShift.startTime?.toDate?.()?.toLocaleString() || new Date().toLocaleString(),
+      startTime: currentShift.startTime.toDate().toLocaleString(),
       endTime: new Date().toLocaleString(),
       startingCash: expectedCash,
       endingCash: parseFloat(endingCash) || 0,

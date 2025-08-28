@@ -16,6 +16,8 @@ import TrialExpirationHandler from '../components/TrialExpirationHandler'
 import AIAssistant from '../components/AIAssistant'
 import SimpleOnboarding from '../components/onboarding/SimpleOnboarding'
 import HelpModal from '../components/HelpModal'
+import OfflineStatusIndicator from '../components/common/OfflineStatusIndicator'
+import '../lib/utils/consoleFilter' // Import console filter to reduce Firebase offline noise
 
 export const metadata: Metadata = {
   title: 'CoreTrack - Business Inventory Management',
@@ -73,6 +75,7 @@ export default function RootLayout({
                                 {children}
                                 <AIAssistant />
                                 <HelpModal />
+                                <OfflineStatusIndicator />
                               </TrialExpirationHandler>
                             </ToastProvider>
                           </HelpProvider>

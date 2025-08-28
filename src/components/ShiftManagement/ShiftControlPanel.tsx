@@ -4,9 +4,11 @@ import React, { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
 import { useBranch } from '../../lib/context/BranchContext'
 import { useToast } from '../ui/Toast'
-import { collection, addDoc, query, where, getDocs, Timestamp } from 'firebase/firestore'
+import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { getBranchLocationId } from '../../lib/utils/branchUtils'
+import { createShift } from '../../lib/firebase/shifts'
+import type { CreateShiftData } from '../../lib/types/shift'
 
 interface StaffMember {
   id: string
@@ -80,7 +82,7 @@ export default function ShiftControlPanel() {
     }
   }
 
-  const createShift = async (template?: ShiftTemplate) => {
+  const createShiftHandler = async (template?: ShiftTemplate) => {
     if (!profile?.tenantId || !selectedBranch) return
 
     if (selectedStaff.length === 0) {
@@ -92,9 +94,9 @@ export default function ShiftControlPanel() {
       setLoading(true)
       
       const locationId = getBranchLocationId(selectedBranch.id)
-      const shiftsRef = collection(db, `tenants/${profile.tenantId}/shifts`)
       
-      const shiftData = {
+      const shiftData: CreateShiftData = {
+        tenantId: profile.tenantId,
         locationId, // SECURITY: Ensure branch isolation
         date: new Date().toISOString().split('T')[0],
         shiftType: template ? template.shiftType : selectedShiftType,
@@ -102,20 +104,28 @@ export default function ShiftControlPanel() {
         endTime: template ? template.endTime : customEndTime,
         staffOnDuty: selectedStaff,
         managerId: profile.uid,
-        status: 'active',
+        status: 'active' as const,
         createdAt: Timestamp.now()
       }
 
-      await addDoc(shiftsRef, shiftData)
+      // Use the enhanced offline-aware shift creation function
+      const shiftId = await createShift(shiftData)
       
+      console.log('✅ Shift created with ID:', shiftId);
       addToast('Shift created successfully', 'success')
       setSelectedStaff([])
       setCustomStartTime('')
       setCustomEndTime('')
       
     } catch (error) {
-      console.error('Error creating shift:', error)
-      addToast('Failed to create shift', 'error')
+      console.error('❌ Error creating shift:', error)
+      
+      // Check if this is an offline-related error
+      if (error instanceof Error && error.message.includes('offline')) {
+        addToast(error.message, 'warning')
+      } else {
+        addToast('Failed to create shift. Please check your connection.', 'error')
+      }
     } finally {
       setLoading(false)
     }
@@ -235,7 +245,7 @@ export default function ShiftControlPanel() {
                     <div
                       key={index}
                       className="group relative bg-surface-50 rounded-xl p-6 border border-surface-200 hover:border-primary-300 hover:shadow-md transition-all duration-200 cursor-pointer"
-                      onClick={() => createShift(template)}
+                      onClick={() => createShiftHandler(template)}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex items-center space-x-3">
@@ -331,7 +341,7 @@ export default function ShiftControlPanel() {
                 {/* Create Button */}
                 <div className="pt-4 border-t border-surface-200">
                   <button
-                    onClick={() => createShift()}
+                    onClick={() => createShiftHandler()}
                     disabled={!customStartTime || !customEndTime || selectedStaff.length === 0 || loading}
                     className="w-full bg-gradient-to-r from-primary-500 to-primary-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-primary-600 hover:to-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
                   >

@@ -409,27 +409,27 @@ export default function PaymentMethodsAnalytics() {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-surface-200 p-6">
+      <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8">
         <div className="animate-pulse">
-          <div className="flex items-center justify-between mb-6">
-            <div className="h-6 bg-surface-200 rounded w-48"></div>
-            <div className="h-8 bg-surface-200 rounded w-32"></div>
+          <div className="flex items-center justify-between mb-8">
+            <div className="h-6 bg-gray-200 rounded w-48"></div>
+            <div className="h-8 bg-gray-200 rounded w-32"></div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className="h-24 bg-surface-200 rounded-lg"></div>
+              <div key={i} className="h-32 bg-gray-200 rounded-2xl"></div>
             ))}
           </div>
-          <div className="h-64 bg-surface-200 rounded-lg"></div>
+          <div className="h-64 bg-gray-200 rounded-2xl"></div>
           
           {/* Show reset indicator if resetting */}
           {isResetting && (
-            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="animate-spin w-5 h-5 border-2 border-yellow-500 border-t-transparent rounded-full"></div>
+            <div className="mt-6 p-6 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/50 rounded-2xl backdrop-blur-sm">
+              <div className="flex items-center gap-4">
+                <div className="animate-spin w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full"></div>
                 <div>
-                  <p className="text-sm font-medium text-yellow-800">Shift Reset in Progress</p>
-                  <p className="text-xs text-yellow-600">Analytics data is being refreshed...</p>
+                  <p className="text-sm font-medium text-amber-800">Shift Reset in Progress</p>
+                  <p className="text-xs text-amber-600 leading-relaxed">Analytics data is being refreshed...</p>
                 </div>
               </div>
             </div>
@@ -441,15 +441,15 @@ export default function PaymentMethodsAnalytics() {
 
   if (!paymentData) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-surface-200 p-6">
-        <div className="text-center py-8">
-          <div className="w-16 h-16 bg-surface-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8">
+        <div className="text-center py-12">
+          <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm">
+            <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
           </div>
-          <p className="text-surface-500 mb-4">No payment data available</p>
-          <p className="text-sm text-surface-400">Complete some transactions to see payment method analytics</p>
+          <h3 className="text-xl font-light text-gray-900 mb-3 tracking-wide">No Payment Data</h3>
+          <p className="text-gray-500 leading-relaxed max-w-md mx-auto">Complete some transactions to see payment method analytics and insights</p>
         </div>
       </div>
     )
@@ -460,37 +460,44 @@ export default function PaymentMethodsAnalytics() {
     .sort((a, b) => (b as PaymentMethodData).amount - (a as PaymentMethodData).amount) as PaymentMethodData[]
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-surface-200 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h3 className="text-lg font-semibold text-surface-900">Payment Summary</h3>
-          <p className="text-sm text-surface-600">Current Shift</p>
+    <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8">
+      {/* Ultra Clean Header */}
+      <div className="text-center mb-12">
+        <div className="space-y-3">
+          <h2 className="text-3xl font-light text-gray-900 tracking-tight">
+            Payment Summary
+          </h2>
+          <p className="text-lg text-gray-500 leading-relaxed">
+            Real-time payment method analytics for current shift
+          </p>
         </div>
+        <div className="w-24 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent mx-auto mt-6"></div>
       </div>
 
-      {/* Payment Method Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {/* Enhanced Payment Method Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
         {sortedPayments.map((payment) => (
           <div
             key={payment.method}
-            className={`${payment.bgColor} ${payment.borderColor} border rounded-lg p-4`}
+            className="group bg-white/80 backdrop-blur-sm rounded-2xl border border-white/40 shadow-lg shadow-gray-500/10 p-6 hover:shadow-xl hover:scale-105 transition-all duration-500"
           >
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-2xl">{payment.icon}</span>
-                <span className={`font-medium ${payment.color}`}>{payment.method}</span>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className={`w-12 h-12 ${payment.bgColor.replace('-100', '-200')} rounded-2xl flex items-center justify-center shadow-sm`}>
+                  <span className="text-2xl">{payment.icon}</span>
+                </div>
+                <span className={`font-medium text-lg ${payment.color}`}>{payment.method}</span>
               </div>
-              <span className={`text-xs font-medium ${payment.color} bg-white px-2 py-1 rounded`}>
+              <span className={`text-xs font-semibold ${payment.color} bg-white/80 backdrop-blur-sm px-3 py-1.5 rounded-xl shadow-sm border border-white/40`}>
                 {payment.percentage.toFixed(1)}%
               </span>
             </div>
             
-            <div className="space-y-1">
-              <p className={`text-xl font-bold ${payment.color}`}>
+            <div className="space-y-2">
+              <p className={`text-2xl font-light ${payment.color} tracking-tight`}>
                 {formatCurrency(payment.amount)}
               </p>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-gray-500 leading-relaxed">
                 {payment.count} transaction{payment.count !== 1 ? 's' : ''}
               </p>
             </div>
@@ -498,46 +505,73 @@ export default function PaymentMethodsAnalytics() {
         ))}
       </div>
 
-      {/* Visual Progress Bars */}
-      <div className="space-y-4 mb-6">
-        <h4 className="font-medium text-surface-900">Payment Distribution</h4>
-        {sortedPayments.map((payment) => (
-          <div key={payment.method} className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2">
-                <span>{payment.icon}</span>
-                <span className="font-medium">{payment.method}</span>
+      {/* Modern Progress Bars Section */}
+      <div className="space-y-8 mb-10">
+        <div className="text-center">
+          <h3 className="text-xl font-light text-gray-900 tracking-wide mb-2">Payment Distribution</h3>
+          <p className="text-gray-500">Breakdown by payment method</p>
+        </div>
+        <div className="space-y-6">
+          {sortedPayments.map((payment) => (
+            <div key={payment.method} className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 ${payment.bgColor.replace('-100', '-200')} rounded-xl flex items-center justify-center shadow-sm`}>
+                    <span className="text-lg">{payment.icon}</span>
+                  </div>
+                  <span className="font-medium text-gray-900">{payment.method}</span>
+                </div>
+                <div className="text-right">
+                  <span className="font-semibold text-gray-900">{formatCurrency(payment.amount)}</span>
+                  <span className="text-gray-500 ml-3 text-sm">({payment.percentage.toFixed(1)}%)</span>
+                </div>
               </div>
-              <div className="text-right">
-                <span className="font-semibold">{formatCurrency(payment.amount)}</span>
-                <span className="text-gray-500 ml-2">({payment.percentage.toFixed(1)}%)</span>
+              <div className="relative w-full bg-gray-200/60 rounded-full h-3 overflow-hidden">
+                <div
+                  className={`h-3 rounded-full transition-all duration-700 shadow-sm ${
+                    payment.method === 'Cash' ? 'bg-gradient-to-r from-emerald-400 to-emerald-500' :
+                    payment.method === 'Maya' ? 'bg-gradient-to-r from-blue-400 to-blue-500' :
+                    payment.method === 'GCash' ? 'bg-gradient-to-r from-indigo-400 to-indigo-500' :
+                    'bg-gradient-to-r from-purple-400 to-purple-500'
+                  }`}
+                  style={{ width: `${Math.max(payment.percentage, 2)}%` }}
+                ></div>
               </div>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className={`h-2 rounded-full transition-all duration-500 ${payment.bgColor.replace('bg-', 'bg-').replace('-100', '-500')}`}
-                style={{ width: `${Math.max(payment.percentage, 2)}%` }}
-              ></div>
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6 border-t border-gray-200">
-        <div className="text-center">
-          <p className="text-2xl font-bold text-primary-600">{formatCurrency(paymentData.total)}</p>
-          <p className="text-sm text-gray-600">Total Revenue</p>
+      {/* Premium Summary Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-8 border-t border-gray-200/60">
+        <div className="text-center p-6 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl border border-blue-100/60 shadow-sm">
+          <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/30">
+            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+            </svg>
+          </div>
+          <p className="text-2xl font-light text-blue-900 tracking-tight mb-1">{formatCurrency(paymentData.total)}</p>
+          <p className="text-sm text-blue-700/80 font-medium">Total Revenue</p>
         </div>
-        <div className="text-center">
-          <p className="text-2xl font-bold text-blue-600">{paymentData.totalTransactions}</p>
-          <p className="text-sm text-gray-600">Total Transactions</p>
+        <div className="text-center p-6 bg-gradient-to-br from-emerald-50 to-green-50 rounded-2xl border border-emerald-100/60 shadow-sm">
+          <div className="w-12 h-12 bg-gradient-to-br from-emerald-400 to-green-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-500/30">
+            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+          </div>
+          <p className="text-2xl font-light text-emerald-900 tracking-tight mb-1">{paymentData.totalTransactions}</p>
+          <p className="text-sm text-emerald-700/80 font-medium">Transactions</p>
         </div>
-        <div className="text-center">
-          <p className="text-2xl font-bold text-green-600">
+        <div className="text-center p-6 bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border border-purple-100/60 shadow-sm">
+          <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-purple-500/30">
+            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+          </div>
+          <p className="text-2xl font-light text-purple-900 tracking-tight mb-1">
             {paymentData.totalTransactions > 0 ? formatCurrency(paymentData.total / paymentData.totalTransactions) : '₱0.00'}
           </p>
-          <p className="text-sm text-gray-600">Average Order Value</p>
+          <p className="text-sm text-purple-700/80 font-medium">Average Order</p>
         </div>
       </div>
     </div>

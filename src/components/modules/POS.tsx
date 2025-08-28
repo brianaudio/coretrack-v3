@@ -11,6 +11,7 @@ import { getPOSItems, createPOSOrder, getPOSOrders, updatePOSOrder, type POSItem
 import { getBranchLocationId } from '@/lib/utils/branchUtils'
 import { Timestamp } from 'firebase/firestore'
 import CoreTrackLogo from '@/components/CoreTrackLogo'
+import { OfflineDataManager } from '@/lib/services/OfflineDataManager'
 
 interface POSItem extends FirebasePOSItem {
   available?: boolean
@@ -30,6 +31,23 @@ export default function POS() {
   // Development mode detection
   const isDevelopment = process.env.NODE_ENV === 'development'
   
+  // Debug function to simulate network issues (development only)
+  const simulateNetworkFailure = () => {
+    if (isDevelopment) {
+      console.log('🧪 Simulating network failure...')
+      // Temporarily override network status
+      setIsOnline(false)
+      setTimeout(() => {
+        console.log('🧪 Restoring network connection...')
+        setIsOnline(navigator.onLine)
+      }, 10000) // Restore after 10 seconds
+    }
+  }
+  
+  // Network status and offline management
+  const [isOnline, setIsOnline] = useState(true)
+  const [offlineManager] = useState(() => OfflineDataManager.getInstance())
+  
   // State
   const [cart, setCart] = useState<CartItem[]>([])
   const [menuItems, setMenuItems] = useState<POSItem[]>([])
@@ -48,6 +66,70 @@ export default function POS() {
   const [printingOrder, setPrintingOrder] = useState<string | null>(null)
   const [downloadingOrder, setDownloadingOrder] = useState<string | null>(null)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
+
+  // Network status effect
+  useEffect(() => {
+    const handleOnlineStatus = (online: boolean) => {
+      const wasOffline = !isOnline
+      setIsOnline(online)
+      console.log('🌐 Network status changed:', online ? 'ONLINE' : 'OFFLINE')
+      
+      // If coming back online, process queued orders
+      if (online && wasOffline) {
+        processOfflineOrders()
+      }
+    }
+
+    // Set initial status
+    setIsOnline(navigator.onLine)
+    
+    // Subscribe to network changes
+    const unsubscribe = offlineManager.addNetworkListener(handleOnlineStatus)
+    
+    return unsubscribe
+  }, [offlineManager, isOnline])
+
+  // Process offline orders when coming back online
+  const processOfflineOrders = async () => {
+    try {
+      const offlineOrders = JSON.parse(localStorage.getItem('offline_orders') || '[]')
+      
+      if (offlineOrders.length === 0) return
+      
+      console.log('📦 Processing', offlineOrders.length, 'offline orders...')
+      
+      const processedOrders: string[] = []
+      
+      for (const order of offlineOrders) {
+        try {
+          // Remove the temporary id and timestamp before sending to Firebase
+          const { id, timestamp, ...orderData } = order
+          
+          console.log('📤 Processing offline order:', orderData)
+          const orderId = await withTimeout(createPOSOrder(orderData), 10000)
+          console.log('✅ Offline order processed successfully with ID:', orderId)
+          
+          processedOrders.push(id)
+        } catch (error) {
+          console.error('❌ Failed to process offline order:', error)
+          // Keep failed orders in the queue for retry
+        }
+      }
+      
+      // Remove successfully processed orders from offline queue
+      const remainingOrders = offlineOrders.filter((order: any) => !processedOrders.includes(order.id))
+      localStorage.setItem('offline_orders', JSON.stringify(remainingOrders))
+      
+      if (processedOrders.length > 0) {
+        alert(`Successfully processed ${processedOrders.length} offline orders!`)
+        // Refresh recent orders to show the processed orders
+        await loadRecentOrders()
+      }
+      
+    } catch (error) {
+      console.error('Error processing offline orders:', error)
+    }
+  }
   const [showFavorites, setShowFavorites] = useState(false)
   const [showCombos, setShowCombos] = useState(false)
   const [showCustomers, setShowCustomers] = useState(false)
@@ -395,6 +477,16 @@ export default function POS() {
     setCart([])
   }
 
+  // Timeout utility for Firebase operations
+  const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number = 10000): Promise<T> => {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        setTimeout(() => reject(new Error('Operation timed out')), timeoutMs)
+      })
+    ])
+  }
+
   const handlePayment = async () => {
     if (!cart.length || !profile?.tenantId || !selectedBranch) return
 
@@ -419,31 +511,74 @@ export default function POS() {
         paymentMethod: selectedPaymentMethod,
         tenantId: profile.tenantId,
         locationId: getBranchLocationId(selectedBranch.id),
-        status: 'completed' as const
+        status: isOnline ? 'completed' as const : 'pending' as const
       }
 
       console.log('💳 Creating POS order:', orderData)
+      console.log('🌐 Network status:', isOnline ? 'ONLINE' : 'OFFLINE')
       
-      // Save order to Firebase
-      const orderId = await createPOSOrder(orderData)
-      console.log('✅ Order created successfully with ID:', orderId)
+      if (isOnline) {
+        try {
+          // Try to save order to Firebase with timeout
+          const orderId = await withTimeout(createPOSOrder(orderData), 8000)
+          console.log('✅ Order created successfully with ID:', orderId)
+          
+          // Refresh recent orders to show the new order
+          await loadRecentOrders()
+          
+          // Show success message
+          alert('Payment successful! Order completed.')
+        } catch (error) {
+          console.error('📡 Firebase operation failed:', error)
+          
+          // If timeout or network error, queue for offline processing
+          if (error instanceof Error && (error.message.includes('timeout') || error.message.includes('network'))) {
+            console.log('📦 Queueing order for offline processing...')
+            
+            // Store order locally with pending status
+            const offlineOrderData = { ...orderData, status: 'pending' as const }
+            
+            // Here you would queue the operation with OfflineDataManager
+            // For now, we'll store it in localStorage as a fallback
+            const offlineOrders = JSON.parse(localStorage.getItem('offline_orders') || '[]')
+            offlineOrders.push({
+              id: Date.now().toString(),
+              ...offlineOrderData,
+              timestamp: new Date().toISOString()
+            })
+            localStorage.setItem('offline_orders', JSON.stringify(offlineOrders))
+            
+            alert('Network issue detected. Order saved locally and will be processed when connection is restored.')
+          } else {
+            throw error
+          }
+        }
+      } else {
+        // Offline mode - queue the order
+        console.log('📦 OFFLINE MODE: Queueing order for later processing...')
+        
+        const offlineOrders = JSON.parse(localStorage.getItem('offline_orders') || '[]')
+        offlineOrders.push({
+          id: Date.now().toString(),
+          ...orderData,
+          timestamp: new Date().toISOString()
+        })
+        localStorage.setItem('offline_orders', JSON.stringify(offlineOrders))
+        
+        alert('Currently offline. Order saved locally and will be processed when connection is restored.')
+      }
       
-      // Refresh recent orders to show the new order
-      await loadRecentOrders()
-      
-      // Reset everything
+      // Reset everything regardless of online/offline status
       clearCart()
       setShowPaymentModal(false)
       setCashReceived('')
       setSelectedPaymentMethod('cash')
       
-      // Show success message (you can integrate with your notification system)
-      alert('Payment successful! Order completed.')
-      
     } catch (error) {
       console.error('Payment error:', error)
       alert('Payment failed. Please try again.')
     } finally {
+      // CRITICAL: Always reset processing state to prevent UI freeze
       setIsProcessingPayment(false)
     }
   }
@@ -813,8 +948,20 @@ ${order.status === 'voided' ? `\nVOID REASON: ${order.voidReason || 'N/A'}` : ''
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-          {/* Modern Header */}
-          <div className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm tutorial-header">
+      {/* Offline Banner */}
+      {!isOnline && (
+        <div className="bg-red-600 text-white px-4 py-2 text-center text-sm font-medium z-30">
+          <div className="flex items-center justify-center gap-2">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+            System is offline. Orders will be queued and processed when connection is restored.
+          </div>
+        </div>
+      )}
+      
+      {/* Modern Header */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm tutorial-header">
             <div className="px-4 sm:px-6 py-4">
               <div className="flex items-center justify-between">
                 {/* Left - Logo & Branch Info */}
@@ -864,6 +1011,17 @@ ${order.status === 'voided' ? `\nVOID REASON: ${order.voidReason || 'N/A'}` : ''
                     </span>
                     <span>{isRefreshing ? 'Refreshing...' : 'Refresh Menu'}</span>
                   </button>
+
+                  {/* Debug button (development only) */}
+                  {isDevelopment && (
+                    <button
+                      onClick={simulateNetworkFailure}
+                      className="px-4 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg font-medium transition-all duration-200 hover:scale-105 hover:shadow-sm flex items-center gap-2"
+                    >
+                      <span className="text-lg">🧪</span>
+                      <span>Test Offline</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Right - User & Settings */}
@@ -1362,7 +1520,7 @@ ${order.status === 'voided' ? `\nVOID REASON: ${order.voidReason || 'N/A'}` : ''
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                           </svg>
-                          Complete Payment
+                          {isOnline ? 'Complete Payment' : 'Queue Payment (Offline)'}
                         </>
                       )}
                     </button>
@@ -1769,10 +1927,24 @@ ${order.status === 'voided' ? `\nVOID REASON: ${order.voidReason || 'N/A'}` : ''
                         <p className="text-gray-600 text-lg">Streamlined access to essential POS operations and analytics</p>
                       </div>
                       <div className="flex items-center gap-3">
-                        <div className="px-4 py-2 bg-green-50 border border-green-200 rounded-lg">
+                        <div className={`px-4 py-2 border rounded-lg ${
+                          isOnline 
+                            ? 'bg-green-50 border-green-200' 
+                            : 'bg-red-50 border-red-200'
+                        }`}>
                           <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                            <span className="text-green-700 font-medium text-sm">System Online</span>
+                            <div className={`w-2 h-2 rounded-full ${
+                              isOnline 
+                                ? 'bg-green-500 animate-pulse' 
+                                : 'bg-red-500'
+                            }`}></div>
+                            <span className={`font-medium text-sm ${
+                              isOnline 
+                                ? 'text-green-700' 
+                                : 'text-red-700'
+                            }`}>
+                              {isOnline ? 'System Online' : 'System Offline'}
+                            </span>
                           </div>
                         </div>
                         <div className="px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg">
@@ -2165,10 +2337,20 @@ ${order.status === 'voided' ? `\nVOID REASON: ${order.voidReason || 'N/A'}` : ''
                           <div className="space-y-4">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-3">
-                                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                                <div className={`w-3 h-3 rounded-full ${
+                                  isOnline 
+                                    ? 'bg-green-500 animate-pulse' 
+                                    : 'bg-red-500'
+                                }`}></div>
                                 <span className="text-sm font-medium text-gray-900">POS Terminal</span>
                               </div>
-                              <span className="text-sm text-green-600 font-medium">Online</span>
+                              <span className={`text-sm font-medium ${
+                                isOnline 
+                                  ? 'text-green-600' 
+                                  : 'text-red-600'
+                              }`}>
+                                {isOnline ? 'Online' : 'Offline'}
+                              </span>
                             </div>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-3">

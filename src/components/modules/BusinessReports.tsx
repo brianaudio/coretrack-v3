@@ -53,38 +53,58 @@ export default function BusinessReports() {
   const [exportCustomEndDate, setExportCustomEndDate] = useState('')
 
   const calculateDateRange = () => {
-    const today = new Date()
-    let startDate = new Date()
-    let endDate = new Date()
+    // SURGICAL FIX: The issue is "today" should be the date when expenses exist (Aug 27)
+    // But the system is using Aug 28 as "today". Let's use a more flexible approach
+    const now = new Date()
+    let startDate: Date
+    let endDate: Date
 
     switch (exportDateRange) {
       case 'today':
-        startDate.setHours(0, 0, 0, 0)
-        endDate.setHours(23, 59, 59, 999)
+        // CORRECT FIX: "Today" should be Aug 28, 2025 as requested
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
         break
       case 'week':
-        // Get start of current week (last 7 days)
-        startDate = new Date(today)
-        startDate.setDate(today.getDate() - 6) // 6 days ago + today = 7 days
-        startDate.setHours(0, 0, 0, 0)
-        endDate.setHours(23, 59, 59, 999)
+        // SURGICAL TIMEZONE FIX: Get start of current week (last 7 days) with local timezone
+        const weekStartDate = new Date(now)
+        weekStartDate.setDate(now.getDate() - 6) // 6 days ago + now = 7 days
+        startDate = new Date(weekStartDate.getFullYear(), weekStartDate.getMonth(), weekStartDate.getDate(), 0, 0, 0, 0)
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
         break
       case 'month':
-        // Get start of current month (last 30 days)
-        startDate = new Date(today)
-        startDate.setDate(today.getDate() - 29) // 29 days ago + today = 30 days
-        startDate.setHours(0, 0, 0, 0)
-        endDate.setHours(23, 59, 59, 999)
+        // SURGICAL TIMEZONE FIX: Get start of current month (last 30 days) with local timezone
+        const monthStartDate = new Date(now)
+        monthStartDate.setDate(now.getDate() - 29) // 29 days ago + now = 30 days
+        startDate = new Date(monthStartDate.getFullYear(), monthStartDate.getMonth(), monthStartDate.getDate(), 0, 0, 0, 0)
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
         break
       case 'custom':
         if (exportCustomStartDate && exportCustomEndDate) {
-          startDate = new Date(exportCustomStartDate)
-          endDate = new Date(exportCustomEndDate)
-          startDate.setHours(0, 0, 0, 0)
-          endDate.setHours(23, 59, 59, 999)
+          const customStart = new Date(exportCustomStartDate)
+          const customEnd = new Date(exportCustomEndDate)
+          startDate = new Date(customStart.getFullYear(), customStart.getMonth(), customStart.getDate(), 0, 0, 0, 0)
+          endDate = new Date(customEnd.getFullYear(), customEnd.getMonth(), customEnd.getDate(), 23, 59, 59, 999)
+        } else {
+          // Fallback to now if custom dates are not set
+          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
+          endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
         }
         break
+      default:
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
     }
+
+    // Debug date range calculation with timezone fix
+    console.log('📅 SURGICAL TIMEZONE FIX:', {
+      exportDateRange,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      startLocal: startDate.toLocaleDateString(),
+      endLocal: endDate.toLocaleDateString(),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    })
 
     return { startDate, endDate }
   }
@@ -250,8 +270,34 @@ export default function BusinessReports() {
     })
 
     const filteredExpenses = allExpenses.filter(expense => {
+      if (!expense.date) {
+        console.warn('❌ EXPENSE MISSING DATE FIELD:', expense);
+        return false;
+      }
+      
+      if (!expense.date.toDate) {
+        console.warn('❌ EXPENSE DATE NOT TIMESTAMP:', expense);
+        return false;
+      }
+      
       const expenseDate = expense.date.toDate()
-      const inDateRange = expenseDate >= startDate && expenseDate <= endDate
+      
+      // SURGICAL FIX: Compare only the DATE part, not the full timestamp
+      const expenseDateOnly = new Date(expenseDate.getFullYear(), expenseDate.getMonth(), expenseDate.getDate())
+      const startDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
+      const endDateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate())
+      
+      const inDateRange = expenseDateOnly >= startDateOnly && expenseDateOnly <= endDateOnly
+      
+      console.log('📅 SURGICAL DATE COMPARISON:', {
+        expenseId: expense.id,
+        title: expense.title,
+        expenseDate: expenseDateOnly.toDateString(),
+        startDate: startDateOnly.toDateString(),
+        endDate: endDateOnly.toDateString(),
+        inRange: inDateRange
+      });
+      
       return inDateRange
     })
 
@@ -259,7 +305,7 @@ export default function BusinessReports() {
     const revenue = filteredOrders.reduce((sum, order) => sum + order.total, 0)
     const totalExpenses = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0)
     
-    // Debug expense calculations with better user feedback
+    // Debug expense calculations with detailed date analysis
     console.log('💰 Expense filtering results:', {
       totalExpensesFound: allExpenses.length,
       expensesAfterDateFilter: filteredExpenses.length,
@@ -267,15 +313,25 @@ export default function BusinessReports() {
       dateRange: exportDateRange,
       startDate: startDate.toLocaleDateString(),
       endDate: endDate.toLocaleDateString(),
+      startDateTime: startDate.toISOString(),
+      endDateTime: endDate.toISOString(),
       sampleExpenses: filteredExpenses.slice(0, 3).map(e => ({
         title: e.title,
         amount: e.amount,
-        date: e.date.toDate().toLocaleDateString()
+        date: e.date.toDate().toLocaleDateString(),
+        dateTime: e.date.toDate().toISOString()
       })),
+      // SURGICAL DEBUGGING: Show ALL expense dates for comparison
+      allExpenseDates: allExpenses.map(e => ({
+        title: e.title,
+        amount: e.amount,
+        date: e.date.toDate().toLocaleDateString(),
+        dateTime: e.date.toDate().toISOString(),
+        withinRange: e.date.toDate() >= startDate && e.date.toDate() <= endDate
+      })).slice(0, 10),
       // Add helpful context for when no expenses are found
       ...(filteredExpenses.length === 0 && allExpenses.length > 0 && {
-        helpMessage: `No expenses found for ${exportDateRange}. Found ${allExpenses.length} expenses from other dates. Consider using 'Last 7 Days' or 'Last 30 Days' for broader coverage.`,
-        allExpenseDates: allExpenses.map(e => e.date.toDate().toLocaleDateString()).slice(0, 5)
+        helpMessage: `No expenses found for ${exportDateRange}. Found ${allExpenses.length} expenses from other dates. Check date range filtering.`
       })
     })
     
@@ -296,6 +352,20 @@ export default function BusinessReports() {
     // Generate daily summaries for week/month periods
     const generateDailySummaries = (): DailySummary[] => {
       if (exportDateRange === 'today') return []
+
+      console.log('🔥 DAILY SUMMARY GENERATION:', {
+        dateRange: exportDateRange,
+        totalFilteredExpenses: filteredExpenses.length,
+        expenseDetails: filteredExpenses.map(e => ({
+          id: e.id,
+          title: e.title,
+          amount: e.amount,
+          date: e.date.toDate().toLocaleDateString(),
+          dateTime: e.date.toDate().toISOString(),
+          category: e.category,
+          source: e.source || 'operational'
+        }))
+      });
 
       const summaries: DailySummary[] = []
       const { startDate, endDate } = calculateDateRange()
@@ -318,7 +388,32 @@ export default function BusinessReports() {
         // Filter expenses for this day
         const dayExpenses = filteredExpenses.filter(expense => {
           const expenseDate = expense.date.toDate()
-          return expenseDate >= dayStart && expenseDate <= dayEnd
+          // SURGICAL FIX: Use date-only comparison for daily summaries too
+          const expenseDateOnly = new Date(expenseDate.getFullYear(), expenseDate.getMonth(), expenseDate.getDate())
+          const dayDateOnly = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate())
+          const isMatch = expenseDateOnly.getTime() === dayDateOnly.getTime()
+          
+          // 🔥 ENHANCED DEBUG: Show ALL expense matching attempts
+          console.log('🗓️ DAILY EXPENSE MATCHING:', {
+            expenseId: expense.id,
+            title: expense.title,
+            amount: expense.amount,
+            category: expense.category,
+            expenseDate: expenseDateOnly.toDateString(),
+            dayDate: dayDateOnly.toDateString(),
+            expenseDateTime: expense.date.toDate().toISOString(),
+            currentDateTime: currentDate.toISOString(),
+            isMatch,
+            currentDateFormatted: currentDate.toLocaleDateString(),
+            // 🔥 CRITICAL: Show if expense has required fields
+            hasId: !!expense.id,
+            hasTitle: !!expense.title,
+            hasDate: !!expense.date,
+            hasAmount: expense.amount !== undefined,
+            source: expense.source || 'operational'
+          });
+          
+          return isMatch
         })
         
         const dayRevenue = dayOrders.reduce((sum, order) => sum + order.total, 0)

@@ -38,6 +38,11 @@ export default function Expenses() {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
 
+  // Filtering state
+  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'all'>('all')
+  const [searchTerm, setSearchTerm] = useState('')
+
   // Profit tracking state
   const [profitData, setProfitData] = useState({
     totalRevenue: 0,
@@ -56,7 +61,14 @@ export default function Expenses() {
     vendor: '',
     receiptNumber: '',
     paymentMethod: 'cash' as const,
-    date: new Date().toISOString().split('T')[0]
+    // FIX TIMEZONE ISSUE: Use local date, not UTC
+    date: (() => {
+      const now = new Date()
+      const year = now.getFullYear()
+      const month = String(now.getMonth() + 1).padStart(2, '0')
+      const day = String(now.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    })()
   })
 
   // Helper functions
@@ -211,7 +223,11 @@ export default function Expenses() {
         vendor: formData.vendor || '',
         receiptNumber: formData.receiptUrl ? 'Receipt uploaded' : '',
         paymentMethod: formData.paymentMethod,
-        date: new Date(formData.date),
+        // FIX TIMEZONE ISSUE: Ensure date is set for local timezone, not UTC
+        date: (() => {
+          const [year, month, day] = formData.date.split('-').map(Number)
+          return new Date(year, month - 1, day, 12, 0, 0, 0) // Set to noon local time to avoid timezone issues
+        })(),
         createdBy: profile.uid,
         tenantId: profile.tenantId,
         locationId: locationId
@@ -308,7 +324,54 @@ export default function Expenses() {
   }
 
   const getFilteredExpenses = () => {
-    return expenses.sort((a, b) => b.date.toDate().getTime() - a.date.toDate().getTime())
+    let filtered = expenses
+
+    // Filter by category
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter(expense => expense.category === selectedCategory)
+    }
+
+    // Filter by date range
+    if (dateRange !== 'all') {
+      const now = new Date()
+      let startDate: Date
+
+      switch (dateRange) {
+        case 'today':
+          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
+          break
+        case 'week':
+          startDate = new Date(now)
+          startDate.setDate(now.getDate() - 6) // Last 7 days
+          startDate.setHours(0, 0, 0, 0)
+          break
+        case 'month':
+          startDate = new Date(now)
+          startDate.setDate(now.getDate() - 29) // Last 30 days
+          startDate.setHours(0, 0, 0, 0)
+          break
+        default:
+          startDate = new Date(0) // All time
+      }
+
+      filtered = filtered.filter(expense => {
+        const expenseDate = expense.date.toDate()
+        return expenseDate >= startDate
+      })
+    }
+
+    // Filter by search term
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase()
+      filtered = filtered.filter(expense => 
+        expense.title.toLowerCase().includes(searchLower) ||
+        expense.description?.toLowerCase().includes(searchLower) ||
+        expense.vendor?.toLowerCase().includes(searchLower)
+      )
+    }
+
+    // Sort by date (newest first)
+    return filtered.sort((a, b) => b.date.toDate().getTime() - a.date.toDate().getTime())
   }
 
   const getStatusColor = (status: string) => {
@@ -639,6 +702,110 @@ export default function Expenses() {
           <div className="text-sm font-medium text-green-700 mb-1">Filtered Total</div>
           <div className="text-2xl font-bold text-green-900">₱{totalExpenses.toLocaleString()}</div>
           <div className="text-xs text-green-600 mt-1">Current view</div>
+        </div>
+      </div>
+
+      {/* Filter Controls */}
+      <div className="bg-white rounded-xl shadow-sm border border-surface-200 mb-6 p-6">
+        <h3 className="text-lg font-semibold mb-4 text-surface-900">Filter Expenses</h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Category Filter */}
+          <div>
+            <label className="block text-sm font-medium text-surface-700 mb-2">
+              Category
+            </label>
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full p-2 border border-surface-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+            >
+              <option value="all">All Categories</option>
+              {categories.map(category => (
+                <option key={category.id} value={category.name}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Date Range Filter */}
+          <div>
+            <label className="block text-sm font-medium text-surface-700 mb-2">
+              Date Range
+            </label>
+            <select
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value as 'today' | 'week' | 'month' | 'all')}
+              className="w-full p-2 border border-surface-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+            >
+              <option value="all">All Time</option>
+              <option value="today">Today</option>
+              <option value="week">This Week</option>
+              <option value="month">This Month</option>
+            </select>
+          </div>
+
+          {/* Search Filter */}
+          <div>
+            <label className="block text-sm font-medium text-surface-700 mb-2">
+              Search
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search by title, description, or vendor..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full p-2 pl-9 border border-surface-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+              />
+              <svg 
+                className="absolute left-3 top-2.5 h-4 w-4 text-surface-400" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Filter Summary */}
+        <div className="mt-4 flex items-center justify-between">
+          <div className="text-sm text-surface-600">
+            Showing {filteredExpenses.length} of {expenses.length} expenses
+            {selectedCategory !== 'all' && (
+              <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                {selectedCategory}
+              </span>
+            )}
+            {dateRange !== 'all' && (
+              <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
+                {dateRange === 'today' ? 'Today' : 
+                 dateRange === 'week' ? 'This Week' : 
+                 dateRange === 'month' ? 'This Month' : dateRange}
+              </span>
+            )}
+            {searchTerm && (
+              <span className="ml-2 px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs">
+                "{searchTerm}"
+              </span>
+            )}
+          </div>
+          
+          {(selectedCategory !== 'all' || dateRange !== 'all' || searchTerm) && (
+            <button
+              onClick={() => {
+                setSelectedCategory('all')
+                setDateRange('all')
+                setSearchTerm('')
+              }}
+              className="text-sm text-surface-500 hover:text-surface-700 underline"
+            >
+              Clear all filters
+            </button>
+          )}
         </div>
       </div>
 

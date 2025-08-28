@@ -1,8 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useAuth } from '../../lib/context/AuthContext'
-import { useBranch } from '../../lib/context/BranchContext'
 
 interface ExpenseFormData {
   title: string
@@ -43,50 +41,62 @@ export default function EnhancedExpenseModal({
   editingExpense,
   mode = 'create'
 }: EnhancedExpenseModalProps) {
-  const { profile } = useAuth()
-  const { selectedBranch } = useBranch()
-  
   const [formData, setFormData] = useState<ExpenseFormData>({
     title: '',
-    category: '',
+    category: 'General',
     amount: 0,
     paymentMethod: 'cash',
-    date: new Date().toISOString().split('T')[0],
+    // FIX TIMEZONE ISSUE: Use local date, not UTC
+    date: (() => {
+      const now = new Date()
+      const year = now.getFullYear()
+      const month = String(now.getMonth() + 1).padStart(2, '0')
+      const day = String(now.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    })(),
     description: '',
     vendor: '',
     receiptUrl: '',
     tags: []
   })
-  
-  const [currentStep, setCurrentStep] = useState(1)
+
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [budgetWarning, setBudgetWarning] = useState<string | null>(null)
-  const [receiptPreview, setReceiptPreview] = useState<string | null>(null)
-  const [suggestions, setSuggestions] = useState<string[]>([])
-  const [newTag, setNewTag] = useState('')
-  
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const titleInputRef = useRef<HTMLInputElement>(null)
 
-  // Quick expense templates (removed from UI but kept for suggestions)
-  const expenseTemplates = [
-    { title: 'Office Supplies', category: 'Office', amount: 500, paymentMethod: 'card' as const, icon: '📎' },
-    { title: 'Grocery Supplies', category: 'Food & Beverage', amount: 2000, paymentMethod: 'cash' as const, icon: '🛒' },
-    { title: 'Utility Bill', category: 'Utilities', amount: 1500, paymentMethod: 'bank_transfer' as const, icon: '💡' },
-    { title: 'Equipment Repair', category: 'Maintenance', amount: 3000, paymentMethod: 'card' as const, icon: '🔧' },
-    { title: 'Staff Meal', category: 'Food & Beverage', amount: 800, paymentMethod: 'cash' as const, icon: '🍽️' }
+  // Payment method configurations with modern icons
+  const paymentMethods = [
+    { 
+      value: 'cash', 
+      label: 'Cash', 
+      icon: '💵', 
+      gradient: 'from-green-400 to-green-600',
+      ring: 'ring-green-200' 
+    },
+    { 
+      value: 'card', 
+      label: 'Card', 
+      icon: '💳', 
+      gradient: 'from-blue-400 to-blue-600',
+      ring: 'ring-blue-200' 
+    },
+    { 
+      value: 'bank_transfer', 
+      label: 'Transfer', 
+      icon: '🏦', 
+      gradient: 'from-purple-400 to-purple-600',
+      ring: 'ring-purple-200' 
+    },
+    { 
+      value: 'check', 
+      label: 'Check', 
+      icon: '📝', 
+      gradient: 'from-gray-400 to-gray-600',
+      ring: 'ring-gray-200' 
+    }
   ]
 
-  // Payment method configurations
-  const paymentMethods = {
-    cash: { label: 'Cash', icon: '💵', color: 'bg-green-100 text-green-800' },
-    card: { label: 'Card', icon: '💳', color: 'bg-blue-100 text-blue-800' },
-    check: { label: 'Check', icon: '📝', color: 'bg-purple-100 text-purple-800' },
-    bank_transfer: { label: 'Bank Transfer', icon: '🏦', color: 'bg-indigo-100 text-indigo-800' }
-  }
-
-  // Initialize form when editing
+  // Initialize form when editing or opening
   useEffect(() => {
     if (editingExpense) {
       setFormData({
@@ -103,107 +113,48 @@ export default function EnhancedExpenseModal({
     } else {
       setFormData({
         title: '',
-        category: '',
+        category: 'General',
         amount: 0,
         paymentMethod: 'cash',
-        date: new Date().toISOString().split('T')[0],
+        // FIX TIMEZONE ISSUE: Use local date, not UTC
+        date: (() => {
+          const now = new Date()
+          const year = now.getFullYear()
+          const month = String(now.getMonth() + 1).padStart(2, '0')
+          const day = String(now.getDate()).padStart(2, '0')
+          return `${year}-${month}-${day}`
+        })(),
         description: '',
         vendor: '',
         receiptUrl: '',
         tags: []
       })
     }
-    setCurrentStep(1)
     setErrors({})
-    setBudgetWarning(null)
   }, [editingExpense, isOpen])
 
   // Focus title input when modal opens
   useEffect(() => {
     if (isOpen && titleInputRef.current) {
-      setTimeout(() => titleInputRef.current?.focus(), 100)
+      setTimeout(() => titleInputRef.current?.focus(), 200)
     }
   }, [isOpen])
 
-  // Check budget warnings
-  useEffect(() => {
-    if (formData.category && formData.amount > 0) {
-      const category = categories.find(c => c.name === formData.category)
-      if (category?.budget) {
-        const spent = category.spent || 0
-        const newTotal = spent + formData.amount
-        const percentage = (newTotal / category.budget) * 100
-        
-        if (percentage > 100) {
-          setBudgetWarning(`⚠️ This expense will exceed the ${category.name} budget by ₱${(newTotal - category.budget).toLocaleString()}`)
-        } else if (percentage > 80) {
-          setBudgetWarning(`⚡ This expense will use ${percentage.toFixed(0)}% of the ${category.name} budget`)
-        } else {
-          setBudgetWarning(null)
-        }
-      }
-    }
-  }, [formData.category, formData.amount, categories])
-
-  // Generate title suggestions based on category
-  useEffect(() => {
-    if (formData.category) {
-      const categoryTemplates = expenseTemplates.filter(t => t.category === formData.category)
-      setSuggestions(categoryTemplates.map(t => t.title))
-    } else {
-      setSuggestions([])
-    }
-  }, [formData.category])
-
-  const validateStep = (step: number): boolean => {
+  const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {}
     
-    if (step === 1) {
-      if (!formData.title.trim()) newErrors.title = 'Title is required'
-      if (!formData.category) newErrors.category = 'Category is required'
-      if (!formData.amount || formData.amount <= 0) newErrors.amount = 'Amount must be greater than 0'
-    }
+    if (!formData.title.trim()) newErrors.title = 'What did you spend on?'
+    if (!formData.amount || formData.amount <= 0) newErrors.amount = 'Enter the amount'
     
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
-  const nextStep = () => {
-    if (validateStep(currentStep)) {
-      setCurrentStep(prev => Math.min(prev + 1, 3))
-    }
-  }
-
-  const prevStep = () => {
-    setCurrentStep(prev => Math.max(prev - 1, 1))
-  }
-
-  const addTag = () => {
-    if (newTag.trim() && !formData.tags.includes(newTag.trim())) {
-      setFormData(prev => ({
-        ...prev,
-        tags: [...prev.tags, newTag.trim()]
-      }))
-      setNewTag('')
-    }
-  }
-
-  const handleReceiptUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const result = e.target?.result as string
-        setReceiptPreview(result)
-        setFormData(prev => ({ ...prev, receiptUrl: result }))
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-
-  const handleSubmit = async () => {
-    if (!validateStep(currentStep)) return
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     
+    if (!validateForm()) return
+
     setIsSubmitting(true)
     try {
       await onSubmit(formData)
@@ -218,372 +169,165 @@ export default function EnhancedExpenseModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 flex-shrink-0">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold text-gray-900">
-              {mode === 'edit' ? '✏️ Edit Expense' : '➕ Add New Expense'}
-            </h2>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl border-0 w-full max-w-md transform transition-all duration-300 scale-100">
+        {/* Modern Header */}
+        <div className="relative px-6 py-5 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
+              <span className="text-white text-lg">💸</span>
+            </div>
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900">
+                {mode === 'edit' ? 'Edit Expense' : 'New Expense'}
+              </h3>
+              <p className="text-sm text-gray-500">Track your business spending</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="absolute right-4 top-4 p-2 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Streamlined Form */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Title - Most Important Field */}
+          <div>
+            <input
+              ref={titleInputRef}
+              type="text"
+              placeholder="What did you spend on?"
+              value={formData.title}
+              onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+              className={`w-full px-4 py-4 text-lg border-2 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-100 transition-all ${
+                errors.title 
+                  ? 'border-red-300 bg-red-50' 
+                  : 'border-gray-200 focus:border-blue-400 bg-gray-50 hover:bg-white'
+              }`}
+            />
+            {errors.title && (
+              <p className="text-red-500 text-sm mt-2 flex items-center gap-1">
+                <span>⚠️</span> {errors.title}
+              </p>
+            )}
+          </div>
+
+          {/* Amount - Second Most Important */}
+          <div>
+            <div className="relative">
+              <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
+                <span className="text-2xl font-semibold text-gray-600">₱</span>
+              </div>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+                value={formData.amount || ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
+                className={`w-full pl-12 pr-4 py-4 text-lg font-semibold border-2 rounded-xl focus:outline-none focus:ring-4 focus:ring-green-100 transition-all ${
+                  errors.amount 
+                    ? 'border-red-300 bg-red-50' 
+                    : 'border-gray-200 focus:border-green-400 bg-gray-50 hover:bg-white'
+                }`}
+              />
+            </div>
+            {errors.amount && (
+              <p className="text-red-500 text-sm mt-2 flex items-center gap-1">
+                <span>⚠️</span> {errors.amount}
+              </p>
+            )}
+          </div>
+
+          {/* Payment Method - Beautiful Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">How did you pay?</label>
+            <div className="grid grid-cols-2 gap-3">
+              {paymentMethods.map((method) => (
+                <button
+                  key={method.value}
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, paymentMethod: method.value as any }))}
+                  className={`p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 ${
+                    formData.paymentMethod === method.value
+                      ? `border-transparent bg-gradient-to-r ${method.gradient} text-white shadow-lg transform scale-105`
+                      : 'border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="text-2xl">{method.icon}</span>
+                  <span className="text-sm font-medium">{method.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Optional Details - Collapsible */}
+          <div className="border-t border-gray-100 pt-4">
+            <details className="group">
+              <summary className="cursor-pointer text-sm font-medium text-gray-600 hover:text-gray-800 flex items-center gap-2">
+                <span>More details (optional)</span>
+                <svg className="w-4 h-4 transform group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </summary>
+              <div className="mt-4 space-y-4">
+                <input
+                  type="text"
+                  placeholder="Vendor (optional)"
+                  value={formData.vendor}
+                  onChange={(e) => setFormData(prev => ({ ...prev, vendor: e.target.value }))}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 bg-gray-50 hover:bg-white transition-all"
+                />
+                <textarea
+                  placeholder="Notes (optional)"
+                  value={formData.description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  rows={3}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 bg-gray-50 hover:bg-white transition-all resize-none"
+                />
+                <input
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 bg-gray-50 hover:bg-white transition-all"
+                />
+              </div>
+            </details>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-4">
             <button
+              type="button"
               onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              className="flex-1 px-6 py-3 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-xl transition-all font-medium"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-xl font-medium transition-all duration-200 transform hover:scale-105 shadow-lg disabled:opacity-50 disabled:transform-none flex items-center justify-center gap-2"
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <span>💾</span>
+                  <span>{mode === 'edit' ? 'Update' : 'Add'} Expense</span>
+                </>
+              )}
             </button>
           </div>
-          
-          {/* Progress Steps */}
-          <div className="flex items-center space-x-4">
-            {[1, 2, 3].map((step) => (
-              <div key={step} className="flex items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  step <= currentStep 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-gray-200 text-gray-600'
-                }`}>
-                  {step}
-                </div>
-                {step < 3 && (
-                  <div className={`w-12 h-1 mx-2 ${
-                    step < currentStep ? 'bg-blue-600' : 'bg-gray-200'
-                  }`} />
-                )}
-              </div>
-            ))}
-          </div>
-          
-          <div className="mt-2 text-sm text-gray-600">
-            {currentStep === 1 && 'Basic Information'}
-            {currentStep === 2 && 'Payment & Details'}
-            {currentStep === 3 && 'Additional Information'}
-          </div>
-        </div>
-
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="p-6">
-            {/* Step 1: Basic Information */}
-            {currentStep === 1 && (
-              <div className="space-y-6">
-                {/* Title Field */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    📝 Expense Title *
-                  </label>
-                  <input
-                    ref={titleInputRef}
-                    type="text"
-                    value={formData.title}
-                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.title ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    placeholder="e.g., Office supplies for Q1"
-                  />
-                  {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title}</p>}
-                  
-                  {/* Title Suggestions */}
-                  {suggestions.length > 0 && formData.title === '' && (
-                    <div className="mt-2">
-                      <p className="text-xs text-gray-500 mb-1">Suggestions:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {suggestions.map((suggestion, index) => (
-                          <button
-                            key={index}
-                            onClick={() => setFormData(prev => ({ ...prev, title: suggestion }))}
-                            className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded hover:bg-gray-200"
-                          >
-                            {suggestion}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Category Field */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    📂 Category *
-                  </label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.category ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                  >
-                    <option value="">Choose a category</option>
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.name}>
-                        {category.icon} {category.name}
-                        {category.budget && ` (Budget: ₱${category.budget.toLocaleString()})`}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.category && <p className="text-red-500 text-sm mt-1">{errors.category}</p>}
-                </div>
-
-                {/* Amount Field */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    💰 Amount *
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-3 text-gray-500">₱</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.amount || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
-                      className={`w-full pl-8 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                        errors.amount ? 'border-red-300' : 'border-gray-300'
-                      }`}
-                      placeholder="0.00"
-                    />
-                  </div>
-                  {errors.amount && <p className="text-red-500 text-sm mt-1">{errors.amount}</p>}
-                  
-                  {/* Budget Warning */}
-                  {budgetWarning && (
-                    <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <p className="text-yellow-800 text-sm">{budgetWarning}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Step 2: Payment & Details */}
-            {currentStep === 2 && (
-              <div className="space-y-6">
-                {/* Payment Method */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
-                    💳 Payment Method
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {Object.entries(paymentMethods).map(([key, method]) => (
-                      <button
-                        key={key}
-                        onClick={() => setFormData(prev => ({ ...prev, paymentMethod: key as any }))}
-                        className={`p-4 border-2 rounded-lg transition-all ${
-                          formData.paymentMethod === key
-                            ? 'border-blue-500 bg-blue-50' 
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="flex items-center space-x-3">
-                          <span className="text-xl">{method.icon}</span>
-                          <span className="font-medium">{method.label}</span>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Date Field */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    📅 Date
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.date}
-                    onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                {/* Vendor Field */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    🏪 Vendor/Supplier
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.vendor}
-                    onChange={(e) => setFormData(prev => ({ ...prev, vendor: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="e.g., ABC Office Supplies"
-                  />
-                </div>
-
-                {/* Description Field */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    📄 Description
-                  </label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    rows={3}
-                    placeholder="Additional details about this expense..."
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Step 3: Additional Information */}
-            {currentStep === 3 && (
-              <div className="space-y-6">
-                {/* Tags */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    🏷️ Tags
-                  </label>
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {formData.tags.map((tag, index) => (
-                      <span
-                        key={index}
-                        className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
-                      >
-                        {tag}
-                        <button
-                          type="button"
-                          onClick={() => setFormData(prev => ({
-                            ...prev,
-                            tags: prev.tags.filter((_, i) => i !== index)
-                          }))}
-                          className="ml-2 text-blue-600 hover:text-blue-800"
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newTag}
-                      onChange={(e) => setNewTag(e.target.value)}
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          addTag()
-                        }
-                      }}
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Add a tag..."
-                    />
-                    <button
-                      type="button"
-                      onClick={addTag}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                    >
-                      Add
-                    </button>
-                  </div>
-                </div>
-
-                {/* Receipt Upload */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
-                    📎 Receipt (Optional)
-                  </label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                    {receiptPreview ? (
-                      <div>
-                        <img
-                          src={receiptPreview}
-                          alt="Receipt preview"
-                          className="mx-auto max-h-40 rounded-lg mb-3"
-                        />
-                        <button
-                          onClick={() => {
-                            setReceiptPreview(null)
-                            setFormData(prev => ({ ...prev, receiptUrl: '' }))
-                          }}
-                          className="text-red-600 hover:text-red-700 text-sm"
-                        >
-                          Remove receipt
-                        </button>
-                      </div>
-                    ) : (
-                      <div>
-                        <svg className="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                        </svg>
-                        <p className="text-gray-600 mb-2">Upload receipt image</p>
-                        <button
-                          onClick={() => fileInputRef.current?.click()}
-                          className="text-blue-600 hover:text-blue-700 font-medium"
-                        >
-                          Choose file
-                        </button>
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept="image/*"
-                          onChange={handleReceiptUpload}
-                          className="hidden"
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="p-6 border-t border-gray-200 bg-gray-50 flex-shrink-0">
-          <div className="flex justify-between">
-            <div className="flex space-x-3">
-              {currentStep > 1 && (
-                <button
-                  onClick={prevStep}
-                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  ← Previous
-                </button>
-              )}
-            </div>
-            
-            <div className="flex space-x-3">
-              <button
-                onClick={onClose}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              
-              {currentStep < 3 ? (
-                <button
-                  onClick={nextStep}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Next →
-                </button>
-              ) : (
-                <button
-                  onClick={handleSubmit}
-                  disabled={isSubmitting}
-                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 flex items-center space-x-2"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      <span>Saving...</span>
-                    </>
-                  ) : (
-                    <span>{mode === 'edit' ? '✅ Update Expense' : '✅ Create Expense'}</span>
-                  )}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+        </form>
       </div>
     </div>
   )

@@ -1117,15 +1117,23 @@ export default function BusinessReports() {
     }
   }
 
-  // Loading state: Wait for branch selection
+  // Modern Loading state: Wait for branch selection
   if (!selectedBranch) {
     return (
-      <div className="p-6 max-w-6xl mx-auto">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading branch data...</p>
-            <p className="text-sm text-gray-500 mt-2">Please wait while we initialize your branch settings</p>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
+        <div className="max-w-7xl mx-auto p-8">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center space-y-6">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-blue-500/30">
+                <svg className="w-8 h-8 text-white animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+              </div>
+              <div className="space-y-2">
+                <p className="text-xl font-light text-gray-900">Loading branch data...</p>
+                <p className="text-gray-500">Please wait while we initialize your branch settings</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1133,104 +1141,112 @@ export default function BusinessReports() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      {/* Header */}
-      <div className="mb-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Data Export Center</h1>
-          <p className="text-gray-600 mt-2">
-            Generate and download comprehensive business reports for your analysis.
-          </p>
-        </div>
-      </div>
-
-      {/* Date Range Selector */}
-      <div className="mb-8 bg-white rounded-lg shadow-sm border p-6">
-        <h3 className="text-lg font-semibold mb-4">Select Date Range</h3>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <button 
-            onClick={() => setExportDateRange('today')}
-            className={`p-3 rounded-lg border text-center transition-colors ${
-              exportDateRange === 'today' 
-                ? 'bg-blue-50 border-blue-300 text-blue-700' 
-                : 'bg-white border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            Today
-          </button>
-          <button 
-            onClick={() => setExportDateRange('week')}
-            className={`p-3 rounded-lg border text-center transition-colors ${
-              exportDateRange === 'week' 
-                ? 'bg-blue-50 border-blue-300 text-blue-700' 
-                : 'bg-white border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            This Week
-          </button>
-          <button 
-            onClick={() => setExportDateRange('month')}
-            className={`p-3 rounded-lg border text-center transition-colors ${
-              exportDateRange === 'month' 
-                ? 'bg-blue-50 border-blue-300 text-blue-700' 
-                : 'bg-white border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            This Month
-          </button>
-          <button 
-            onClick={() => setExportDateRange('custom')}
-            className={`p-3 rounded-lg border text-center transition-colors ${
-              exportDateRange === 'custom' 
-                ? 'bg-blue-50 border-blue-300 text-blue-700' 
-                : 'bg-white border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            Custom Range
-          </button>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
+      <div className="max-w-7xl mx-auto p-8 space-y-12">
+        {/* Ultra Clean Header */}
+        <div className="text-center space-y-6">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-light text-gray-900 tracking-tight">
+              Business Reports
+            </h1>
+            <p className="text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed">
+              Generate comprehensive business insights and performance analytics
+            </p>
+          </div>
+          <div className="w-24 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent mx-auto"></div>
         </div>
 
-        {/* Custom Date Range Inputs */}
+        {/* Modern Date Range Selector */}
+        <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8">
+          <h3 className="text-xl font-light text-gray-900 tracking-wide mb-6">Select Reporting Period</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <button 
+              onClick={() => setExportDateRange('today')}
+              className={`p-4 rounded-2xl border-2 text-center transition-all duration-300 font-medium ${
+                exportDateRange === 'today' 
+                  ? 'bg-gradient-to-r from-blue-50 to-blue-100 border-blue-300 text-blue-700 shadow-md scale-105' 
+                  : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300 hover:shadow-sm text-gray-700'
+              }`}
+            >
+              <div className="text-lg mb-1">Today</div>
+              <div className="text-xs opacity-70">Current day</div>
+            </button>
+            <button 
+              onClick={() => setExportDateRange('week')}
+              className={`p-4 rounded-2xl border-2 text-center transition-all duration-300 font-medium ${
+                exportDateRange === 'week' 
+                  ? 'bg-gradient-to-r from-blue-50 to-blue-100 border-blue-300 text-blue-700 shadow-md scale-105' 
+                  : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300 hover:shadow-sm text-gray-700'
+              }`}
+            >
+              <div className="text-lg mb-1">This Week</div>
+              <div className="text-xs opacity-70">Last 7 days</div>
+            </button>
+            <button 
+              onClick={() => setExportDateRange('month')}
+              className={`p-4 rounded-2xl border-2 text-center transition-all duration-300 font-medium ${
+                exportDateRange === 'month' 
+                  ? 'bg-gradient-to-r from-blue-50 to-blue-100 border-blue-300 text-blue-700 shadow-md scale-105' 
+                  : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300 hover:shadow-sm text-gray-700'
+              }`}
+            >
+              <div className="text-lg mb-1">This Month</div>
+              <div className="text-xs opacity-70">Last 30 days</div>
+            </button>
+            <button 
+              onClick={() => setExportDateRange('custom')}
+              className={`p-4 rounded-2xl border-2 text-center transition-all duration-300 font-medium ${
+                exportDateRange === 'custom' 
+                  ? 'bg-gradient-to-r from-blue-50 to-blue-100 border-blue-300 text-blue-700 shadow-md scale-105' 
+                  : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300 hover:shadow-sm text-gray-700'
+              }`}
+            >
+              <div className="text-lg mb-1">Custom Range</div>
+              <div className="text-xs opacity-70">Pick dates</div>
+            </button>
+          </div>
+
+        {/* Modern Custom Date Range Inputs */}
         {exportDateRange === 'custom' && (
-          <div className="mt-4 grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">
                 Start Date
               </label>
               <input
                 type="date"
                 value={exportCustomStartDate}
                 onChange={(e) => setExportCustomStartDate(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full p-4 border-2 border-gray-300 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 bg-white hover:border-gray-400"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">
                 End Date
               </label>
               <input
                 type="date"
                 value={exportCustomEndDate}
                 onChange={(e) => setExportCustomEndDate(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full p-4 border-2 border-gray-300 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 bg-white hover:border-gray-400"
               />
             </div>
           </div>
         )}
       </div>
 
-      {/* Export Options */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Analytics Report */}
-        <div className="bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
-          <div className="text-center mb-4">
-            <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center mb-3">
-              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      {/* Modern Export Options */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* Enhanced Analytics Report */}
+        <div className="group bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8 hover:shadow-2xl hover:scale-[1.02] transition-all duration-500">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 mx-auto bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-blue-500/30">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold mb-2">Analytics Report</h3>
-            <p className="text-gray-600 text-sm">
+            <h3 className="text-xl font-medium text-gray-900 mb-2">Analytics Report</h3>
+            <p className="text-gray-500 leading-relaxed">
               Sales performance, customer insights, and operational metrics
             </p>
           </div>
@@ -1240,22 +1256,31 @@ export default function BusinessReports() {
               handleExport('analytics')
             }}
             disabled={isExporting}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-4 px-6 rounded-2xl hover:from-blue-600 hover:to-blue-700 disabled:bg-gray-300 transition-all duration-300 font-medium group-hover:shadow-lg group-hover:shadow-blue-500/25"
           >
-            {isExporting ? 'Generating...' : 'Export Analytics'}
+            {isExporting ? (
+              <div className="flex items-center justify-center gap-2">
+                <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Generating...
+              </div>
+            ) : (
+              'Export Analytics'
+            )}
           </button>
         </div>
 
-        {/* Financial Report */}
-        <div className="bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
-          <div className="text-center mb-4">
-            <div className="w-16 h-16 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-3">
-              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        {/* Enhanced Financial Report */}
+        <div className="group bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8 hover:shadow-2xl hover:scale-[1.02] transition-all duration-500">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 mx-auto bg-gradient-to-br from-green-400 to-green-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-green-500/30">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold mb-2">Financial Report</h3>
-            <p className="text-gray-600 text-sm">
+            <h3 className="text-xl font-medium text-gray-900 mb-2">Financial Report</h3>
+            <p className="text-gray-500 leading-relaxed">
               Revenue, expenses, profit margins, and financial summaries
             </p>
           </div>
@@ -1265,34 +1290,53 @@ export default function BusinessReports() {
               handleExport('financial')
             }}
             disabled={isExporting}
-            className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-4 px-6 rounded-2xl hover:from-green-600 hover:to-green-700 disabled:bg-gray-300 transition-all duration-300 font-medium group-hover:shadow-lg group-hover:shadow-green-500/25"
           >
-            {isExporting ? 'Generating...' : 'Export Financial'}
+            {isExporting ? (
+              <div className="flex items-center justify-center gap-2">
+                <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Generating...
+              </div>
+            ) : (
+              'Export Financial'
+            )}
           </button>
         </div>
 
-        {/* Inventory Report */}
-        <div className="bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
-          <div className="text-center mb-4">
-            <div className="w-16 h-16 mx-auto bg-orange-100 rounded-full flex items-center justify-center mb-3">
-              <svg className="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        {/* Enhanced Inventory Report */}
+        <div className="group bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8 hover:shadow-2xl hover:scale-[1.02] transition-all duration-500">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 mx-auto bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-orange-500/30">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold mb-2">Inventory Report</h3>
-            <p className="text-gray-600 text-sm">
+            <h3 className="text-xl font-medium text-gray-900 mb-2">Inventory Report</h3>
+            <p className="text-gray-500 leading-relaxed">
               Stock levels, usage patterns, and inventory valuation
             </p>
           </div>
           <button 
             onClick={() => handleExport('inventory')}
             disabled={isExporting}
-            className="w-full bg-orange-600 text-white py-2 px-4 rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-4 px-6 rounded-2xl hover:from-orange-600 hover:to-orange-700 disabled:bg-gray-300 transition-all duration-300 font-medium group-hover:shadow-lg group-hover:shadow-orange-500/25"
           >
-            {isExporting ? 'Generating...' : 'Export Inventory'}
+            {isExporting ? (
+              <div className="flex items-center justify-center gap-2">
+                <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Generating...
+              </div>
+            ) : (
+              'Export Inventory'
+            )}
           </button>
         </div>
 
+      </div>
       </div>
     </div>
   )

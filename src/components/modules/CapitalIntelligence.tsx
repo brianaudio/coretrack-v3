@@ -455,74 +455,98 @@ export default function CapitalIntelligence() {
   const spendingEfficiency = getSpendingEfficiency()
 
   const renderOverview = () => (
-    <div className="space-y-8">
-      {/* Clean Status Header */}
-      <div className="text-center">
-        <div className="text-6xl mb-4">{stockHealth.emoji}</div>
-        <h2 className="text-2xl font-semibold text-gray-900 mb-2">Business Health: {stockHealth.status}</h2>
-        <p className="text-gray-600">{stockHealth.message}</p>
+    <div className="space-y-10">
+      {/* Ultra Clean Status Header */}
+      <div className="text-center space-y-4">
+        <div className="text-7xl mb-6 animate-pulse">{stockHealth.emoji}</div>
+        <div className="space-y-2">
+          <h2 className="text-3xl font-light text-gray-900 tracking-tight">
+            Business Health: <span className="font-semibold">{stockHealth.status}</span>
+          </h2>
+          <p className="text-lg text-gray-500 max-w-lg mx-auto leading-relaxed">
+            {stockHealth.message}
+          </p>
+        </div>
       </div>
 
-      {/* Clean Metric Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Modern Minimalist Metric Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {/* Money in Inventory */}
-        <div className="bg-white rounded-2xl p-8 border border-gray-100 hover:border-blue-200 transition-all duration-200">
-          <div className="text-center">
-            <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mx-auto mb-4">
-              <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
+        <div className="group relative">
+          <div className="bg-white rounded-3xl p-8 border border-gray-100 hover:border-blue-200 transition-all duration-300 hover:shadow-xl hover:shadow-blue-50 hover:-translate-y-1">
+            <div className="text-center space-y-6">
+              <div className="relative">
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl flex items-center justify-center mx-auto group-hover:from-blue-100 group-hover:to-blue-200 transition-all duration-300">
+                  <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                  </svg>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Money in Stock</h3>
+                <div className="text-4xl font-light text-gray-900 tracking-tight">
+                  ₱{capitalData.totalInventoryValue.toLocaleString()}
+                </div>
+                <p className="text-sm text-gray-500">Current inventory value</p>
+              </div>
             </div>
-            <h3 className="text-sm font-medium text-gray-500 mb-2">Money in Stock</h3>
-            <div className="text-3xl font-bold text-gray-900 mb-3">
-              ₱{capitalData.totalInventoryValue.toLocaleString()}
-            </div>
-            <p className="text-sm text-gray-500">Current inventory value</p>
           </div>
         </div>
 
         {/* Money Spent */}
-        <div className="bg-white rounded-2xl p-8 border border-gray-100 hover:border-orange-200 transition-all duration-200">
-          <div className="text-center">
-            <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center mx-auto mb-4">
-              <svg className="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-              </svg>
+        <div className="group relative">
+          <div className="bg-white rounded-3xl p-8 border border-gray-100 hover:border-orange-200 transition-all duration-300 hover:shadow-xl hover:shadow-orange-50 hover:-translate-y-1">
+            <div className="text-center space-y-6">
+              <div className="relative">
+                <div className="w-16 h-16 bg-gradient-to-br from-orange-50 to-orange-100 rounded-2xl flex items-center justify-center mx-auto group-hover:from-orange-100 group-hover:to-orange-200 transition-all duration-300">
+                  <svg className="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                  </svg>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Money Spent</h3>
+                <div className="text-4xl font-light text-gray-900 tracking-tight">
+                  ₱{capitalData.totalCapitalDeployed.toLocaleString()}
+                </div>
+                <p className="text-sm text-gray-500">
+                  {capitalData.totalCapitalDeployed === 0 ? "No purchases yet" : "Total investment"}
+                </p>
+              </div>
             </div>
-            <h3 className="text-sm font-medium text-gray-500 mb-2">Money Spent</h3>
-            <div className="text-3xl font-bold text-gray-900 mb-3">
-              ₱{capitalData.totalCapitalDeployed.toLocaleString()}
-            </div>
-            <p className="text-sm text-gray-500">
-              {capitalData.totalCapitalDeployed === 0 ? "No purchases yet" : "Total investment"}
-            </p>
           </div>
         </div>
 
         {/* Days to Sell */}
-        <div className="bg-white rounded-2xl p-8 border border-gray-100 hover:border-green-200 transition-all duration-200">
-          <div className="text-center">
-            <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center mx-auto mb-4">
-              <svg className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+        <div className="group relative">
+          <div className="bg-white rounded-3xl p-8 border border-gray-100 hover:border-green-200 transition-all duration-300 hover:shadow-xl hover:shadow-green-50 hover:-translate-y-1">
+            <div className="text-center space-y-6">
+              <div className="relative">
+                <div className="w-16 h-16 bg-gradient-to-br from-green-50 to-green-100 rounded-2xl flex items-center justify-center mx-auto group-hover:from-green-100 group-hover:to-green-200 transition-all duration-300">
+                  <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Days to Sell All</h3>
+                <div className="text-4xl font-light text-gray-900 tracking-tight">
+                  {capitalData.capitalRecoveryTime === Infinity || isNaN(capitalData.capitalRecoveryTime) 
+                    ? "∞" 
+                    : Math.round(capitalData.capitalRecoveryTime)
+                  }
+                  {capitalData.capitalRecoveryTime !== Infinity && !isNaN(capitalData.capitalRecoveryTime) && (
+                    <span className="text-xl font-normal text-gray-400 ml-2">days</span>
+                  )}
+                </div>
+                <p className="text-sm text-gray-500">
+                  {capitalData.capitalRecoveryTime === Infinity || isNaN(capitalData.capitalRecoveryTime)
+                    ? "Need sales data"
+                    : capitalData.capitalRecoveryTime <= 30 ? "Healthy pace" : "Could be faster"
+                  }
+                </p>
+              </div>
             </div>
-            <h3 className="text-sm font-medium text-gray-500 mb-2">Days to Sell All</h3>
-            <div className="text-3xl font-bold text-gray-900 mb-3">
-              {capitalData.capitalRecoveryTime === Infinity || isNaN(capitalData.capitalRecoveryTime) 
-                ? "∞" 
-                : Math.round(capitalData.capitalRecoveryTime)
-              }
-              {capitalData.capitalRecoveryTime !== Infinity && !isNaN(capitalData.capitalRecoveryTime) && (
-                <span className="text-lg text-gray-500 ml-1">days</span>
-              )}
-            </div>
-            <p className="text-sm text-gray-500">
-              {capitalData.capitalRecoveryTime === Infinity || isNaN(capitalData.capitalRecoveryTime)
-                ? "Need sales data"
-                : capitalData.capitalRecoveryTime <= 30 ? "Healthy pace" : "Could be faster"
-              }
-            </p>
           </div>
         </div>
       </div>
@@ -763,96 +787,109 @@ export default function CapitalIntelligence() {
   )
 
   const renderTips = () => (
-    <div className="space-y-6">
-      <div className="bg-white rounded-2xl p-8 border border-gray-100">
-        <h3 className="text-xl font-semibold text-gray-900 mb-8">Business Tips</h3>
+    <div className="space-y-10">
+      <div className="bg-gradient-to-br from-white to-gray-50/50 rounded-3xl p-10 border border-gray-100">
+        <div className="text-center mb-12">
+          <h3 className="text-2xl font-light text-gray-900 mb-4 tracking-tight">Business Intelligence Tips</h3>
+          <p className="text-gray-500 max-w-2xl mx-auto leading-relaxed">
+            Actionable insights to optimize your capital efficiency and inventory management
+          </p>
+        </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
           <div className="space-y-6">
-            <div className="p-6 bg-gray-50 rounded-xl">
-              <div className="flex items-center mb-3">
-                <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mr-3">
-                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="group bg-white p-8 rounded-2xl border border-gray-100 hover:border-green-200 transition-all duration-300 hover:shadow-lg hover:shadow-green-50">
+              <div className="flex items-start space-x-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-green-100 to-green-200 rounded-xl flex items-center justify-center group-hover:from-green-200 group-hover:to-green-300 transition-all duration-300">
+                  <svg className="w-6 h-6 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-4 4" />
                   </svg>
                 </div>
-                <h4 className="font-semibold text-gray-900">Keep Money Moving</h4>
+                <div className="flex-1">
+                  <h4 className="text-lg font-medium text-gray-900 mb-3">Keep Money Moving</h4>
+                  <p className="text-gray-600 leading-relaxed">
+                    The faster you sell inventory, the faster you get cash back to reinvest. Aim to sell everything in 2-4 weeks.
+                  </p>
+                </div>
               </div>
-              <p className="text-sm text-gray-600 leading-relaxed">
-                The faster you sell inventory, the faster you get cash back to reinvest. Aim to sell everything in 2-4 weeks.
-              </p>
             </div>
             
-            <div className="p-6 bg-gray-50 rounded-xl">
-              <div className="flex items-center mb-3">
-                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
-                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="group bg-white p-8 rounded-2xl border border-gray-100 hover:border-blue-200 transition-all duration-300 hover:shadow-lg hover:shadow-blue-50">
+              <div className="flex items-start space-x-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center group-hover:from-blue-200 group-hover:to-blue-300 transition-all duration-300">
+                  <svg className="w-6 h-6 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
                 </div>
-                <h4 className="font-semibold text-gray-900">Watch Your Timeline</h4>
+                <div className="flex-1">
+                  <h4 className="text-lg font-medium text-gray-900 mb-3">Watch Your Timeline</h4>
+                  <p className="text-gray-600 leading-relaxed">
+                    If it takes more than 30 days to sell everything, you might have too much inventory or slow-moving items.
+                  </p>
+                </div>
               </div>
-              <p className="text-sm text-gray-600 leading-relaxed">
-                If it takes more than 30 days to sell everything, you might have too much inventory or slow-moving items.
-              </p>
             </div>
           </div>
           
           <div className="space-y-6">
-            <div className="p-6 bg-gray-50 rounded-xl">
-              <div className="flex items-center mb-3">
-                <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center mr-3">
-                  <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="group bg-white p-8 rounded-2xl border border-gray-100 hover:border-purple-200 transition-all duration-300 hover:shadow-lg hover:shadow-purple-50">
+              <div className="flex items-start space-x-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl flex items-center justify-center group-hover:from-purple-200 group-hover:to-purple-300 transition-all duration-300">
+                  <svg className="w-6 h-6 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
                   </svg>
                 </div>
-                <h4 className="font-semibold text-gray-900">Smart Buying</h4>
+                <div className="flex-1">
+                  <h4 className="text-lg font-medium text-gray-900 mb-3">Smart Buying</h4>
+                  <p className="text-gray-600 leading-relaxed">
+                    Buy more of what sells quickly and less of what sits around. This keeps cash flowing and customers happy.
+                  </p>
+                </div>
               </div>
-              <p className="text-sm text-gray-600 leading-relaxed">
-                Buy more of what sells quickly and less of what sits around. This keeps cash flowing and customers happy.
-              </p>
             </div>
             
-            <div className="p-6 bg-gray-50 rounded-xl">
-              <div className="flex items-center mb-3">
-                <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center mr-3">
-                  <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="group bg-white p-8 rounded-2xl border border-gray-100 hover:border-orange-200 transition-all duration-300 hover:shadow-lg hover:shadow-orange-50">
+              <div className="flex items-start space-x-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-orange-100 to-orange-200 rounded-xl flex items-center justify-center group-hover:from-orange-200 group-hover:to-orange-300 transition-all duration-300">
+                  <svg className="w-6 h-6 text-orange-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <h4 className="font-semibold text-gray-900">Balance Investment</h4>
+                <div className="flex-1">
+                  <h4 className="text-lg font-medium text-gray-900 mb-3">Balance Investment</h4>
+                  <p className="text-gray-600 leading-relaxed">
+                    Don't put all your money into inventory. Keep some cash available for opportunities and expenses.
+                  </p>
+                </div>
               </div>
-              <p className="text-sm text-gray-600 leading-relaxed">
-                Don't put all your money into inventory. Keep some cash available for opportunities and expenses.
-              </p>
             </div>
           </div>
         </div>
         
-        {/* Action Steps */}
-        <div className="mt-8 p-6 bg-blue-50 rounded-xl">
-          <h4 className="font-semibold text-gray-900 mb-4">Quick Action Steps</h4>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="text-center">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-2">
-                <span className="text-lg font-bold text-blue-600">1</span>
+        {/* Modernized Action Steps */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-8 border border-blue-100">
+          <h4 className="text-xl font-medium text-gray-900 mb-8 text-center">Quick Action Steps</h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="text-center group">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:from-blue-600 group-hover:to-indigo-700 transition-all duration-300">
+                <span className="text-2xl font-bold text-white">1</span>
               </div>
-              <p className="text-sm font-medium text-gray-900">Check Numbers</p>
-              <p className="text-xs text-gray-600">Review your days to sell</p>
+              <h5 className="text-lg font-medium text-gray-900 mb-2">Check Numbers</h5>
+              <p className="text-sm text-gray-600 leading-relaxed">Review your days to sell metrics</p>
             </div>
-            <div className="text-center">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-2">
-                <span className="text-lg font-bold text-blue-600">2</span>
+            <div className="text-center group">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:from-blue-600 group-hover:to-indigo-700 transition-all duration-300">
+                <span className="text-2xl font-bold text-white">2</span>
               </div>
-              <p className="text-sm font-medium text-gray-900">Find Slow Items</p>
-              <p className="text-xs text-gray-600">Identify what's not moving</p>
+              <h5 className="text-lg font-medium text-gray-900 mb-2">Find Slow Items</h5>
+              <p className="text-sm text-gray-600 leading-relaxed">Identify what's not moving well</p>
             </div>
-            <div className="text-center">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-2">
-                <span className="text-lg font-bold text-blue-600">3</span>
+            <div className="text-center group">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:from-blue-600 group-hover:to-indigo-700 transition-all duration-300">
+                <span className="text-2xl font-bold text-white">3</span>
               </div>
-              <p className="text-sm font-medium text-gray-900">Adjust Strategy</p>
-              <p className="text-xs text-gray-600">Buy less slow, more fast items</p>
+              <h5 className="text-lg font-medium text-gray-900 mb-2">Adjust Strategy</h5>
+              <p className="text-sm text-gray-600 leading-relaxed">Buy less slow, more fast items</p>
             </div>
           </div>
         </div>
@@ -861,49 +898,62 @@ export default function CapitalIntelligence() {
   )
 
   return (
-    <div className="max-w-7xl mx-auto p-6 space-y-8">
-      {/* Clean Header */}
-      <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Capital Intelligence</h1>
-        <p className="text-gray-600 max-w-2xl mx-auto">
-          Track how efficiently your money is working in your business
-        </p>
-      </div>
-
-      {/* Simple Tab Navigation */}
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-        <div className="border-b border-gray-100">
-          <nav className="flex">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 py-4 px-6 text-sm font-medium transition-colors ${
-                  activeTab === tab.id
-                    ? 'text-blue-600 bg-blue-50 border-b-2 border-blue-500'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <div className="flex items-center justify-center space-x-2">
-                  <span>{tab.icon}</span>
-                  <span>{tab.label}</span>
-                </div>
-              </button>
-            ))}
-          </nav>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
+      <div className="max-w-7xl mx-auto p-8 space-y-12">
+        {/* Ultra Clean Header */}
+        <div className="text-center space-y-6">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-light text-gray-900 tracking-tight">
+              Capital Intelligence
+            </h1>
+            <p className="text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed">
+              Track how efficiently your money is working in your business
+            </p>
+          </div>
+          <div className="w-24 h-1 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full mx-auto"></div>
         </div>
 
-        <div className="p-8">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-            </div>
-          ) : (
-            <>
-              {activeTab === 'overview' && renderOverview()}
-              {activeTab === 'tips' && renderTips()}
-            </>
-          )}
+        {/* Modern Tab Navigation */}
+        <div className="bg-white/80 backdrop-blur-sm rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
+          <div className="border-b border-gray-100">
+            <nav className="flex">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`group flex-1 py-6 px-8 text-sm font-medium transition-all duration-300 ${
+                    activeTab === tab.id
+                      ? 'text-blue-600 bg-blue-50/50 relative'
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-center space-x-3">
+                    <span className="text-lg">{tab.icon}</span>
+                    <span className="font-medium">{tab.label}</span>
+                  </div>
+                  {activeTab === tab.id && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 to-purple-500"></div>
+                  )}
+                </button>
+              ))}
+            </nav>
+          </div>
+
+          <div className="p-10">
+            {loading ? (
+              <div className="flex items-center justify-center py-20">
+                <div className="relative">
+                  <div className="w-12 h-12 rounded-full border-4 border-gray-200"></div>
+                  <div className="w-12 h-12 rounded-full border-4 border-blue-500 border-t-transparent animate-spin absolute top-0 left-0"></div>
+                </div>
+              </div>
+            ) : (
+              <>
+                {activeTab === 'overview' && renderOverview()}
+                {activeTab === 'tips' && renderTips()}
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>

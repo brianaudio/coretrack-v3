@@ -121,24 +121,24 @@ export default function DashboardOverview() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-50">
-      {/* Modern Header */}
-      <div className="bg-white border-b border-surface-200 sticky top-0 z-10">
-        <div className="px-6 py-4">
+    <div className="min-h-screen bg-gray-50/50">
+      {/* Minimalist Header */}
+      <div className="bg-white/70 backdrop-blur-md border-b border-gray-200/50 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-surface-900">Dashboard</h1>
-              <p className="text-surface-500 text-sm mt-1">Welcome back! Here&apos;s what&apos;s happening with your business today.</p>
+            <div className="space-y-1">
+              <h1 className="text-3xl font-light text-gray-900 tracking-tight">Dashboard</h1>
+              <p className="text-gray-500 text-sm font-normal">Real-time insights into your business performance</p>
             </div>
             
-            <div className="flex items-center gap-4">
-              {/* Period Selector */}
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-surface-600">Period:</label>
+            <div className="flex items-center gap-6">
+              {/* Minimalist Period Selector */}
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-gray-600 tracking-wide">PERIOD</span>
                 <select
                   value={selectedPeriod}
                   onChange={(e) => setSelectedPeriod(e.target.value)}
-                  className="bg-white border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  className="bg-white/80 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all hover:border-gray-300"
                 >
                   <option value="day">Today</option>
                   <option value="week">This Week</option>
@@ -147,16 +147,16 @@ export default function DashboardOverview() {
                 </select>
               </div>
               
-              {/* View Tabs */}
-              <div className="flex bg-surface-100 rounded-lg p-1">
+              {/* Clean View Tabs */}
+              <div className="flex bg-gray-100/80 rounded-xl p-1">
                 {['overview', 'analytics', 'detailed'].map((view) => (
                   <button
                     key={view}
                     onClick={() => setSelectedView(view)}
-                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                    className={`px-5 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
                       selectedView === view
-                        ? 'bg-white text-primary-600 shadow-sm'
-                        : 'text-surface-600 hover:text-surface-900'
+                        ? 'bg-white text-gray-900 shadow-sm shadow-gray-200/50'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50/50'
                     }`}
                   >
                     {view.charAt(0).toUpperCase() + view.slice(1)}

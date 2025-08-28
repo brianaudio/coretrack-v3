@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
-import { getCurrentBranch } from '../../lib/utils/branchUtils'
+import { useBranch } from '../../lib/context/BranchContext'
 import Notifications from './Notifications'
 import { 
   getDashboardStats, 
@@ -30,6 +30,7 @@ import {
 
 export default function DashboardOverview() {
   const { profile } = useAuth()
+  const { selectedBranch } = useBranch()
   const [selectedPeriod, setSelectedPeriod] = useState('week')
   const [selectedView, setSelectedView] = useState('overview') // overview, analytics, detailed
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
@@ -45,23 +46,21 @@ export default function DashboardOverview() {
   }, [])
 
   useEffect(() => {
-    if (!profile?.tenantId) return
+    if (!profile?.tenantId || !selectedBranch) return
 
     const loadDashboardData = async () => {
       try {
         setLoading(true)
         const days = selectedPeriod === 'day' ? 1 : selectedPeriod === 'week' ? 7 : selectedPeriod === 'month' ? 30 : 365
         
-        // Use branch-based location ID
-        const currentBranch = getCurrentBranch()
-        const locationId = `location_${currentBranch.toLowerCase()}`
+        const locationId = selectedBranch.id
         
         // Load analytics with location filter
         const [stats, inventory, salesChart, topSellingItems] = await Promise.all([
           getDashboardStats(profile.tenantId, locationId), // Pass locationId
           getInventoryAnalytics(profile.tenantId, days, locationId), // Pass locationId
           getSalesChartData(profile.tenantId, days, locationId),
-          getTopSellingItems(profile.tenantId, days, locationId)
+          getTopSellingItems(profile.tenantId, days, 10, locationId)
         ])
         
       // Current branch and inventory analytics loaded
@@ -78,7 +77,7 @@ export default function DashboardOverview() {
     }
 
     loadDashboardData()
-  }, [profile?.tenantId, selectedPeriod])
+  }, [profile?.tenantId, selectedPeriod, selectedBranch])
 
   // Chart colors
   const chartColors = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16']

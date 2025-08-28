@@ -389,7 +389,7 @@ export default function EnhancedPaymentModal({
     const currentBranchId = selectedBranch.id
     try {
       await removeQRCode(profile.tenantId, type, user.uid, currentBranchId)
-      console.log(`✅ ${type.toUpperCase()} QR code removed successfully for branch: ${currentBranchId}`)
+      // The real-time listener will automatically update the UI.
     } catch (error) {
       console.error(`Error removing ${type} QR code:`, error)
     }

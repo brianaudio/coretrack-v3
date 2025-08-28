@@ -181,25 +181,23 @@ export const removeQRCode = async (
     const qrRef = doc(db, 'tenants', tenantId, 'branches', branch, 'settings', 'qrCodes');
     const currentSettings = await getQRCodeSettings(tenantId, branch);
     
-    // Delete file from storage if it exists
-    if (currentSettings[type]?.fileName) {
+    // Delete file from storage if it exists and is not a manual entry
+    if (currentSettings[type]?.fileName && currentSettings[type]?.fileName !== 'manual-entry') {
       try {
         const fileRef = ref(storage, `tenants/${tenantId}/branches/${branch}/qr-codes/${currentSettings[type]!.fileName}`);
         await deleteObject(fileRef);
       } catch (deleteError) {
-        console.warn('Could not delete QR file:', deleteError);
+        // Log as a warning, as the primary goal is to remove the DB record
+        console.warn('Could not delete QR file from storage:', deleteError);
       }
     }
     
-    // Update Firestore
-    const updatedSettings: QRCodeSettings = {
-      ...currentSettings,
+    // Atomically update Firestore to remove the specific QR type
+    await updateDoc(qrRef, {
       [type]: null,
       updatedAt: new Date(),
       updatedBy: userId
-    };
-    
-    await setDoc(qrRef, updatedSettings);
+    });
     
     console.log(`✅ ${type.toUpperCase()} QR code removed successfully for branch: ${branch}`);
     

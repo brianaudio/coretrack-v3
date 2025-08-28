@@ -256,8 +256,11 @@ export default function PaymentMethodsAnalytics() {
           console.log('[PaymentAnalytics] 📋 Received POS orders:', orders.length, orders)
           console.log('[PaymentAnalytics] 🔍 Sample order locationIds:', orders.slice(0, 3).map(o => ({ id: o.id, locationId: o.locationId })))
           
+          // FIX: Filter out voided orders before any processing
+          const nonVoidedOrders = orders.filter(order => order.status !== 'voided');
+
           // Filter orders by current shift only
-          const currentShiftOrders = orders.filter(order => {
+          const currentShiftOrders = nonVoidedOrders.filter(order => {
             const orderTime = order.createdAt?.toDate()
             
             // 🔧 FIX: Handle both Timestamp and string startTime formats

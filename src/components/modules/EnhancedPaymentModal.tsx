@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/context/AuthContext'
-import { getCurrentBranch } from '../../lib/utils/branchUtils'
+import { useBranch } from '../../lib/context/BranchContext'
 import { storage } from '../../lib/firebase'
 import { 
   getQRCodeSettings, 
@@ -55,6 +55,7 @@ export default function EnhancedPaymentModal({
 }: PaymentModalProps) {
   // Auth context
   const { user, profile } = useAuth()
+  const { selectedBranch } = useBranch()
   
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod['id']>('cash')
   const [cashReceived, setCashReceived] = useState('')
@@ -112,21 +113,21 @@ export default function EnhancedPaymentModal({
 
   // Load QR settings from Firebase for current branch
   useEffect(() => {
-    if (!profile?.tenantId) return
+    if (!profile?.tenantId || !selectedBranch) return
 
-    const currentBranch = getCurrentBranch()
+    const currentBranchId = selectedBranch.id
     
     // Debug: Check Firebase Storage configuration
     console.log('🔍 Firebase Storage Debug Info:', {
       storageAvailable: !!storage,
       storageBucket: storage?.app?.options?.storageBucket,
-      currentBranch,
+      currentBranch: currentBranchId,
       tenantId: profile.tenantId
     })
     
     const loadQRSettings = async () => {
       try {
-        const settings = await getQRCodeSettings(profile.tenantId, currentBranch)
+        const settings = await getQRCodeSettings(profile.tenantId, currentBranchId)
         setQrSettings(settings)
       } catch (error) {
         console.error('Error loading QR settings:', error)
@@ -138,15 +139,15 @@ export default function EnhancedPaymentModal({
     // Subscribe to real-time updates for current branch
     const unsubscribe = subscribeToQRCodeSettings(profile.tenantId, (settings) => {
       setQrSettings(settings)
-    }, currentBranch)
+    }, currentBranchId)
 
     return unsubscribe
-  }, [profile?.tenantId])
+  }, [profile?.tenantId, selectedBranch])
 
   // Handle QR code file upload for current branch
   const handleQRUpload = async (type: 'gcash' | 'maya', file: File) => {
-    if (!profile?.tenantId || !user?.uid) {
-      console.error('Missing tenant ID or user ID')
+    if (!profile?.tenantId || !user?.uid || !selectedBranch) {
+      console.error('Missing tenant ID, user ID, or selected branch')
       // Use non-blocking notification instead of alert
       if (typeof window !== 'undefined') {
         const notification = document.createElement('div')
@@ -240,7 +241,7 @@ export default function EnhancedPaymentModal({
       return
     }
 
-    const currentBranch = getCurrentBranch()
+    const currentBranchId = selectedBranch.id
     
     // Reset states
     setIsUploadingQR(true)
@@ -248,7 +249,7 @@ export default function EnhancedPaymentModal({
     setUploadStatus('uploading')
     
     try {
-      console.log(`🔄 Starting ${type.toUpperCase()} QR code upload for branch: ${currentBranch}`)
+      console.log(`🔄 Starting ${type.toUpperCase()} QR code upload for branch: ${currentBranchId}`)
       console.log(`📁 File details:`, {
         name: file.name,
         size: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
@@ -380,15 +381,15 @@ export default function EnhancedPaymentModal({
 
   // Handle QR code removal for current branch
   const handleQRRemove = async (type: 'gcash' | 'maya') => {
-    if (!profile?.tenantId || !user?.uid) {
-      console.error('Missing tenant ID or user ID')
+    if (!profile?.tenantId || !user?.uid || !selectedBranch) {
+      console.error('Missing tenant ID, user ID, or selected branch')
       return
     }
 
-    const currentBranch = getCurrentBranch()
+    const currentBranchId = selectedBranch.id
     try {
-      await removeQRCode(profile.tenantId, type, user.uid, currentBranch)
-      console.log(`✅ ${type.toUpperCase()} QR code removed successfully for branch: ${currentBranch}`)
+      await removeQRCode(profile.tenantId, type, user.uid, currentBranchId)
+      console.log(`✅ ${type.toUpperCase()} QR code removed successfully for branch: ${currentBranchId}`)
     } catch (error) {
       console.error(`Error removing ${type} QR code:`, error)
     }
@@ -396,15 +397,15 @@ export default function EnhancedPaymentModal({
 
   // Handle manual QR code data entry for current branch
   const handleQRDataSave = async (type: 'gcash' | 'maya', qrData: string) => {
-    if (!profile?.tenantId || !user?.uid) {
-      console.error('Missing tenant ID or user ID')
+    if (!profile?.tenantId || !user?.uid || !selectedBranch) {
+      console.error('Missing tenant ID, user ID, or selected branch')
       return
     }
 
-    const currentBranch = getCurrentBranch()
+    const currentBranchId = selectedBranch.id
     try {
-      await saveQRCodeData(profile.tenantId, type, qrData, user.uid, currentBranch)
-      console.log(`✅ ${type.toUpperCase()} QR code data saved successfully for branch: ${currentBranch}`)
+      await saveQRCodeData(profile.tenantId, type, qrData, user.uid, currentBranchId)
+      console.log(`✅ ${type.toUpperCase()} QR code data saved successfully for branch: ${currentBranchId}`)
     } catch (error) {
       console.error(`Error saving ${type} QR code data:`, error)
     }

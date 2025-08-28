@@ -80,20 +80,82 @@ const getExpenseCategoriesCollection = (tenantId: string) => {
 export const getExpenses = async (tenantId: string, locationId?: string): Promise<Expense[]> => {
   try {
     const expensesRef = getExpensesCollection(tenantId);
-    const q = query(expensesRef, orderBy('date', 'desc'));
-    const snapshot = await getDocs(q);
     
-    const allExpenses = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Expense[];
-
-    // Filter by locationId if provided, using client-side filtering
+    // 🔥 CRITICAL: Use SERVER-SIDE filtering for branch isolation with fallback
+    let q;
+    let expenses: Expense[] = [];
+    
     if (locationId) {
-      return allExpenses.filter(expense => expense.locationId === locationId);
+      console.log(`🎯 BRANCH-ISOLATED EXPENSE QUERY: fetching expenses for location ${locationId}`);
+      try {
+        // Try server-side filtering first (works for new expenses with locationId)
+        q = query(
+          expensesRef, 
+          where('locationId', '==', locationId),
+          orderBy('date', 'desc')
+        );
+        const snapshot = await getDocs(q);
+        
+        expenses = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Expense[];
+        
+        console.log(`✅ SERVER-SIDE FILTERED: ${expenses.length} expenses with locationId`);
+        
+        // If no expenses found with locationId, try fallback approach
+        if (expenses.length === 0) {
+          console.log(`🔄 FALLBACK: No expenses found with locationId, fetching all and filtering client-side`);
+          
+          const allQuery = query(expensesRef, orderBy('date', 'desc'));
+          const allSnapshot = await getDocs(allQuery);
+          
+          const allExpenses = allSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          })) as Expense[];
+          
+          // Client-side filter: STRICT branch isolation - only show expenses for this specific location
+          expenses = allExpenses.filter(expense => 
+            expense.locationId === locationId
+          );
+          
+          console.log(`✅ CLIENT-SIDE FILTERED: ${expenses.length} expenses (includes legacy expenses without locationId)`);
+        }
+        
+      } catch (queryError) {
+        console.error('Server-side query failed, falling back to client-side filtering:', queryError);
+        
+        // Fallback: fetch all and filter client-side
+        const allQuery = query(expensesRef, orderBy('date', 'desc'));
+        const allSnapshot = await getDocs(allQuery);
+        
+        const allExpenses = allSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Expense[];
+        
+        expenses = allExpenses.filter(expense => 
+          !expense.locationId || expense.locationId === locationId
+        );
+        
+        console.log(`✅ FALLBACK FILTERING: ${expenses.length} expenses loaded for location ${locationId}`);
+      }
+      
+    } else {
+      // Only fetch all expenses if no locationId is provided (admin view)
+      q = query(expensesRef, orderBy('date', 'desc'));
+      const snapshot = await getDocs(q);
+      
+      expenses = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Expense[];
+      
+      console.log(`✅ ALL EXPENSES: ${expenses.length} expenses loaded`);
     }
-    
-    return allExpenses;
+
+    return expenses;
   } catch (error) {
     console.error('Error fetching expenses:', error);
     throw new Error('Failed to fetch expenses');
@@ -102,21 +164,56 @@ export const getExpenses = async (tenantId: string, locationId?: string): Promis
 
 export const subscribeToExpenses = (
   tenantId: string, 
-  callback: (expenses: Expense[]) => void
+  callback: (expenses: Expense[]) => void,
+  locationId?: string
 ) => {
   const expensesRef = getExpensesCollection(tenantId);
-  const q = query(expensesRef, orderBy('date', 'desc'));
   
-  return onSnapshot(q, (snapshot) => {
-    const expenses = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Expense[];
+  if (locationId) {
+    console.log(`🎯 BRANCH-ISOLATED EXPENSE SUBSCRIPTION: location ${locationId}`);
     
-    callback(expenses);
-  }, (error) => {
-    console.error('Error in expenses subscription:', error);
-  });
+    // Use fallback approach: subscribe to all expenses and filter client-side
+    // This handles both legacy expenses (without locationId) and new expenses (with locationId)
+    const q = query(expensesRef, orderBy('date', 'desc'));
+    
+    return onSnapshot(q, (snapshot) => {
+      const allExpenses = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Expense[];
+      
+      // Client-side filter: STRICT branch isolation - only show expenses for this specific location
+      const filteredExpenses = allExpenses.filter(expense => 
+        expense.locationId === locationId
+      );
+      
+      console.log(`✅ BRANCH-ISOLATED EXPENSE SUBSCRIPTION: ${filteredExpenses.length} expenses filtered for location ${locationId} (from ${allExpenses.length} total)`);
+      callback(filteredExpenses);
+      
+    }, (error) => {
+      console.error('Error in expenses subscription:', error);
+      
+      // Fallback callback with empty array on error
+      callback([]);
+    });
+    
+  } else {
+    // Admin view: show all expenses
+    const q = query(expensesRef, orderBy('date', 'desc'));
+    
+    return onSnapshot(q, (snapshot) => {
+      const expenses = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Expense[];
+      
+      console.log(`✅ ALL EXPENSE SUBSCRIPTION: ${expenses.length} expenses updated`);
+      callback(expenses);
+    }, (error) => {
+      console.error('Error in expenses subscription:', error);
+      callback([]);
+    });
+  }
 };
 
 export const addExpense = async (expense: CreateExpense): Promise<string> => {
@@ -124,14 +221,21 @@ export const addExpense = async (expense: CreateExpense): Promise<string> => {
     const expensesRef = getExpensesCollection(expense.tenantId);
     const now = Timestamp.now();
     
+    // 🔥 CRITICAL: Ensure locationId is always set for branch isolation
+    if (!expense.locationId) {
+      console.warn('⚠️ EXPENSE CREATION: No locationId provided, this expense will not be branch-specific');
+    }
+    
     const docRef = await addDoc(expensesRef, {
       ...expense,
       date: Timestamp.fromDate(expense.date),
       status: 'pending' as const,
+      locationId: expense.locationId, // Ensure this is explicitly included
       createdAt: now,
       updatedAt: now
     });
     
+    console.log(`✅ BRANCH-SPECIFIC EXPENSE CREATED: ${docRef.id} for location ${expense.locationId || 'unspecified'}`);
     return docRef.id;
   } catch (error) {
     console.error('Error adding expense:', error);

@@ -8,6 +8,7 @@ import { generateUniqueReactKey } from '../utils/reactKeyUtils'
 import { generateDailyResetKey } from '../utils/shiftKeyDebugger'
 import { ShiftResetService } from '../services/ShiftResetService'
 import { Timestamp } from 'firebase/firestore'
+import { ShiftData, CreateShiftData } from '../types/shift'
 import {
   createShift,
   updateShift,
@@ -20,25 +21,6 @@ import { generateShiftReportData } from '../utils/shiftReportGenerator'
 // Note: Shift PDF generation import removed as per user request
 
 // Types
-export interface ShiftData {
-  id: string
-  name: string
-  startTime: Timestamp
-  endTime?: Timestamp
-  status: 'active' | 'ended' | 'archived'
-  totalSales: number
-  totalExpenses: number
-  totalOrders: number
-  createdBy: string
-  tenantId: string
-  locationId: string
-  metadata?: {
-    cashFloat?: number
-    notes?: string
-    endedBy?: string
-  }
-}
-
 export interface ShiftContextType {
   currentShift: ShiftData | null
   loading: boolean
@@ -109,6 +91,11 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       const locationId = getBranchLocationId(selectedBranch.id)
       const activeShift = await getActiveShift(profile.tenantId, locationId)
       
+      // Ensure name field compatibility
+      if (activeShift && !activeShift.name) {
+        activeShift.name = `Shift ${activeShift.date || new Date().toLocaleDateString()}`
+      }
+      
       setCurrentShift(activeShift)
       setError(null)
     } catch (err) {
@@ -135,9 +122,26 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
 
       const locationId = getBranchLocationId(selectedBranch.id)
       const now = Timestamp.now()
-      const newShiftData: Omit<ShiftData, 'id'> = {
+      
+      // Create shift data for Firebase (with string times)
+      const createShiftData: CreateShiftData = {
+        tenantId: profile.tenantId,
+        locationId: locationId,
+        status: 'active',
+        startTime: '00:00', // Default time - will be overwritten by createdAt
+        endTime: '23:59',   // Default time - not used for active shifts
+        createdAt: now
+      }
+
+      // Save to Firebase
+      const shiftId = await createShift(createShiftData)
+      
+      // Create the full shift data for local state (with Timestamps)
+      const createdShift: ShiftData = {
+        id: shiftId,
         name: shiftName || generateShiftName(),
         startTime: now,
+        endTime: null,
         status: 'active',
         totalSales: 0,
         totalExpenses: 0,
@@ -145,17 +149,11 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
         createdBy: profile.uid,
         tenantId: profile.tenantId,
         locationId: locationId,
+        createdAt: now,
         metadata: {
           cashFloat: cashFloat || 0,
           notes: ''
         }
-      }
-
-      // Save to Firebase
-      const shiftId = await createShift(newShiftData)
-      const createdShift: ShiftData = {
-        ...newShiftData,
-        id: shiftId
       }
 
       setCurrentShift(createdShift)
@@ -190,7 +188,7 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       const endedShift: ShiftData = {
         ...currentShift,
         endTime: Timestamp.now(),
-        status: 'ended',
+        status: 'completed',
         totalSales: summary.totalSales || 0,
         totalExpenses: summary.totalExpenses || 0,
         totalOrders: summary.totalOrders || 0,
@@ -239,7 +237,7 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       if (currentShift?.id === shiftId) {
         setCurrentShift({
           ...currentShift,
-          status: 'archived'
+          status: 'completed'
         })
       }
     } catch (err) {

@@ -9,7 +9,6 @@ interface OfflineStatusProps {
 
 export default function OfflineStatusIndicator({ className = '' }: OfflineStatusProps) {
   const [isOnline, setIsOnline] = useState(true)
-  const [isSync, setIsSync] = useState(false)
   const [lastSyncTime, setLastSyncTime] = useState<number | null>(null)
   const [isDismissed, setIsDismissed] = useState(false)
   const [showOnlineConfirmation, setShowOnlineConfirmation] = useState(false)
@@ -49,21 +48,8 @@ export default function OfflineStatusIndicator({ className = '' }: OfflineStatus
         clearTimeout(syncTimeout)
       }
       
-      // Only show sync indicator if we've been offline or haven't synced recently
-      const timeSinceLastSync = lastSyncTime ? Date.now() - lastSyncTime : Infinity
-      const shouldShowSync = !isOnline || timeSinceLastSync > 30000 // Only show if offline or 30+ seconds since last sync
-      
-      if (shouldShowSync) {
-        setIsSync(true)
-        setLastSyncTime(syncInfo.timestamp)
-        
-        // Clear sync indicator after 1 second (shorter duration)
-        const timeout = setTimeout(() => setIsSync(false), 1000)
-        setSyncTimeout(timeout)
-      } else {
-        // Just update the timestamp without showing the indicator
-        setLastSyncTime(syncInfo.timestamp)
-      }
+      // REMOVED SYNC INDICATOR: Just update timestamp without showing sync state
+      setLastSyncTime(syncInfo.timestamp)
     })
 
     // Cleanup listeners and timeouts
@@ -84,8 +70,9 @@ export default function OfflineStatusIndicator({ className = '' }: OfflineStatus
     }
   }, [showOnlineConfirmation])
 
-  // Don't show if dismissed and offline, or if online and not syncing and not showing confirmation
-  if ((isDismissed && !isOnline) || (isOnline && !isSync && !showOnlineConfirmation)) {
+  // Don't show if dismissed and offline, or if online and not showing confirmation
+  // REMOVED SYNC NOTIFICATION: Hide syncing state to prevent annoying notifications
+  if ((isDismissed && !isOnline) || (isOnline && !showOnlineConfirmation)) {
     return null
   }
 
@@ -97,9 +84,7 @@ export default function OfflineStatusIndicator({ className = '' }: OfflineStatus
     <div className={`fixed top-4 right-4 z-50 ${className}`}>
       <div className={`flex items-center space-x-3 px-4 py-3 rounded-lg shadow-lg text-sm font-medium transition-all duration-300 ${
         isOnline 
-          ? isSync 
-            ? 'bg-blue-500 text-white' 
-            : showOnlineConfirmation
+          ? showOnlineConfirmation
             ? 'bg-green-500 text-white'
             : 'bg-green-500 text-white'
           : 'bg-orange-500 text-white'
@@ -107,9 +92,7 @@ export default function OfflineStatusIndicator({ className = '' }: OfflineStatus
         {/* Status Icon */}
         <div className="flex-shrink-0">
           {isOnline ? (
-            isSync ? (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : showOnlineConfirmation ? (
+            showOnlineConfirmation ? (
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
@@ -127,9 +110,7 @@ export default function OfflineStatusIndicator({ className = '' }: OfflineStatus
         <div className="flex-1 min-w-0">
           <div className="font-medium">
             {isOnline ? (
-              isSync ? (
-                'Syncing...'
-              ) : showOnlineConfirmation ? (
+              showOnlineConfirmation ? (
                 'Back Online'
               ) : (
                 'Online'

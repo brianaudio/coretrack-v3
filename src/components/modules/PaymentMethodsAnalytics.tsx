@@ -317,8 +317,8 @@ export default function PaymentMethodsAnalytics() {
           console.log('[PaymentAnalytics] 💰 Payment breakdown:', paymentBreakdown)
           setPaymentData(paymentBreakdown)
           setLoading(false)
-        }
-        // ✅ REMOVED locationId parameter - let all orders through, filter by time/shift only
+        },
+        locationId
       )
 
       return () => {

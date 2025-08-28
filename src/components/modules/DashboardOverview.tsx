@@ -60,8 +60,8 @@ export default function DashboardOverview() {
         const [stats, inventory, salesChart, topSellingItems] = await Promise.all([
           getDashboardStats(profile.tenantId, locationId), // Pass locationId
           getInventoryAnalytics(profile.tenantId, days, locationId), // Pass locationId
-          getSalesChartData(profile.tenantId, days),
-          getTopSellingItems(profile.tenantId, days)
+          getSalesChartData(profile.tenantId, days, locationId),
+          getTopSellingItems(profile.tenantId, days, locationId)
         ])
         
       // Current branch and inventory analytics loaded

@@ -400,6 +400,7 @@ export const subscribeToPOSOrders = (
   callback: (orders: POSOrder[]) => void,
   locationId?: string
 ) => {
+  console.log('[subscribeToPOSOrders] Starting subscription with locationId:', locationId)
   const ordersRef = getPOSOrdersCollection(tenantId);
   
   // For now, get all orders and filter client-side to avoid index requirements
@@ -411,9 +412,22 @@ export const subscribeToPOSOrders = (
       ...doc.data()
     })) as POSOrder[];
     
+    console.log(`[subscribeToPOSOrders] Raw orders from Firebase: ${orders.length}`)
+    console.log('[subscribeToPOSOrders] All locationIds:', orders.map(o => o.locationId))
+    
     // Filter client-side by locationId if specified
     if (locationId) {
-      orders = orders.filter(order => order.locationId === locationId);
+      const originalCount = orders.length
+      orders = orders.filter(order => {
+        const matches = order.locationId === locationId
+        if (!matches) {
+          console.log(`[subscribeToPOSOrders] 🚫 Filtering out order ${order.id}: "${order.locationId}" !== "${locationId}"`)
+        }
+        return matches
+      });
+      console.log(`[subscribeToPOSOrders] 🎯 Filtered to ${orders.length} orders (from ${originalCount}) for locationId: ${locationId}`)
+    } else {
+      console.log('[subscribeToPOSOrders] No locationId filtering - returning all orders')
     }
     
     // Real-time orders update received

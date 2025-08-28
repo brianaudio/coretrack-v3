@@ -106,11 +106,22 @@ const getOrdersByDateRange = async (
 ): Promise<POSOrder[]> => {
   try {
     const ordersRef = collection(db, `tenants/${tenantId}/posOrders`);
-    const q = query(
-      ordersRef,
-      where('createdAt', '>=', Timestamp.fromDate(startDate)),
-      where('createdAt', '<=', Timestamp.fromDate(endDate))
-    );
+    
+    let q;
+    if (locationId) {
+      q = query(
+        ordersRef,
+        where('createdAt', '>=', Timestamp.fromDate(startDate)),
+        where('createdAt', '<=', Timestamp.fromDate(endDate)),
+        where('locationId', '==', locationId)
+      );
+    } else {
+      q = query(
+        ordersRef,
+        where('createdAt', '>=', Timestamp.fromDate(startDate)),
+        where('createdAt', '<=', Timestamp.fromDate(endDate))
+      );
+    }
     
     const snapshot = await getDocs(q);
     
@@ -121,11 +132,7 @@ const getOrdersByDateRange = async (
     })) as POSOrder[];
     
     return allOrders
-      .filter(order => {
-        const isCompleted = order.status === 'completed';
-        const matchesLocation = !locationId || order.locationId === locationId;
-        return isCompleted && matchesLocation;
-      })
+      .filter(order => order.status === 'completed')
       .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
   } catch (error) {
     console.error('Error fetching orders by date range:', error);

@@ -220,12 +220,23 @@ const MainDashboard: React.FC = () => {
       profile.tenantId || profile.uid, // Use tenantId if available, fallback to uid
       (orders: POSOrder[]) => {
         console.log('[Analytics] Received POS orders:', orders.length, orders)
+        console.log('[Analytics] Expected locationId:', locationId)
+        console.log('[Analytics] Sample order locationIds:', orders.slice(0, 5).map(o => ({ id: o.id, locationId: o.locationId })))
+        
+        // 🔥 BRANCH ISOLATION FIX: Double-check the client-side filtering
+        const branchFilteredOrders = orders.filter(order => {
+          const matches = order.locationId === locationId
+          if (!matches) {
+            console.log(`[Analytics] 🚫 Filtering out order ${order.id} with locationId: ${order.locationId} (expected: ${locationId})`)
+          }
+          return matches
+        })
         
         // For Dashboard analytics, show all orders regardless of shift status
         // This ensures consistent analytics data for business intelligence
-        const filteredOrders = orders
+        const filteredOrders = branchFilteredOrders
           
-        console.log(`[Analytics] 🎯 DASHBOARD ANALYTICS: Showing all ${filteredOrders.length} orders for comprehensive analytics (total available: ${orders.length})`)
+        console.log(`[Analytics] 🎯 DASHBOARD ANALYTICS: Showing ${filteredOrders.length} orders for branch ${locationId} (filtered from ${orders.length} total)`)
         console.log('[Analytics] Dashboard orders:', filteredOrders.map(o => ({
           id: o.id,
           status: o.status,

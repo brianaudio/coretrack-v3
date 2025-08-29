@@ -1339,5 +1339,5 @@ export default function BusinessReports() {
       </div>
       </div>
     </div>
-  )
+  );
 }

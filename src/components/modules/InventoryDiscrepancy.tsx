@@ -587,7 +587,7 @@ CoreTrack Inventory Management System
         <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8">
           <div className="flex items-center justify-between">
             <div className="space-y-4">
-              <h2 className="text-xl font-light text-gray-900 tracking-wide">Today's Status</h2>
+              <h2 className="text-xl font-light text-gray-900 tracking-wide">Today&apos;s Status</h2>
               <div className="flex items-center gap-3">
                 <div className={`w-4 h-4 rounded-full shadow-sm ${
                   todayStatus.status === 'success' ? 'bg-emerald-500 shadow-emerald-500/30' :

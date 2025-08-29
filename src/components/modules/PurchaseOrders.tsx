@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { FaStickyNote, FaTruck } from 'react-icons/fa'
 import { useAuth } from '../../lib/context/AuthContext'
 import { useBranch } from '../../lib/context/BranchContext'
 import { 
@@ -835,44 +836,72 @@ export default function PurchaseOrders() {
 
   if (loading) {
     return (
-      <div className="p-6">
-        {/* **PERFORMANCE: Loading skeleton for better UX** */}
-        <div className="animate-pulse">
-          {/* Header skeleton */}
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <div className="h-8 bg-gray-200 rounded w-48 mb-2"></div>
-              <div className="h-4 bg-gray-200 rounded w-64"></div>
+      <div className="min-h-screen bg-gradient-to-br from-surface-50 to-surface-100">
+        <div className="p-6 lg:p-8">
+          <div className="animate-pulse space-y-8">
+            
+            {/* Header Skeleton */}
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+              <div className="space-y-2">
+                <div className="h-10 bg-gradient-to-r from-surface-200 to-surface-300 rounded-2xl w-80"></div>
+                <div className="h-4 bg-surface-200 rounded-lg w-96"></div>
+              </div>
+              <div className="flex gap-3">
+                <div className="h-12 bg-surface-200 rounded-xl w-32"></div>
+                <div className="h-12 bg-surface-200 rounded-xl w-32"></div>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <div className="h-10 bg-gray-200 rounded w-24"></div>
-              <div className="h-10 bg-gray-200 rounded w-32"></div>
-            </div>
-          </div>
-          
-          {/* Filters skeleton */}
-          <div className="flex gap-3 mb-6">
-            {[1, 2, 3, 4, 5].map(i => (
-              <div key={i} className="h-8 bg-gray-200 rounded w-20"></div>
-            ))}
-          </div>
-          
-          {/* Table skeleton */}
-          <div className="bg-white rounded-lg shadow">
-            {/* Table header */}
-            <div className="grid grid-cols-7 gap-4 p-4 border-b">
-              {[1, 2, 3, 4, 5, 6, 7].map(i => (
-                <div key={i} className="h-4 bg-gray-200 rounded"></div>
+            
+            {/* Stats Cards Skeleton */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-6">
+              {[1, 2, 3, 4, 5].map(i => (
+                <div key={i} className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-surface-200/50">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="w-10 h-10 bg-surface-100 rounded-xl"></div>
+                  </div>
+                  <div className="h-8 bg-surface-200 rounded-lg w-12 mb-2"></div>
+                  <div className="h-4 bg-surface-200 rounded w-20"></div>
+                </div>
               ))}
             </div>
-            {/* Table rows */}
-            {[1, 2, 3, 4, 5].map(i => (
-              <div key={i} className="grid grid-cols-7 gap-4 p-4 border-b">
-                {[1, 2, 3, 4, 5, 6, 7].map(j => (
-                  <div key={j} className="h-4 bg-gray-100 rounded"></div>
+            
+            {/* Filters Skeleton */}
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-surface-200/50">
+              <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                <div className="flex-1">
+                  <div className="h-12 bg-surface-200 rounded-xl"></div>
+                </div>
+                <div className="flex gap-3">
+                  <div className="h-12 bg-surface-200 rounded-xl w-32"></div>
+                  <div className="h-12 bg-surface-200 rounded-xl w-32"></div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Table Skeleton */}
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-surface-200/50 overflow-hidden">
+              {/* Table Header */}
+              <div className="bg-gradient-to-r from-surface-50 to-surface-100/50 p-4">
+                <div className="grid grid-cols-7 gap-4">
+                  {[1, 2, 3, 4, 5, 6, 7].map(i => (
+                    <div key={i} className="h-4 bg-surface-200 rounded"></div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Table Rows */}
+              <div className="divide-y divide-surface-100">
+                {[1, 2, 3, 4, 5].map(i => (
+                  <div key={i} className="p-4">
+                    <div className="grid grid-cols-7 gap-4">
+                      {[1, 2, 3, 4, 5, 6, 7].map(j => (
+                        <div key={j} className="h-4 bg-surface-100 rounded"></div>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
-            ))}
+            </div>
           </div>
         </div>
       </div>
@@ -880,736 +909,1001 @@ export default function PurchaseOrders() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">Purchase Orders</h2>
-        <div className="flex gap-3">
-          <button
-            onClick={() => {
-              const filteredOrders = statusFilter === 'all' 
-                ? orders 
-                : orders.filter(order => order.status === statusFilter)
-              generatePurchaseOrderSummaryPDF(filteredOrders)
-            }}
-            className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
-            disabled={orders.length === 0}
-          >
-            📄 Export PDF
-          </button>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            New Order
-          </button>
-        </div>
-      </div>
-
-      {/* Branch Indicator */}
-      <div className="flex items-center bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
-        <svg className="w-4 h-4 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-        </svg>
-        <span className="font-medium">{selectedBranch?.name || 'Main Branch'}</span>
-        <span className="mx-2">•</span>
-        <span>Viewing branch purchase orders</span>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-sm font-medium text-gray-500">Total Orders</div>
-          <div className="text-2xl font-bold text-gray-900">{orders.length}</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-sm font-medium text-gray-500">Pending</div>
-          <div className="text-2xl font-bold text-yellow-600">
-            {orders.filter(o => o.status === 'pending').length}
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-sm font-medium text-gray-500">Ordered</div>
-          <div className="text-2xl font-bold text-blue-600">
-            {orders.filter(o => o.status === 'ordered').length}
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-sm font-medium text-gray-500">Partial</div>
-          <div className="text-2xl font-bold text-amber-600">
-            {orders.filter(o => o.status === 'partially_delivered').length}
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-sm font-medium text-gray-500">Delivered</div>
-          <div className="text-2xl font-bold text-green-600">
-            {orders.filter(o => o.status === 'delivered').length}
-          </div>
-        </div>
-      </div>
-
-
-
-      {/* Filters */}
-      <div className="bg-white p-4 rounded-lg shadow">
-        <div className="flex flex-col md:flex-row md:items-center gap-4">
-          {/* Search */}
-          <div className="flex-1">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search orders (order number, supplier, items)..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <svg
-                className="absolute left-3 top-2.5 h-5 w-5 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
+    <div className="min-h-screen bg-gradient-to-br from-surface-50 to-surface-100">
+      <div className="p-6 lg:p-8 space-y-8">
+        
+        {/* Header Section - iPad OS Style */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          <div className="space-y-2">
+            <h1 className="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-surface-900 via-primary-600 to-surface-800 bg-clip-text text-transparent">
+              Purchase Orders
+            </h1>
+            <div className="flex items-center gap-2 text-surface-600">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
               </svg>
+              <span className="font-medium">{selectedBranch?.name || 'Main Branch'}</span>
+              <span className="text-surface-400">•</span>
+              <span>Supplier orders and inventory management</span>
             </div>
           </div>
-
-          {/* Status Filter */}
-          <div className="flex items-center gap-4">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          
+          {/* Action Buttons */}
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => {
+                const filteredOrders = statusFilter === 'all' 
+                  ? orders 
+                  : orders.filter(order => order.status === statusFilter)
+                generatePurchaseOrderSummaryPDF(filteredOrders)
+              }}
+              className="px-6 py-3 bg-white/80 backdrop-blur-sm text-surface-700 border border-surface-200 rounded-xl hover:bg-white hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 disabled:opacity-50"
+              disabled={orders.length === 0}
             >
-              <option value="all">All Orders</option>
-              <option value="draft">Draft</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="ordered">Ordered</option>
-              <option value="partially_delivered">Partially Delivered</option>
-              <option value="delivered">Delivered</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-
-            {/* Recent Orders Toggle */}
-            <label className="flex items-center gap-2 whitespace-nowrap">
-              <input
-                type="checkbox"
-                checked={showRecentOrders}
-                onChange={(e) => setShowRecentOrders(e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm text-gray-700">Show orders from last 7 days</span>
-            </label>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Export PDF
+            </button>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="px-6 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 font-medium"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              New Order
+            </button>
           </div>
         </div>
-      </div>
 
-      {/* Orders List */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Order Number
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Supplier
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Items
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Total Amount
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredOrders.length > 0 ? (
-                filteredOrders.map((order) => (
-                  <tr key={order.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {order.orderNumber}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {order.supplierName}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {order.items.length} item(s)
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    ₱{order.total.toFixed(2)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status)}`}>
-                      {order.status === 'partially_delivered' ? 'Partial' : order.status}
-                    </span>
-                    {order.status === 'partially_delivered' && (
-                      <div className="text-xs text-amber-600 mt-1">
-                        {(() => {
-                          const receivedItems = order.items.filter(item => (item.quantityReceived || 0) > 0).length
-                          const totalItems = order.items.length
-                          return `${receivedItems}/${totalItems} items received`
-                        })()}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {order.createdAt?.toDate().toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex items-center gap-2">
-                      {/* Express Mode for Small Orders */}
-                      {(order.status === 'draft' || order.status === 'pending') && order.total <= 5000 && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            if (confirm(`Express approve, order, and mark as delivered for ${order.supplierName} (₱${order.total.toFixed(2)})?`)) {
-                              // Sequential status updates
-                              handleUpdateStatus(order.id!, 'approved')
-                              setTimeout(() => handleUpdateStatus(order.id!, 'ordered'), 500)
-                              setTimeout(() => {
-                                // Auto-fill delivery data and show modal
-                                setReceivedBy('Manager')
-                                setDeliveryItems(order.items.map(item => ({
-                                  itemName: item.itemName,
-                                  quantityOrdered: item.quantity,
-                                  quantityReceived: item.quantity, // Auto-set to full quantity
-                                  unit: item.unit,
-                                  unitPrice: item.unitPrice
-                                })))
-                                setDeliveringOrder(order)
-                                setShowDeliveryModal(true)
-                              }, 1000)
-                            }
-                          }}
-                          className="px-3 py-1 bg-gradient-to-r from-green-500 to-blue-600 text-white text-xs rounded-md hover:from-green-600 hover:to-blue-700 transition-all transform hover:scale-105 shadow-sm"
-                          title="Express: Approve → Order → Deliver (for orders ≤ ₱5,000)"
-                        >
-                          ⚡ Express
-                        </button>
-                      )}
-                      
-                      {/* Quick Action Buttons */}
-                      {order.status === 'draft' && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleUpdateStatus(order.id!, 'pending')
-                          }}
-                          className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
-                          title="Submit for Approval"
-                        >
-                          Submit
-                        </button>
-                      )}
-                      
-                      {order.status === 'pending' && (
-                        <>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleUpdateStatus(order.id!, 'approved')
-                            }}
-                            className="px-3 py-1 bg-green-600 text-white text-xs rounded-md hover:bg-green-700 transition-colors"
-                            title="Approve Order"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleUpdateStatus(order.id!, 'cancelled')
-                            }}
-                            className="px-3 py-1 bg-red-600 text-white text-xs rounded-md hover:bg-red-700 transition-colors"
-                            title="Cancel Order"
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      )}
-                      
-                      {order.status === 'approved' && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleUpdateStatus(order.id!, 'ordered')
-                          }}
-                          className="px-3 py-1 bg-purple-600 text-white text-xs rounded-md hover:bg-purple-700 transition-colors"
-                          title="Mark as Ordered"
-                        >
-                          Order
-                        </button>
-                      )}
-                      
-                      {(order.status === 'ordered' || order.status === 'partially_delivered') && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleShowDeliveryModal(order)
-                          }}
-                          className={`px-3 py-1 text-white text-xs rounded-md transition-colors ${
-                            order.status === 'partially_delivered' 
-                              ? 'bg-amber-600 hover:bg-amber-700' 
-                              : 'bg-green-600 hover:bg-green-700'
-                          }`}
-                          disabled={loadingDelivery === order.id}
-                          title={order.status === 'partially_delivered' ? 'Continue Delivery' : 'Mark as Delivered'}
-                        >
-                          {loadingDelivery === order.id 
-                            ? '...' 
-                            : order.status === 'partially_delivered'
-                            ? 'Continue'
-                            : 'Deliver'
-                          }
-                        </button>
-                      )}
-                      
-                      {/* View Button */}
-                      <button
-                        onClick={() => setViewingOrder(order)}
-                        className="text-blue-600 hover:text-blue-900 text-xs"
-                        title="View Details"
-                      >
-                        View
-                      </button>
-                      
-                      {/* PDF Download Button */}
-                      <button
-                        onClick={() => generatePurchaseOrderDetailedPDF(order)}
-                        className="text-green-600 hover:text-green-900 text-xs"
-                        title="Download PDF Report"
-                      >
-                        PDF
-                      </button>
-                      
-                      {/* Delete Button - Only for draft/pending */}
-                      {(order.status === 'draft' || order.status === 'pending') && (
-                        <button
-                          onClick={() => handleDeleteOrder(order.id!)}
-                          className="text-red-600 hover:text-red-900 text-xs"
-                          title="Delete Order"
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center">
-                      <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mb-4">
-                        <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                      </div>
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">No Purchase Orders Found</h3>
-                      <p className="text-gray-500 text-center max-w-sm mb-4">
-                        {searchTerm || statusFilter !== 'all' || showRecentOrders
-                          ? 'No orders match your current filters. Try adjusting your search criteria.'
-                          : 'Get started by creating your first purchase order to manage supplier orders and inventory restocking.'
-                        }
-                      </p>
-                      <button
-                        onClick={() => setShowCreateModal(true)}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        Create Purchase Order
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Create Order Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="px-8 py-6 border-b border-surface-200">
-              <h3 className="text-xl font-semibold text-surface-900">Create Purchase Order</h3>
-              <p className="text-sm text-surface-600 mt-1">Add items and supplier information for your new purchase order</p>
-            </div>
-            
-            {/* Modal Content */}
-            <div className="px-8 py-6 space-y-8">
-              {/* Supplier & Delivery Section */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Supplier Name */}
-                <div>
-                  <label className="block text-sm font-medium text-surface-700 mb-2">
-                    Supplier Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={newOrder.supplierId}
-                    onChange={(e) => setNewOrder(prev => ({ ...prev, supplierId: e.target.value }))}
-                    className="input-field"
-                    placeholder="Enter supplier name"
-                    list="suppliers-datalist"
-                  />
-                  <datalist id="suppliers-datalist">
-                    {suppliers.map((supplier) => (
-                      <option key={supplier.id} value={supplier.name} />
-                    ))}
-                  </datalist>
-                  {suppliers.length > 0 && (
-                    <p className="text-xs text-surface-500 mt-1">
-                      Existing suppliers: {suppliers.map(s => s.name).join(', ')}
-                    </p>
-                  )}
-                </div>
-
-                {/* PO Requestor */}
-                <div>
-                  <label className="block text-sm font-medium text-surface-700 mb-2">
-                    Requested By *
-                  </label>
-                  <input
-                    type="text"
-                    value={newOrder.requestor || ''}
-                    onChange={(e) => setNewOrder(prev => ({ ...prev, requestor: e.target.value }))}
-                    className="input-field"
-                    placeholder="Enter your name"
-                  />
-                </div>
-
-                {/* Expected Delivery */}
-                <div>
-                  <label className="block text-sm font-medium text-surface-700 mb-2">
-                    Expected Delivery Date *
-                  </label>
-                  <input
-                    type="date"
-                    value={newOrder.expectedDelivery.toISOString().split('T')[0]}
-                    onChange={(e) => setNewOrder(prev => ({ ...prev, expectedDelivery: new Date(e.target.value) }))}
-                    className="input-field"
-                  />
+        {/* Stats Cards - Modern Design */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-6">
+          
+          {/* Total Orders */}
+          <div className="group relative overflow-hidden bg-gradient-to-br from-white/90 to-surface-50/90 backdrop-blur-sm rounded-2xl p-6 border border-surface-200/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-surface-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-surface-100 to-surface-200 rounded-xl flex items-center justify-center">
+                  <svg className="w-5 h-5 text-surface-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
                 </div>
               </div>
+              <div className="text-2xl font-bold text-surface-900 mb-1">{orders.length}</div>
+              <div className="text-sm font-medium text-surface-600">Total Orders</div>
+            </div>
+          </div>
 
-              {/* Items Section */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h4 className="text-lg font-medium text-surface-900">Order Items</h4>
-                    <p className="text-sm text-surface-600">Add items to include in this purchase order</p>
-                  </div>
-                  <button
-                    onClick={addOrderItem}
-                    className="btn-secondary text-sm"
-                  >
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    Add Item
-                  </button>
+          {/* Pending Orders */}
+          <div className="group relative overflow-hidden bg-gradient-to-br from-amber-50/90 to-amber-100/50 backdrop-blur-sm rounded-2xl p-6 border border-amber-200/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-400/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-amber-100 to-amber-200 rounded-xl flex items-center justify-center">
+                  <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
                 </div>
+              </div>
+              <div className="text-2xl font-bold text-amber-700 mb-1">
+                {orders.filter(o => o.status === 'pending').length}
+              </div>
+              <div className="text-sm font-medium text-amber-600">Pending Approval</div>
+            </div>
+          </div>
+
+          {/* Ordered */}
+          <div className="group relative overflow-hidden bg-gradient-to-br from-blue-50/90 to-blue-100/50 backdrop-blur-sm rounded-2xl p-6 border border-blue-200/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-400/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                  </svg>
+                </div>
+              </div>
+              <div className="text-2xl font-bold text-blue-700 mb-1">
+                {orders.filter(o => o.status === 'ordered').length}
+              </div>
+              <div className="text-sm font-medium text-blue-600">Currently Ordered</div>
+            </div>
+          </div>
+
+          {/* Partial Delivery */}
+          <div className="group relative overflow-hidden bg-gradient-to-br from-purple-50/90 to-purple-100/50 backdrop-blur-sm rounded-2xl p-6 border border-purple-200/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-400/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl flex items-center justify-center">
+                  <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                  </svg>
+                </div>
+              </div>
+              <div className="text-2xl font-bold text-purple-700 mb-1">
+                {orders.filter(o => o.status === 'partially_delivered').length}
+              </div>
+              <div className="text-sm font-medium text-purple-600">Partial Delivery</div>
+            </div>
+          </div>
+
+          {/* Delivered */}
+          <div className="group relative overflow-hidden bg-gradient-to-br from-green-50/90 to-green-100/50 backdrop-blur-sm rounded-2xl p-6 border border-green-200/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-green-400/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-green-100 to-green-200 rounded-xl flex items-center justify-center">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+              </div>
+              <div className="text-2xl font-bold text-green-700 mb-1">
+                {orders.filter(o => o.status === 'delivered').length}
+              </div>
+              <div className="text-sm font-medium text-green-600">Completed</div>
+            </div>
+          </div>
+        </div>
 
 
-                {/* Items List */}
-                <div className="space-y-6">
-                  {newOrder.items.map((item, index) => (
-                    <div key={index} className="border border-primary-100 rounded-xl bg-white shadow-sm p-6 flex flex-col gap-6">
-                      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-                        <div className="col-span-2 flex flex-col gap-2">
-                          <label className="block text-xs font-semibold text-primary-700 mb-1">Item Name</label>
-                          <input
-                            type="text"
-                            placeholder="Enter item name"
-                            value={item.itemName}
-                            onChange={(e) => updateOrderItem(index, 'itemName', e.target.value)}
-                            className={`input-field font-semibold text-lg ${item.itemName.trim() && !checkItemInInventory(item.itemName) ? 'border-amber-300 bg-amber-50' : ''}`}
-                            list={`inventory-items-${index}`}
-                          />
-                          <datalist id={`inventory-items-${index}`}> 
-                            {inventoryItems.map((invItem) => (
-                              <option key={invItem.id} value={invItem.name} />
-                            ))}
-                          </datalist>
-                          {item.itemName.trim() && !checkItemInInventory(item.itemName) && (
-                            <p className="text-xs text-amber-600 mt-1 flex items-center">
-                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                              </svg>
-                              Not found in inventory - will be added automatically
-                            </p>
+        {/* Filters Section - Clean Design */}
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-surface-200/50 shadow-sm">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+            
+            {/* Search Bar */}
+            <div className="flex-1">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search orders, suppliers, items..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3 bg-white/80 border border-surface-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all duration-200 text-surface-900 placeholder-surface-500"
+                />
+              </div>
+            </div>
+
+            {/* Filter Controls */}
+            <div className="flex flex-wrap items-center gap-3">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-4 py-3 bg-white/80 border border-surface-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all duration-200 text-surface-900 min-w-[120px]"
+              >
+                <option value="all">All Status</option>
+                <option value="draft">Draft</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="ordered">Ordered</option>
+                <option value="partially_delivered">Partial</option>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+
+              <label className="flex items-center gap-3 px-4 py-3 bg-white/80 border border-surface-200 rounded-xl hover:bg-white transition-all duration-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showRecentOrders}
+                  onChange={(e) => setShowRecentOrders(e.target.checked)}
+                  className="w-4 h-4 text-primary-600 border-surface-300 rounded focus:ring-primary-500 focus:ring-2"
+                />
+                <span className="text-sm font-medium text-surface-700 whitespace-nowrap">Last 7 days</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        {/* Orders List - Modern Table Design */}
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-surface-200/50 shadow-sm overflow-hidden">
+          {filteredOrders.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gradient-to-r from-surface-50 to-surface-100/50">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-surface-700 tracking-wide">Order</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-surface-700 tracking-wide">Supplier</th>
+                    <th className="px-6 py-4 text-center text-sm font-semibold text-surface-700 tracking-wide">Items</th>
+                    <th className="px-6 py-4 text-right text-sm font-semibold text-surface-700 tracking-wide">Amount</th>
+                    <th className="px-6 py-4 text-center text-sm font-semibold text-surface-700 tracking-wide">Status</th>
+                    <th className="px-6 py-4 text-center text-sm font-semibold text-surface-700 tracking-wide">Date</th>
+                    <th className="px-6 py-4 text-center text-sm font-semibold text-surface-700 tracking-wide">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-100">
+                  {filteredOrders.map((order, index) => (
+                    <tr key={order.id} className={`hover:bg-surface-50/50 transition-colors duration-200 ${index % 2 === 0 ? 'bg-white/50' : 'bg-surface-50/30'}`}>
+                      {/* Order Number */}
+                      <td className="px-6 py-4">
+                        <div>
+                          <div className="font-semibold text-surface-900">{order.orderNumber}</div>
+                          <div className="text-xs text-surface-500 mt-0.5">
+                            by {order.requestor || 'Unknown'}
+                          </div>
+                        </div>
+                      </td>
+                      
+                      {/* Supplier */}
+                      <td className="px-6 py-4">
+                        <div className="font-medium text-surface-900">{order.supplierName}</div>
+                      </td>
+                      
+                      {/* Items */}
+                      <td className="px-6 py-4 text-center">
+                        <div className="inline-flex items-center gap-1 px-2 py-1 bg-primary-50 text-primary-700 rounded-lg text-sm font-medium">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                          </svg>
+                          {order.items.length}
+                        </div>
+                      </td>
+                      
+                      {/* Total Amount */}
+                      <td className="px-6 py-4 text-right">
+                        <div className="font-bold text-lg text-surface-900">₱{order.total.toFixed(2)}</div>
+                      </td>
+                      
+                      {/* Status */}
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status)}`}>
+                            {order.status === 'partially_delivered' ? 'Partial' : order.status}
+                          </span>
+                          {order.status === 'partially_delivered' && (
+                            <div className="text-xs text-amber-600">
+                              {(() => {
+                                const receivedItems = order.items.filter(item => (item.quantityReceived || 0) > 0).length
+                                const totalItems = order.items.length
+                                return `${receivedItems}/${totalItems} items`
+                              })()}
+                            </div>
                           )}
                         </div>
-                        <div className="col-span-2 flex flex-col gap-2">
-                          <label className="block text-xs font-semibold text-primary-700 mb-1">Description</label>
-                          <input
-                            type="text"
-                            placeholder="Item description"
-                            value={item.description}
-                            onChange={(e) => updateOrderItem(index, 'description', e.target.value)}
-                            className="input-field text-base"
-                          />
+                      </td>
+                      
+                      {/* Date */}
+                      <td className="px-6 py-4 text-center">
+                        <div className="text-sm text-surface-600">
+                          {order.createdAt?.toDate().toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
                         </div>
-                        <div className="flex flex-col gap-2">
-                          <label className="block text-xs font-semibold text-primary-700 mb-1">Quantity</label>
-                          <input
-                            type="number"
-                            placeholder="Enter quantity"
-                            min="1"
-                            value={item.quantity}
-                            onChange={(e) => updateOrderItem(index, 'quantity', parseInt(e.target.value) || 1)}
-                            className="input-field text-xl font-bold text-center h-12"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          <label className="block text-xs font-semibold text-primary-700 mb-1">Unit</label>
-                          <select
-                            value={item.unit}
-                            onChange={(e) => updateOrderItem(index, 'unit', e.target.value)}
-                            className="input-field text-lg font-semibold h-12"
-                          >
-                            <optgroup label="Count">
-                              <option value="piece">Piece</option>
-                              <option value="dozen">Dozen</option>
-                              <option value="case">Case</option>
-                              <option value="box">Box</option>
-                              <option value="pack">Pack</option>
-                              <option value="bag">Bag</option>
-                              <option value="container">Container</option>
-                              <option value="bottle">Bottle</option>
-                              <option value="can">Can</option>
-                              <option value="jar">Jar</option>
-                            </optgroup>
-                            <optgroup label="Weight">
-                              <option value="oz">Ounce (oz)</option>
-                              <option value="lb">Pound (lb)</option>
-                              <option value="g">Gram (g)</option>
-                              <option value="kg">Kilogram (kg)</option>
-                              <option value="ton">Ton</option>
-                            </optgroup>
-                            <optgroup label="Volume - Liquid">
-                              <option value="fl oz">Fluid Ounce (fl oz)</option>
-                              <option value="cup">Cup</option>
-                              <option value="pint">Pint</option>
-                              <option value="quart">Quart</option>
-                              <option value="gallon">Gallon</option>
-                              <option value="ml">Milliliter (ml)</option>
-                              <option value="liter">Liter</option>
-                            </optgroup>
-                            <optgroup label="Volume - Dry">
-                              <option value="tsp">Teaspoon (tsp)</option>
-                              <option value="tbsp">Tablespoon (tbsp)</option>
-                              <option value="cubic ft">Cubic Foot</option>
-                              <option value="cubic in">Cubic Inch</option>
-                            </optgroup>
-                            <optgroup label="Length">
-                              <option value="inch">Inch</option>
-                              <option value="ft">Foot</option>
-                              <option value="yard">Yard</option>
-                              <option value="cm">Centimeter (cm)</option>
-                              <option value="m">Meter (m)</option>
-                            </optgroup>
-                            <optgroup label="Area">
-                              <option value="sq ft">Square Foot</option>
-                              <option value="sq in">Square Inch</option>
-                              <option value="sq m">Square Meter</option>
-                            </optgroup>
-                          </select>
-                          {/* Unit Mismatch Warning */}
-                          {(() => {
-                            const inventoryUnit = getInventoryItemUnit(item.itemName)
-                            const hasUnitMismatch = inventoryUnit && inventoryUnit.toLowerCase() !== item.unit.toLowerCase()
-                            return hasUnitMismatch && (
-                              <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-sm">
-                                <div className="flex items-center gap-2 text-amber-800">
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                                  </svg>
-                                  <span className="font-medium">Unit Mismatch Warning</span>
-                                </div>
-                                <p className="text-amber-700 mt-1">
-                                  Inventory unit: <strong>{inventoryUnit}</strong> • PO unit: <strong>{item.unit}</strong>
-                                </p>
-                                <p className="text-amber-600 text-xs mt-1">
-                                  This may require unit resolution during delivery.
-                                </p>
-                              </div>
-                            )
-                          })()}
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          <label className="block text-xs font-semibold text-primary-700 mb-1">Unit Price</label>
-                          <div className="relative">
-                            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-primary-500">₱</span>
-                            <input
-                              type="number"
-                              placeholder="0.00"
-                              min="0"
-                              step="0.01"
-                              value={item.unitPrice}
-                              onChange={(e) => updateOrderItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
-                              className={`input-field pl-8 text-lg font-semibold h-12 ${item.lastModified === 'unitPrice' ? 'border-green-500 bg-green-50' : item.lastModified === 'total' ? 'border-blue-300 bg-blue-50' : ''}`}
-                            />
+                      </td>
+                      
+                      {/* Actions */}
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-center gap-2 flex-wrap">
+                          
+                          {/* Express Mode for Small Orders */}
+                          {(order.status === 'draft' || order.status === 'pending') && order.total <= 5000 && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (confirm(`Express process ${order.supplierName} order for ₱${order.total.toFixed(2)}?`)) {
+                                  handleUpdateStatus(order.id!, 'approved')
+                                  setTimeout(() => handleUpdateStatus(order.id!, 'ordered'), 500)
+                                  setTimeout(() => {
+                                    setReceivedBy('Manager')
+                                    setDeliveryItems(order.items.map(item => ({
+                                      itemName: item.itemName,
+                                      quantityOrdered: item.quantity,
+                                      quantityReceived: item.quantity,
+                                      unit: item.unit,
+                                      unitPrice: item.unitPrice
+                                    })))
+                                    setDeliveringOrder(order)
+                                    setShowDeliveryModal(true)
+                                  }, 1000)
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-gradient-to-r from-green-500 to-blue-600 text-white text-xs font-semibold rounded-lg hover:from-green-600 hover:to-blue-700 hover:shadow-md transition-all duration-200 transform hover:scale-105"
+                              title="Express: Approve → Order → Deliver"
+                            >
+                              ⚡ Express
+                            </button>
+                          )}
+                          
+                          {/* Status Action Buttons */}
+                          {order.status === 'draft' && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleUpdateStatus(order.id!, 'pending')
+                              }}
+                              className="px-3 py-1.5 bg-primary-600 text-white text-xs font-semibold rounded-lg hover:bg-primary-700 hover:shadow-md transition-all duration-200"
+                            >
+                              Submit
+                            </button>
+                          )}
+                          
+                          {order.status === 'pending' && (
+                            <>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleUpdateStatus(order.id!, 'approved')
+                                }}
+                                className="px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 hover:shadow-md transition-all duration-200"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleUpdateStatus(order.id!, 'cancelled')
+                                }}
+                                className="px-3 py-1.5 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700 hover:shadow-md transition-all duration-200"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          )}
+                          
+                          {order.status === 'approved' && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleUpdateStatus(order.id!, 'ordered')
+                              }}
+                              className="px-3 py-1.5 bg-purple-600 text-white text-xs font-semibold rounded-lg hover:bg-purple-700 hover:shadow-md transition-all duration-200"
+                            >
+                              Order
+                            </button>
+                          )}
+                          
+                          {(order.status === 'ordered' || order.status === 'partially_delivered') && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleShowDeliveryModal(order)
+                              }}
+                              className={`px-3 py-1.5 text-white text-xs font-semibold rounded-lg hover:shadow-md transition-all duration-200 ${
+                                order.status === 'partially_delivered' 
+                                  ? 'bg-amber-600 hover:bg-amber-700' 
+                                  : 'bg-green-600 hover:bg-green-700'
+                              }`}
+                              disabled={loadingDelivery === order.id}
+                            >
+                              {loadingDelivery === order.id 
+                                ? '...' 
+                                : order.status === 'partially_delivered'
+                                ? 'Continue'
+                                : 'Deliver'
+                              }
+                            </button>
+                          )}
+                          
+                          {/* Secondary Actions */}
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => setViewingOrder(order)}
+                              className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors duration-200"
+                              title="View Details"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            </button>
+                            
+                            <button
+                              onClick={() => generatePurchaseOrderDetailedPDF(order)}
+                              className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors duration-200"
+                              title="Download PDF"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            </button>
+                            
+                            {(order.status === 'draft' || order.status === 'pending') && (
+                              <button
+                                onClick={() => handleDeleteOrder(order.id!)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
+                                title="Delete Order"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            )}
                           </div>
                         </div>
-                        <div className="flex flex-col gap-2">
-                          <label className="block text-xs font-semibold text-primary-700 mb-1">Total Price</label>
-                          <div className="relative">
-                            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-primary-500">₱</span>
-                            <input
-                              type="number"
-                              placeholder="0.00"
-                              min="0"
-                              step="0.01"
-                              value={item.total}
-                              onChange={(e) => updateOrderItem(index, 'total', parseFloat(e.target.value) || 0)}
-                              className={`input-field pl-8 text-lg font-semibold h-12 ${item.lastModified === 'total' ? 'border-green-500 bg-green-50' : item.lastModified === 'unitPrice' ? 'border-blue-300 bg-blue-50' : ''}`}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      {/* Calculation and Remove Button */}
-                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pt-4 border-t border-primary-100 mt-4">
-                        <div className="flex-1">
-                          <div className="text-xs text-primary-600 mb-2">Calculation:</div>
-                          <div className="font-mono text-sm mb-1">
-                            {item.lastModified === 'total' 
-                              ? `₱${item.total.toFixed(2)} ÷ ${item.quantity} = ₱${item.unitPrice.toFixed(2)}/unit`
-                              : `${item.quantity} × ₱${item.unitPrice.toFixed(2)} = ₱${item.total.toFixed(2)}`
-                            }
-                          </div>
-                          <div className="font-medium text-base text-primary-700">Final Total: ₱{(item.quantity * item.unitPrice).toFixed(2)}</div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => removeOrderItem(index)}
-                            className="text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 p-2 rounded-lg transition-colors text-sm font-semibold"
-                            disabled={newOrder.items.length === 1}
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                      </td>
+                    </tr>
                   ))}
-                </div>
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            /* Empty State */
+            <div className="px-6 py-16 text-center">
+              <div className="w-20 h-20 mx-auto bg-gradient-to-br from-surface-100 to-surface-200 rounded-2xl flex items-center justify-center mb-6">
+                <svg className="w-10 h-10 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
               </div>
+              <h3 className="text-xl font-semibold text-surface-900 mb-3">No Purchase Orders Found</h3>
+              <p className="text-surface-600 max-w-md mx-auto mb-6">
+                {searchTerm || statusFilter !== 'all' || showRecentOrders
+                  ? 'No orders match your current filters. Try adjusting your search criteria to find what you\'re looking for.'
+                  : 'Create your first purchase order to start managing supplier relationships and inventory restocking efficiently.'
+                }
+              </p>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="px-6 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 font-medium"
+              >
+                Create Your First Order
+              </button>
+            </div>
+          )}
+        </div>
 
-              {/* Notes Section */}
-              <div>
-                <label className="block text-sm font-medium text-surface-700 mb-2">
-                  Order Notes
-                </label>
-                <textarea
-                  value={newOrder.notes}
-                  onChange={(e) => setNewOrder(prev => ({ ...prev, notes: e.target.value }))}
-                  rows={4}
-                  className="input-field resize-none"
-                  placeholder="Add any special instructions or notes for this order..."
-                />
-              </div>
-
-              {/* Shipping Fee Section */}
-              <div>
-                <label className="block text-sm font-medium text-surface-700 mb-2">
-                  Shipping Fee
-                </label>
-                <div className="flex items-center gap-2">
-                  <span className="text-lg font-medium text-surface-600">₱</span>
-                  <input
-                    type="number"
-                    value={newOrder.shippingFee}
-                    onChange={(e) => setNewOrder(prev => ({ ...prev, shippingFee: parseFloat(e.target.value) || 0 }))}
-                    min="0"
-                    step="0.01"
-                    className="input-field flex-1"
-                    placeholder="0.00"
-                  />
-                </div>
-                <p className="text-xs text-surface-500 mt-1">
-                  Shipping costs will be distributed across all items to calculate adjusted unit prices
-                </p>
-              </div>
-
-              {/* Order Summary */}
-              <div className="bg-surface-50 rounded-lg p-6 border border-surface-200">
-                <h4 className="text-lg font-medium text-surface-900 mb-4">Order Summary</h4>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-surface-600">Subtotal:</span>
-                    <span className="font-medium">₱{calculateTotals(newOrder.items, newOrder.shippingFee).subtotal.toFixed(2)}</span>
+        {/* Modals */}
+        {/* Create Order Modal - Sleek & Minimalist Design */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl border border-surface-200/50 w-full max-w-6xl max-h-[95vh] overflow-hidden animate-slide-up">
+            
+            {/* Enhanced Modal Header */}
+            <div className="relative bg-gradient-to-r from-primary-50/80 via-white/90 to-primary-50/80 backdrop-blur-sm border-b border-surface-200/50">
+              <div className="px-8 py-8">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <h3 className="text-2xl font-bold bg-gradient-to-r from-surface-900 via-primary-600 to-surface-800 bg-clip-text text-transparent">
+                      Create Purchase Order
+                    </h3>
+                    <p className="text-surface-600 text-base">Build your supplier order with smart inventory integration</p>
                   </div>
-                  {newOrder.shippingFee > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-surface-600">Shipping Fee:</span>
-                      <span className="font-medium">₱{newOrder.shippingFee.toFixed(2)}</span>
-                    </div>
-                  )}
-                  <div className="border-t border-surface-200 pt-2 mt-2">
-                    <div className="flex justify-between text-lg font-semibold">
-                      <span>Total:</span>
-                      <span className="text-primary-600">₱{calculateTotals(newOrder.items, newOrder.shippingFee).total.toFixed(2)}</span>
-                    </div>
-                  </div>
-                  {newOrder.shippingFee > 0 && newOrder.items.some(item => item.quantity > 0) && (
-                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <h5 className="text-sm font-medium text-blue-800 mb-2">Adjusted Unit Prices (including shipping):</h5>
-                      <div className="space-y-1 text-xs text-blue-700">
-                        {newOrder.items.filter(item => item.quantity > 0).map((item, index) => {
-                          const totalItemsQuantity = newOrder.items.reduce((sum, i) => sum + i.quantity, 0)
-                          const shippingPerItem = totalItemsQuantity > 0 ? newOrder.shippingFee / totalItemsQuantity : 0
-                          const adjustedUnitPrice = item.unitPrice + shippingPerItem
-                          return (
-                            <div key={index} className="flex justify-between">
-                              <span>{item.itemName || `Item ${index + 1}`}:</span>
-                              <span>₱{item.unitPrice.toFixed(2)} + ₱{shippingPerItem.toFixed(2)} = ₱{adjustedUnitPrice.toFixed(2)}</span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
+                  
+                  {/* Close Button */}
+                  <button
+                    onClick={() => setShowCreateModal(false)}
+                    className="w-12 h-12 bg-surface-100/80 hover:bg-surface-200/80 rounded-2xl flex items-center justify-center transition-all duration-200 hover:scale-105 hover:rotate-90 group"
+                  >
+                    <svg className="w-5 h-5 text-surface-600 group-hover:text-surface-800 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
               </div>
             </div>
+            
+            {/* Modal Content with Enhanced Design */}
+            <div className="overflow-y-auto flex-1 max-h-[calc(95vh-200px)]">
+              <div className="px-8 py-8 space-y-10">
+                
+                {/* Supplier & Delivery Section - Modern Cards */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  
+                  {/* Supplier Card */}
+                  <div className="group relative">
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-400/10 to-primary-400/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="relative bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-surface-200/50 hover:border-primary-300/50 transition-all duration-300 hover:shadow-lg">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center">
+                          <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                          </svg>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-surface-800">Supplier Name</label>
+                          <span className="text-xs text-red-500 font-medium">Required</span>
+                        </div>
+                      </div>
+                      <input
+                        type="text"
+                        value={newOrder.supplierId}
+                        onChange={(e) => setNewOrder(prev => ({ ...prev, supplierId: e.target.value }))}
+                        className="w-full px-4 py-3 bg-white/90 border border-surface-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 transition-all duration-200 text-surface-900 placeholder-surface-500 font-medium"
+                        placeholder="Enter supplier name..."
+                        list="suppliers-datalist"
+                      />
+                      <datalist id="suppliers-datalist">
+                        {suppliers.map((supplier) => (
+                          <option key={supplier.id} value={supplier.name} />
+                        ))}
+                      </datalist>
+                      {suppliers.length > 0 && (
+                        <div className="mt-3 p-3 bg-blue-50/80 rounded-lg border border-blue-200/50">
+                          <p className="text-xs font-medium text-blue-700 mb-1">Existing Suppliers:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {suppliers.slice(0, 3).map((supplier, idx) => (
+                              <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-lg font-medium">
+                                {supplier.name}
+                              </span>
+                            ))}
+                            {suppliers.length > 3 && (
+                              <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-lg font-medium">
+                                +{suppliers.length - 3} more
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
-            {/* Modal Footer */}
-            <div className="px-8 py-6 border-t border-surface-200 bg-surface-50 rounded-b-xl">
-              <div className="flex justify-end space-x-4">
-                <button
-                  onClick={() => setShowCreateModal(false)}
-                  className="btn-secondary"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreateOrder}
-                  disabled={!newOrder.supplierId || !newOrder.requestor || newOrder.items.some(item => !item.itemName.trim())}
-                  className="btn-primary disabled:bg-surface-300 disabled:text-surface-500 disabled:cursor-not-allowed"
-                >
-                  Create Purchase Order
-                </button>
+                  {/* Requestor Card */}
+                  <div className="group relative">
+                    <div className="absolute inset-0 bg-gradient-to-br from-green-400/10 to-emerald-400/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="relative bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-surface-200/50 hover:border-green-300/50 transition-all duration-300 hover:shadow-lg">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 bg-gradient-to-br from-green-100 to-green-200 rounded-xl flex items-center justify-center">
+                          <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-surface-800">Requested By</label>
+                          <span className="text-xs text-red-500 font-medium">Required</span>
+                        </div>
+                      </div>
+                      <input
+                        type="text"
+                        value={newOrder.requestor || ''}
+                        onChange={(e) => setNewOrder(prev => ({ ...prev, requestor: e.target.value }))}
+                        className="w-full px-4 py-3 bg-white/90 border border-surface-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-400 transition-all duration-200 text-surface-900 placeholder-surface-500 font-medium"
+                        placeholder="Enter your name..."
+                      />
+                    </div>
+                  </div>
+
+                  {/* Delivery Date Card */}
+                  <div className="group relative">
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-400/10 to-pink-400/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="relative bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-surface-200/50 hover:border-purple-300/50 transition-all duration-300 hover:shadow-lg">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl flex items-center justify-center">
+                          <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-surface-800">Expected Delivery</label>
+                          <span className="text-xs text-red-500 font-medium">Required</span>
+                        </div>
+                      </div>
+                      <input
+                        type="date"
+                        value={newOrder.expectedDelivery.toISOString().split('T')[0]}
+                        onChange={(e) => setNewOrder(prev => ({ ...prev, expectedDelivery: new Date(e.target.value) }))}
+                        className="w-full px-4 py-3 bg-white/90 border border-surface-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all duration-200 text-surface-900 font-medium"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Items Section - Enhanced Design */}
+                <div className="space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div className="space-y-1">
+                      <h4 className="text-xl font-bold text-surface-900">Order Items</h4>
+                      <p className="text-surface-600">Add products with intelligent inventory suggestions</p>
+                    </div>
+                    <button
+                      onClick={addOrderItem}
+                      className="group px-6 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl hover:from-primary-600 hover:to-primary-700 hover:shadow-lg transition-all duration-200 flex items-center gap-3 font-medium hover:scale-105 active:scale-95"
+                    >
+                      <div className="w-5 h-5 bg-white/20 rounded-lg flex items-center justify-center group-hover:rotate-90 transition-transform duration-200">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                      </div>
+                      Add New Item
+                    </button>
+                  </div>
+
+                  {/* Modern Items List */}
+                  <div className="space-y-6">
+                    {newOrder.items.map((item, index) => (
+                      <div key={index} className="group relative overflow-hidden bg-white/90 backdrop-blur-sm rounded-2xl border border-surface-200/50 hover:border-primary-300/50 transition-all duration-300 hover:shadow-xl">
+                        
+                        {/* Background Gradient */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary-50/20 via-transparent to-blue-50/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        
+                        {/* Item Content */}
+                        <div className="relative p-8 space-y-6">
+                          
+                          {/* Item Header */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-gradient-to-br from-primary-100 to-primary-200 rounded-xl flex items-center justify-center">
+                                <span className="text-sm font-bold text-primary-600">#{index + 1}</span>
+                              </div>
+                              <h5 className="text-lg font-semibold text-surface-900">Item Details</h5>
+                            </div>
+                            <button
+                              onClick={() => removeOrderItem(index)}
+                              disabled={newOrder.items.length === 1}
+                              className="group/btn w-10 h-10 bg-red-50 hover:bg-red-100 disabled:bg-surface-100 rounded-xl flex items-center justify-center transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <svg className="w-4 h-4 text-red-500 group-hover/btn:text-red-600 disabled:text-surface-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+
+                          {/* Item Fields Grid */}
+                          <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+                            
+                            {/* Item Name - Enhanced */}
+                            <div className="lg:col-span-2 xl:col-span-2">
+                              <label className="flex items-center gap-2 text-sm font-semibold text-surface-700 mb-3">
+                                <div className="w-4 h-4 bg-blue-100 rounded-lg flex items-center justify-center">
+                                  <svg className="w-2.5 h-2.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                  </svg>
+                                </div>
+                                Item Name
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  placeholder="Enter item name..."
+                                  value={item.itemName}
+                                  onChange={(e) => updateOrderItem(index, 'itemName', e.target.value)}
+                                  className={`w-full px-4 py-3 bg-white/90 border rounded-xl focus:outline-none focus:ring-2 transition-all duration-200 font-medium ${
+                                    item.itemName.trim() && !checkItemInInventory(item.itemName)
+                                      ? 'border-amber-300 bg-amber-50 focus:ring-amber-500/30 focus:border-amber-400'
+                                      : 'border-surface-200 focus:ring-primary-500/30 focus:border-primary-400'
+                                  }`}
+                                  list={`inventory-items-${index}`}
+                                />
+                                <datalist id={`inventory-items-${index}`}>
+                                  {inventoryItems.map((invItem) => (
+                                    <option key={invItem.id} value={invItem.name} />
+                                  ))}
+                                </datalist>
+                                
+                                {/* Inventory Status */}
+                                {item.itemName.trim() && !checkItemInInventory(item.itemName) && (
+                                  <div className="mt-2 p-2 bg-amber-50/80 border border-amber-200/50 rounded-lg">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-4 h-4 bg-amber-100 rounded flex items-center justify-center">
+                                        <svg className="w-2.5 h-2.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                        </svg>
+                                      </div>
+                                      <span className="text-xs font-medium text-amber-700">New item - will be added to inventory</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Description - Enhanced */}
+                            <div className="lg:col-span-1 xl:col-span-2">
+                              <label className="flex items-center gap-2 text-sm font-semibold text-surface-700 mb-3">
+                                <div className="w-4 h-4 bg-green-100 rounded-lg flex items-center justify-center">
+                                  <svg className="w-2.5 h-2.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+                                  </svg>
+                                </div>
+                                Description
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="Item details..."
+                                value={item.description}
+                                onChange={(e) => updateOrderItem(index, 'description', e.target.value)}
+                                className="w-full px-4 py-3 bg-white/90 border border-surface-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 transition-all duration-200"
+                              />
+                            </div>
+
+                            {/* Quantity - Enhanced */}
+                            <div>
+                              <label className="flex items-center gap-2 text-sm font-semibold text-surface-700 mb-3">
+                                <div className="w-4 h-4 bg-purple-100 rounded-lg flex items-center justify-center">
+                                  <svg className="w-2.5 h-2.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                                  </svg>
+                                </div>
+                                Qty
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  placeholder="0"
+                                  min="1"
+                                  value={item.quantity}
+                                  onChange={(e) => updateOrderItem(index, 'quantity', parseInt(e.target.value) || 1)}
+                                  className="w-full px-4 py-3 bg-white/90 border border-surface-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all duration-200 text-xl font-bold text-center"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Unit - Enhanced */}
+                            <div>
+                              <label className="flex items-center gap-2 text-sm font-semibold text-surface-700 mb-3">
+                                <div className="w-4 h-4 bg-indigo-100 rounded-lg flex items-center justify-center">
+                                  <svg className="w-2.5 h-2.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16l3-9M9 3l3-1m0 0l3 1M9 3l3 1M9 3v4m6 0V3" />
+                                  </svg>
+                                </div>
+                                Unit
+                              </label>
+                              <select
+                                value={item.unit}
+                                onChange={(e) => updateOrderItem(index, 'unit', e.target.value)}
+                                className="w-full px-4 py-3 bg-white/90 border border-surface-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all duration-200 font-semibold"
+                              >
+                                <optgroup label="Count">
+                                  <option value="piece">Piece</option>
+                                  <option value="dozen">Dozen</option>
+                                  <option value="case">Case</option>
+                                  <option value="box">Box</option>
+                                  <option value="pack">Pack</option>
+                                  <option value="bag">Bag</option>
+                                  <option value="container">Container</option>
+                                  <option value="bottle">Bottle</option>
+                                  <option value="can">Can</option>
+                                  <option value="jar">Jar</option>
+                                </optgroup>
+                                <optgroup label="Weight">
+                                  <option value="oz">Ounce (oz)</option>
+                                  <option value="lb">Pound (lb)</option>
+                                  <option value="g">Gram (g)</option>
+                                  <option value="kg">Kilogram (kg)</option>
+                                  <option value="ton">Ton</option>
+                                </optgroup>
+                                <optgroup label="Volume - Liquid">
+                                  <option value="fl oz">Fluid Ounce (fl oz)</option>
+                                  <option value="cup">Cup</option>
+                                  <option value="pint">Pint</option>
+                                  <option value="quart">Quart</option>
+                                  <option value="gallon">Gallon</option>
+                                  <option value="ml">Milliliter (ml)</option>
+                                  <option value="liter">Liter</option>
+                                </optgroup>
+                                <optgroup label="Volume - Dry">
+                                  <option value="tsp">Teaspoon (tsp)</option>
+                                  <option value="tbsp">Tablespoon (tbsp)</option>
+                                  <option value="cubic ft">Cubic Foot</option>
+                                  <option value="cubic in">Cubic Inch</option>
+                                </optgroup>
+                                <optgroup label="Length">
+                                  <option value="inch">Inch</option>
+                                  <option value="ft">Foot</option>
+                                  <option value="yard">Yard</option>
+                                  <option value="cm">Centimeter (cm)</option>
+                                  <option value="m">Meter (m)</option>
+                                </optgroup>
+                                <optgroup label="Area">
+                                  <option value="sq ft">Square Foot</option>
+                                  <option value="sq in">Square Inch</option>
+                                  <option value="sq m">Square Meter</option>
+                                </optgroup>
+                              </select>
+                              
+                              {/* Unit Mismatch Warning */}
+                              {(() => {
+                                const inventoryUnit = getInventoryItemUnit(item.itemName)
+                                const hasUnitMismatch = inventoryUnit && inventoryUnit.toLowerCase() !== item.unit.toLowerCase()
+                                return hasUnitMismatch && (
+                                  <div className="mt-2 p-3 bg-amber-50/80 border border-amber-200/50 rounded-lg">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <div className="w-4 h-4 bg-amber-100 rounded flex items-center justify-center">
+                                        <svg className="w-2.5 h-2.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                        </svg>
+                                      </div>
+                                      <span className="text-xs font-semibold text-amber-800">Unit Mismatch</span>
+                                    </div>
+                                    <p className="text-xs text-amber-700 leading-relaxed">
+                                      Inventory: <strong>{inventoryUnit}</strong> • PO: <strong>{item.unit}</strong><br/>
+                                      May require resolution during delivery.
+                                    </p>
+                                  </div>
+                                )
+                              })()}
+                            </div>
+
+                            {/* Unit Price - Enhanced */}
+                            <div>
+                              <label className="flex items-center gap-2 text-sm font-semibold text-surface-700 mb-3">
+                                <div className="w-4 h-4 bg-emerald-100 rounded-lg flex items-center justify-center">
+                                  <svg className="w-2.5 h-2.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                                  </svg>
+                                </div>
+                                Unit Price
+                              </label>
+                              <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                  <span className="text-emerald-500 font-bold text-lg">₱</span>
+                                </div>
+                                <input
+                                  type="number"
+                                  placeholder="0.00"
+                                  min="0"
+                                  step="0.01"
+                                  value={item.unitPrice}
+                                  onChange={(e) => updateOrderItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                                  className={`w-full pl-10 pr-4 py-3 bg-white/90 border rounded-xl focus:outline-none focus:ring-2 transition-all duration-200 text-lg font-bold ${
+                                    item.lastModified === 'unitPrice'
+                                      ? 'border-green-300 bg-green-50/50 focus:ring-green-500/30 focus:border-green-400'
+                                      : item.lastModified === 'total'
+                                      ? 'border-blue-300 bg-blue-50/50 focus:ring-blue-500/30 focus:border-blue-400'
+                                      : 'border-surface-200 focus:ring-emerald-500/30 focus:border-emerald-400'
+                                  }`}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Total Price - Enhanced */}
+                            <div>
+                              <label className="flex items-center gap-2 text-sm font-semibold text-surface-700 mb-3">
+                                <div className="w-4 h-4 bg-orange-100 rounded-lg flex items-center justify-center">
+                                  <svg className="w-2.5 h-2.5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                  </svg>
+                                </div>
+                                Total
+                              </label>
+                              <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                  <span className="text-orange-500 font-bold text-lg">₱</span>
+                                </div>
+                                <input
+                                  type="number"
+                                  placeholder="0.00"
+                                  min="0"
+                                  step="0.01"
+                                  value={item.total}
+                                  onChange={(e) => updateOrderItem(index, 'total', parseFloat(e.target.value) || 0)}
+                                  className={`w-full pl-10 pr-4 py-3 bg-white/90 border rounded-xl focus:outline-none focus:ring-2 transition-all duration-200 text-lg font-bold ${
+                                    item.lastModified === 'total'
+                                      ? 'border-green-300 bg-green-50/50 focus:ring-green-500/30 focus:border-green-400'
+                                      : item.lastModified === 'unitPrice'
+                                      ? 'border-blue-300 bg-blue-50/50 focus:ring-blue-500/30 focus:border-blue-400'
+                                      : 'border-surface-200 focus:ring-orange-500/30 focus:border-orange-400'
+                                  }`}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Calculation Display - Enhanced */}
+                          <div className="bg-gradient-to-r from-surface-50/80 to-primary-50/50 backdrop-blur-sm rounded-2xl p-6 border border-surface-200/50">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div>
+                                <div className="text-xs font-semibold text-surface-600 mb-2 flex items-center gap-2">
+                                  <div className="w-3 h-3 bg-primary-100 rounded flex items-center justify-center">
+                                    <svg className="w-1.5 h-1.5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                    </svg>
+                                  </div>
+                                  Smart Calculation
+                                </div>
+                                <div className="font-mono text-sm text-surface-700 bg-white/60 rounded-lg px-3 py-2">
+                                  {item.lastModified === 'total' 
+                                    ? `₱${item.total.toFixed(2)} ÷ ${item.quantity} = ₱${item.unitPrice.toFixed(2)}/unit`
+                                    : `${item.quantity} × ₱${item.unitPrice.toFixed(2)} = ₱${item.total.toFixed(2)}`
+                                  }
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-xs font-semibold text-surface-600 mb-2">Final Total</div>
+                                <div className="text-2xl font-bold text-primary-600">₱{(item.quantity * item.unitPrice).toFixed(2)}</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    {newOrder.items.length === 0 && (
+                      <div className="text-center py-16">
+                        <div className="bg-surface-100/50 rounded-full w-24 h-24 flex items-center justify-center mx-auto mb-6">
+                          <svg className="w-8 h-8 text-surface-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                          </svg>
+                        </div>
+                        <p className="text-surface-500 text-lg font-medium">No items added yet</p>
+                        <p className="text-surface-400 text-sm mt-2">Click "Add New Item" to get started</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Notes Section */}
+                <div className="bg-white/95 backdrop-blur-md rounded-3xl border border-gray-100 shadow-lg hover:shadow-xl transition-all duration-300">
+                  <div className="p-6">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="p-3 bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl">
+                        <FaStickyNote className="text-purple-600" size={20} />
+                      </div>
+                      <h3 className="text-xl font-bold text-gray-800">Notes & Instructions</h3>
+                    </div>
+                    <textarea
+                      placeholder="Add any special instructions or notes for this purchase order..."
+                      value={newOrder.notes}
+                      onChange={(e) => setNewOrder(prev => ({ ...prev, notes: e.target.value }))}
+                      rows={4}
+                      className="input-field text-lg resize-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Shipping Fee Section */}
+                <div className="bg-white/95 backdrop-blur-md rounded-3xl border border-gray-100 shadow-lg hover:shadow-xl transition-all duration-300">
+                  <div className="p-6">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="p-3 bg-gradient-to-br from-green-100 to-green-200 rounded-xl">
+                        <FaTruck className="text-green-600" size={20} />
+                      </div>
+                      <h3 className="text-xl font-bold text-gray-800">Shipping & Fees</h3>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-lg font-semibold">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Enter shipping fee"
+                        value={newOrder.shippingFee || ''}
+                        onChange={(e) => setNewOrder(prev => ({ ...prev, shippingFee: parseFloat(e.target.value) || 0 }))}
+                        className="input-field pl-8 text-lg font-semibold h-14"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Order Summary */}
+                <div className="bg-gradient-to-br from-blue-50/80 via-white/95 to-indigo-50/80 backdrop-blur-md rounded-3xl border border-blue-100 shadow-xl">
+                  <div className="p-8">
+                    <h3 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-6">
+                      Order Summary
+                    </h3>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center text-lg">
+                        <span className="font-medium text-gray-600">Subtotal:</span>
+                        <span className="font-bold text-xl text-gray-800">${calculateTotals(newOrder.items, newOrder.shippingFee || 0).subtotal.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-lg">
+                        <span className="font-medium text-gray-600">Shipping Fee:</span>
+                        <span className="font-bold text-xl text-gray-800">${(newOrder.shippingFee || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+                      <div className="flex justify-between items-center text-xl">
+                        <span className="font-bold text-gray-800">Total:</span>
+                        <span className="font-bold text-2xl bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                          ${calculateTotals(newOrder.items, newOrder.shippingFee || 0).total.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="sticky bottom-0 bg-white/95 backdrop-blur-md border-t border-gray-200 px-8 py-6">
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => setShowCreateModal(false)}
+                    className="flex-1 btn-secondary py-4 text-lg font-medium transition-all duration-200 hover:scale-[1.02]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCreateOrder}
+                    disabled={!newOrder.supplierId || newOrder.items.length === 0}
+                    className="flex-1 btn-primary py-4 text-lg font-medium transition-all duration-200 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Create Purchase Order
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -2367,6 +2661,8 @@ export default function PurchaseOrders() {
           </div>
         </div>
       )}
+
+      </div>
     </div>
   )
 }

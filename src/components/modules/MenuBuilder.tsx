@@ -1113,52 +1113,177 @@ export default function MenuBuilder() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-gradient-to-br from-surface-50 to-surface-100">
+        <div className="p-6 lg:p-8">
+          <div className="animate-pulse space-y-8">
+            
+            {/* Header Skeleton */}
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+              <div className="space-y-2">
+                <div className="h-10 bg-gradient-to-r from-surface-200 to-surface-300 rounded-2xl w-80"></div>
+                <div className="h-4 bg-surface-200 rounded-lg w-96"></div>
+              </div>
+              <div className="flex gap-3">
+                <div className="h-12 bg-surface-200 rounded-xl w-32"></div>
+                <div className="h-12 bg-surface-200 rounded-xl w-32"></div>
+              </div>
+            </div>
+            
+            {/* Stats Cards Skeleton */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-surface-200/50">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="w-10 h-10 bg-surface-100 rounded-xl"></div>
+                  </div>
+                  <div className="h-8 bg-surface-200 rounded-lg w-12 mb-2"></div>
+                  <div className="h-4 bg-surface-200 rounded w-20"></div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Content Skeleton */}
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-surface-200/50">
+              <div className="h-8 bg-surface-200 rounded-lg w-48 mb-6"></div>
+              <div className="space-y-4">
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className="h-16 bg-surface-100 rounded-xl"></div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header with Tabs */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-6">
-            <h2 className="text-xl font-semibold text-gray-900">Menu Builder</h2>
-            
-            {/* Tab Navigation */}
-            <div className="flex bg-gray-100 rounded-lg p-1">
+    <div className="min-h-screen bg-gradient-to-br from-surface-50 to-surface-100">
+      <div className="p-6 lg:p-8 space-y-8">
+        
+        {/* Header Section - iPad OS Style */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          <div className="space-y-2">
+            <h1 className="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-surface-900 via-primary-600 to-surface-800 bg-clip-text text-transparent">
+              Menu Builder
+            </h1>
+            <div className="flex items-center gap-2 text-surface-600">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+              <span className="font-medium">{selectedBranch?.name || 'Main Branch'}</span>
+              <span className="text-surface-400">•</span>
+              <span>Create and manage menu items with recipe costing</span>
+            </div>
+          </div>
+          
+          {/* Tab Navigation - Modern Design */}
+          <div className="flex items-center gap-4">
+            <div className="flex bg-white/80 backdrop-blur-sm rounded-2xl p-2 border border-surface-200/50 shadow-sm">
               <button
                 onClick={() => setActiveTab('menu-items')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`px-6 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                   activeTab === 'menu-items'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-lg scale-105'
+                    : 'text-surface-600 hover:text-surface-900 hover:bg-surface-50'
                 }`}
               >
                 Menu Items
               </button>
               <button
                 onClick={() => setActiveTab('addons')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`px-6 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                   activeTab === 'addons'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-lg scale-105'
+                    : 'text-surface-600 hover:text-surface-900 hover:bg-surface-50'
                 }`}
               >
                 Add-ons
               </button>
             </div>
           </div>
+        </div>
 
-          {/* Primary Action Buttons - Clean Layout */}
-          <div className="flex items-center gap-3">
+        {/* Stats Cards - Modern Design */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+          
+          {/* Total Menu Items */}
+          <div className="group relative overflow-hidden bg-gradient-to-br from-white/90 to-surface-50/90 backdrop-blur-sm rounded-2xl p-6 border border-surface-200/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-surface-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-surface-100 to-surface-200 rounded-xl flex items-center justify-center">
+                  <svg className="w-5 h-5 text-surface-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v6a2 2 0 002 2h2m0 0h2m0 0h2a2 2 0 002-2V7a2 2 0 00-2-2h-2m0 0V3a2 2 0 10-4 0v2M9 5a2 2 0 012 2v6a2 2 0 01-2 2M9 5a2 2 0 012 2v6a2 2 0 01-2 2m0-2V9a2 2 0 012-2h2a2 2 0 012 2v2M7 19a2 2 0 002-2v-2M9 19a2 2 0 002-2v-2m-8 2a2 2 0 002-2V5a2 2 0 012-2z" />
+                  </svg>
+                </div>
+              </div>
+              <div className="text-2xl font-bold text-surface-900 mb-1">{menuItems.length}</div>
+              <div className="text-sm font-medium text-surface-600">Menu Items</div>
+            </div>
+          </div>
+
+          {/* Active Items */}
+          <div className="group relative overflow-hidden bg-gradient-to-br from-green-50/90 to-green-100/50 backdrop-blur-sm rounded-2xl p-6 border border-green-200/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-green-400/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-green-100 to-green-200 rounded-xl flex items-center justify-center">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+              </div>
+              <div className="text-2xl font-bold text-green-700 mb-1">
+                {menuItems.filter(item => item.isActive !== false).length}
+              </div>
+              <div className="text-sm font-medium text-green-600">Active Items</div>
+            </div>
+          </div>
+
+          {/* Categories */}
+          <div className="group relative overflow-hidden bg-gradient-to-br from-blue-50/90 to-blue-100/50 backdrop-blur-sm rounded-2xl p-6 border border-blue-200/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-400/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                </div>
+              </div>
+              <div className="text-2xl font-bold text-blue-700 mb-1">{categories.length}</div>
+              <div className="text-sm font-medium text-blue-600">Categories</div>
+            </div>
+          </div>
+
+          {/* Add-ons */}
+          <div className="group relative overflow-hidden bg-gradient-to-br from-purple-50/90 to-purple-100/50 backdrop-blur-sm rounded-2xl p-6 border border-purple-200/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-400/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl flex items-center justify-center">
+                  <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                </div>
+              </div>
+              <div className="text-2xl font-bold text-purple-700 mb-1">{addons.length}</div>
+              <div className="text-sm font-medium text-purple-600">Available Add-ons</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons Section */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          
+          {/* Primary Actions */}
+          <div className="flex flex-wrap items-center gap-3">
             {activeTab === 'menu-items' && !bulkMode && (
               <>
                 <button
                   onClick={() => setBulkMode(true)}
-                  className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                  className="px-6 py-3 bg-white/80 backdrop-blur-sm text-surface-700 border border-surface-200 rounded-xl hover:bg-white hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 disabled:opacity-50"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1167,10 +1292,10 @@ export default function MenuBuilder() {
                 </button>
                 <button
                   onClick={() => setShowCreateModal(true)}
-                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
+                  className="px-6 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 font-medium"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                   </svg>
                   Add Menu Item
                 </button>
@@ -1179,10 +1304,10 @@ export default function MenuBuilder() {
             {activeTab === 'addons' && (
               <button
                 onClick={() => setShowCreateAddonModal(true)}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
+                className="px-6 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 font-medium"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
                 Add Add-on
               </button>
@@ -1190,64 +1315,66 @@ export default function MenuBuilder() {
           </div>
         </div>
 
-        {/* Bulk Mode Bar - Separate Clean Row */}
+        {/* Bulk Mode Bar - Enhanced Design */}
         {activeTab === 'menu-items' && bulkMode && (
-          <div className="px-6 py-3 bg-blue-50 border-t border-blue-100">
-            <div className="flex items-center justify-between">
+          <div className="bg-gradient-to-r from-blue-50/90 via-white/90 to-blue-50/90 backdrop-blur-sm rounded-2xl p-6 border border-blue-200/50 shadow-sm">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               {/* Left: Mode Indicator & Selection Status */}
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span className="text-sm font-medium text-blue-900">Bulk Selection Mode</span>
-                </div>
-                {selectedItems.size > 0 ? (
-                  <div className="flex items-center gap-2 px-3 py-1 bg-blue-100 border border-blue-200 rounded-lg">
-                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
-                    <span className="text-sm font-medium text-blue-800">
-                      {selectedItems.size} item{selectedItems.size !== 1 ? 's' : ''} selected
-                    </span>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center">
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                   </div>
-                ) : (
-                  <span className="text-sm text-blue-700">Click items to select for bulk operations</span>
-                )}
+                  <div>
+                    <div className="text-lg font-bold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
+                      Bulk Selection Mode
+                    </div>
+                    <div className="text-sm text-blue-600">
+                      {selectedItems.size > 0 
+                        ? `${selectedItems.size} item${selectedItems.size !== 1 ? 's' : ''} selected`
+                        : 'Click items to select for bulk operations'
+                      }
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Right: Action Controls */}
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-3">
                 {selectedItems.size > 0 && (
                   <>
                     {/* Selection Controls */}
-                    <div className="flex items-center gap-1 mr-2">
+                    <div className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-xl border border-surface-200">
                       <button
                         onClick={handleSelectAll}
-                        className="px-2 py-1 text-xs text-blue-700 hover:bg-blue-100 rounded transition-colors font-medium"
+                        className="px-3 py-1 text-sm text-blue-700 hover:bg-blue-100 rounded-lg transition-colors font-medium"
                       >
-                        All
+                        Select All
                       </button>
-                      <span className="text-blue-300">|</span>
+                      <span className="text-surface-300">|</span>
                       <button
                         onClick={handleDeselectAll}
-                        className="px-2 py-1 text-xs text-blue-700 hover:bg-blue-100 rounded transition-colors font-medium"
+                        className="px-3 py-1 text-sm text-blue-700 hover:bg-blue-100 rounded-lg transition-colors font-medium"
                       >
-                        None
+                        Deselect All
                       </button>
                     </div>
                     
                     {/* Bulk Actions */}
-                    <div className="flex items-center gap-1 mr-2">
+                    <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleBulkStatusChange('active')}
-                        className="px-3 py-1 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors font-medium"
+                        className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl hover:from-emerald-600 hover:to-emerald-700 transition-all duration-200 text-sm font-medium"
                       >
-                        Activate
+                        Activate Selected
                       </button>
                       <button
                         onClick={() => handleBulkStatusChange('inactive')}
-                        className="px-3 py-1 text-xs bg-amber-600 text-white rounded hover:bg-amber-700 transition-colors font-medium"
+                        className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl hover:from-amber-600 hover:to-amber-700 transition-all duration-200 text-sm font-medium"
                       >
-                        Deactivate
+                        Deactivate Selected
                       </button>
                       <button
                         onClick={handleBulkDelete}
@@ -1271,386 +1398,434 @@ export default function MenuBuilder() {
           </div>
         )}
 
-        {/* Stats Bar */}
+        {/* Filters Section - Enhanced Design */}
         {activeTab === 'menu-items' && (
-          <div className="px-6 py-3 bg-gray-50 border-t border-gray-200">
-            <div className="flex items-center gap-8 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-gray-500">Total:</span>
-                <span className="font-semibold text-gray-900">{menuItems.length}</span>
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-surface-200/50 shadow-sm">
+            <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+              
+              {/* Search Bar */}
+              <div className="flex-1">
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <svg className="h-5 w-5 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search menu items, categories, descriptions..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-11 pr-4 py-3 bg-white/80 border border-surface-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all duration-200 text-surface-900 placeholder-surface-500"
+                  />
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-gray-500">Active:</span>
-                <span className="font-semibold text-green-600">
-                  {menuItems.filter(item => item.status === 'active').length}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 overflow-hidden">
-        {activeTab === 'menu-items' ? (
-          <div className="h-full flex flex-col">
-            {/* Filters */}
-            <div className="px-6 py-3 bg-white border-b border-gray-200">
-              <div className="flex items-center gap-3">
-                <input
-                  type="text"
-                  placeholder="Search items..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
+              {/* Filter Controls */}
+              <div className="flex flex-wrap items-center gap-3">
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="px-4 py-3 bg-white/80 border border-surface-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all duration-200 text-surface-900 min-w-[140px]"
                 >
                   <option value="all">All Categories</option>
                   {Array.from(new Set(menuItems.map(item => item.category)))
                     .filter(category => category.trim() !== '')
                     .sort()
                     .map((category) => (
-                    <option key={category} value={category}>
-                      {category}
-                    </option>
-                  ))}
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
                 </select>
+
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="px-4 py-3 bg-white/80 border border-surface-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all duration-200 text-surface-900 min-w-[120px]"
                 >
                   <option value="all">All Status</option>
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                 </select>
+
+                <select
+                  value={stockFilter}
+                  onChange={(e) => setStockFilter(e.target.value)}
+                  className="px-4 py-3 bg-white/80 border border-surface-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all duration-200 text-surface-900 min-w-[120px]"
+                >
+                  <option value="all">All Stock</option>
+                  <option value="in-stock">In Stock</option>
+                  <option value="low-stock">Low Stock</option>
+                  <option value="out-of-stock">Out of Stock</option>
+                </select>
               </div>
             </div>
+          </div>
+        )}
 
-            {/* Menu Items Content */}
-            <div className="flex-1 overflow-auto p-6 bg-gray-50">
-              <div className="flex justify-between items-center mb-4">
-                <div className="text-sm text-gray-600">
-                  Showing {filteredItems.length} of {menuItems.length} items
-                </div>
-                <div className="flex gap-2">
-                  <select
-                    value={sortBy}
-                    onChange={(e) => handleSortChange(e.target.value)}
-                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  >
-                    <option value="name">Sort by Name</option>
-                    <option value="price">Sort by Price</option>
-                    <option value="cost">Sort by Cost</option>
-                    <option value="category">Sort by Category</option>
-                  </select>
-                  <button
-                    onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                    className="px-3 py-1.5 border border-gray-300 rounded-md hover:bg-gray-50 text-sm"
-                  >
-                    {sortOrder === 'asc' ? '↑' : '↓'}
-                  </button>
+        {/* Add-ons Search Section */}
+        {activeTab === 'addons' && (
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-surface-200/50 shadow-sm">
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                placeholder="Search add-ons by name or description..."
+                value={addonSearchQuery}
+                onChange={(e) => setAddonSearchQuery(e.target.value)}
+                className="w-full pl-11 pr-4 py-3 bg-white/80 border border-surface-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all duration-200 text-surface-900 placeholder-surface-500"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Main Content Area */}
+        {activeTab === 'menu-items' ? (
+          <div className="space-y-8">
+            {/* Menu Items Table */}
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-surface-200/50 shadow-sm overflow-hidden">
+              {/* Table Header */}
+              <div className="px-6 py-4 bg-gradient-to-r from-surface-50 to-surface-100/50 border-b border-surface-200/50">
+                <div className="flex justify-between items-center">
+                  <div className="text-sm text-surface-600">
+                    Showing {filteredItems.length} of {menuItems.length} items
+                  </div>
+                  <div className="flex gap-3">
+                    <select
+                      value={sortBy}
+                      onChange={(e) => handleSortChange(e.target.value)}
+                      className="px-3 py-2 bg-white/80 border border-surface-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all duration-200 text-surface-900 text-sm"
+                    >
+                      <option value="name">Sort by Name</option>
+                      <option value="price">Sort by Price</option>
+                      <option value="cost">Sort by Cost</option>
+                      <option value="category">Sort by Category</option>
+                    </select>
+                    <button
+                      onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                      className="px-3 py-2 bg-white/80 border border-surface-200 rounded-lg hover:bg-surface-50 transition-colors text-sm font-medium"
+                    >
+                      {sortOrder === 'asc' ? '↑' : '↓'}
+                    </button>
+                  </div>
                 </div>
               </div>
 
               {/* Menu Items Grid with Empty State */}
-              {menuItems.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <div className="w-24 h-24 mx-auto mb-4 text-gray-300">
-                    <svg fill="currentColor" viewBox="0 0 24 24" className="w-full h-full">
-                      <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM19 19H5V5H19V19Z"/>
-                      <path d="M17 8H7V10H17V8ZM17 11H7V13H17V11ZM17 14H7V16H17V14Z"/>
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Menu Available</h3>
-                  <p className="text-gray-600 text-center mb-6 max-w-sm">
-                    You haven&apos;t created any menu items yet. Start building your menu by adding your first item.
-                  </p>
-                  <button
-                    onClick={() => setShowCreateModal(true)}
-                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    Create Your First Menu Item
-                  </button>
-                </div>
-              ) : filteredItems.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <div className="w-24 h-24 mx-auto mb-4 text-gray-300">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-full h-full">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Items Found</h3>
-                  <p className="text-gray-600 text-center mb-6 max-w-sm">
-                    No menu items match your current filters. Try adjusting your search or filter criteria.
-                  </p>
-                  <button
-                    onClick={() => {
-                      setSearchQuery('')
-                      setCategoryFilter('all')
-                      setStatusFilter('all')
-                      setStockFilter('all')
-                    }}
-                    className="px-4 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-                  >
-                    Clear All Filters
-                  </button>
-                </div>
-              ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filteredItems.map((item) => (
-                  <div 
-                    key={item.id} 
-                    className={`relative bg-white rounded-lg border overflow-hidden hover:shadow-lg transition-all ${
-                      bulkMode ? 'cursor-pointer' : ''
-                    } ${
-                      bulkMode 
-                        ? selectedItems.has(item.id!) 
-                          ? 'border-blue-500 bg-blue-50' 
-                          : 'border-gray-200 hover:border-blue-300'
-                        : 'border-gray-200'
-                    }`}
-                    onClick={bulkMode ? (e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleSelectItem(item.id!);
-                    } : undefined}
-                  >
-                    {/* Bulk Mode Checkbox */}
-                    {bulkMode && (
-                      <div className="absolute top-2 left-2 z-10">
-                        <input
-                          type="checkbox"
-                          checked={selectedItems.has(item.id!)}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            handleSelectItem(item.id!);
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                          className="w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500"
-                        />
-                      </div>
-                    )}
-                    
-                    {/* Card Header */}
-                    <div className="p-4 pb-2">
-                      <div className="mb-2">
-                        <h3 className="font-semibold text-gray-900 text-sm truncate flex items-center gap-2">
-                          {item.emoji && <span className="text-lg">{item.emoji}</span>}
-                          {item.name}
-                        </h3>
-                      </div>
-                      <p className="text-xs text-gray-600 line-clamp-2 mb-2">{item.description}</p>
-                      <div className="text-xs text-gray-500">{item.category}</div>
+              <div className="p-6">
+                {menuItems.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16">
+                    <div className="w-20 h-20 mx-auto mb-6 text-surface-300">
+                      <svg fill="currentColor" viewBox="0 0 24 24" className="w-full h-full">
+                        <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM19 19H5V5H19V19Z"/>
+                        <path d="M17 8H7V10H17V8ZM17 11H7V13H17V11ZM17 14H7V16H17V14Z"/>
+                      </svg>
                     </div>
-
-                    {/* Card Body */}
-                    <div className="px-4 pb-2">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-lg font-bold text-gray-900">₱{item.price.toFixed(2)}</span>
-                        <span className="text-xs text-gray-500">Cost: ₱{item.cost.toFixed(2)}</span>
-                      </div>
-                      
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs font-medium text-green-600">
-                          Profit: ₱{(item.price - item.cost).toFixed(2)}
-                        </span>
-                        <span className={`text-xs px-2 py-1 rounded-full ${getStockStatusColor(getStockStatus(item))}`}>
-                          {getStockStatusText(getStockStatus(item), calculateMaxServings(item))}
-                        </span>
-                      </div>
+                    <h3 className="text-xl font-semibold text-surface-900 mb-2">No Menu Available</h3>
+                    <p className="text-surface-600 text-center mb-8 max-w-md">
+                      You haven&apos;t created any menu items yet. Start building your menu by adding your first item.
+                    </p>
+                    <button
+                      onClick={() => setShowCreateModal(true)}
+                      className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl hover:from-primary-700 hover:to-primary-800 transition-all duration-200 font-medium shadow-lg hover:shadow-xl"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      Create Your First Menu Item
+                    </button>
+                  </div>
+                ) : filteredItems.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16">
+                    <div className="w-20 h-20 mx-auto mb-6 text-surface-300">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-full h-full">
+                      </svg>
                     </div>
+                    <h3 className="text-lg font-semibold text-surface-900 mb-2">No Items Found</h3>
+                    <p className="text-surface-600 text-center mb-8 max-w-md">
+                      No menu items match your current filters. Try adjusting your search or filter criteria.
+                    </p>
+                    <button
+                      onClick={() => {
+                        setSearchQuery('')
+                        setCategoryFilter('all')
+                        setStatusFilter('all')
+                        setStockFilter('all')
+                      }}
+                      className="px-6 py-3 text-primary-600 border-2 border-primary-200 rounded-xl hover:bg-primary-50 hover:border-primary-300 transition-all duration-200 font-medium"
+                    >
+                      Clear All Filters
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {filteredItems.map((item) => (
+                      <div 
+                        key={item.id} 
+                        className={`relative bg-white/90 backdrop-blur-sm rounded-2xl border border-surface-200/50 overflow-hidden hover:shadow-xl hover:shadow-surface-200/25 transition-all duration-300 hover:-translate-y-1 ${
+                          bulkMode ? 'cursor-pointer' : ''
+                        } ${
+                          bulkMode 
+                            ? selectedItems.has(item.id!) 
+                              ? 'border-primary-300 bg-primary-50/50 ring-2 ring-primary-200' 
+                              : 'border-surface-200/50 hover:border-primary-300'
+                            : 'border-surface-200/50 hover:border-surface-300'
+                        }`}
+                        onClick={bulkMode ? (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleSelectItem(item.id!);
+                        } : undefined}
+                      >
+                        {/* Bulk Mode Checkbox */}
+                        {bulkMode && (
+                          <div className="absolute top-3 left-3 z-10">
+                            <input
+                              type="checkbox"
+                              checked={selectedItems.has(item.id!)}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                handleSelectItem(item.id!);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-5 h-5 text-primary-600 bg-white/90 border-surface-300 rounded-lg focus:ring-2 focus:ring-primary-500/20 transition-colors"
+                            />
+                          </div>
+                        )}
+                        
+                        {/* Card Header */}
+                        <div className="p-5 pb-3">
+                          <div className="mb-3">
+                            <h3 className="font-semibold text-surface-900 text-base truncate flex items-center gap-2">
+                              {item.emoji && <span className="text-xl">{item.emoji}</span>}
+                              {item.name}
+                            </h3>
+                          </div>
+                          <p className="text-sm text-surface-600 line-clamp-2 mb-3 leading-relaxed">{item.description}</p>
+                          <div className="inline-flex items-center px-2.5 py-1 bg-surface-100 text-surface-700 rounded-lg text-xs font-medium">
+                            {item.category}
+                          </div>
+                        </div>
 
-                    {/* Card Actions */}
-                    {!bulkMode && (
-                      <div className="px-4 pb-4">
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => setEditingItem(item)}
-                            className="flex-1 px-2 py-1.5 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDuplicateMenuItem(item)}
-                            className="flex-1 px-2 py-1.5 text-xs bg-green-50 text-green-700 rounded hover:bg-green-100"
-                          >
-                            Copy
-                          </button>
-                          <button
-                            onClick={() => handleDeleteMenuItem(item.id!)}
-                            className="flex-1 px-2 py-1.5 text-xs bg-red-50 text-red-700 rounded hover:bg-red-100"
-                          >
-                            Delete
-                          </button>
+                        {/* Card Body */}
+                        <div className="px-5 pb-5">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-xl font-bold bg-gradient-to-r from-surface-900 to-surface-700 bg-clip-text text-transparent">
+                              ₱{item.price.toFixed(2)}
+                            </span>
+                            <span className="text-sm text-surface-500 bg-surface-50 px-2 py-1 rounded-lg">
+                              Cost: ₱{item.cost.toFixed(2)}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center justify-between mb-4">
+                            <span className="text-sm font-semibold text-green-600 bg-green-50 px-2.5 py-1 rounded-lg">
+                              Profit: ₱{(item.price - item.cost).toFixed(2)}
+                            </span>
+                            <span className={`text-xs px-3 py-1.5 rounded-full font-medium ${getStockStatusColor(getStockStatus(item))}`}>
+                              {getStockStatusText(getStockStatus(item), calculateMaxServings(item))}
+                            </span>
+                          </div>
+
+                          {/* Card Actions */}
+                          {!bulkMode && (
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                onClick={() => setEditingItem(item)}
+                                className="px-3 py-2.5 text-sm bg-primary-50 text-primary-700 rounded-xl hover:bg-primary-100 transition-all duration-200 font-medium"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDuplicateMenuItem(item)}
+                                className="px-3 py-2.5 text-sm bg-green-50 text-green-700 rounded-xl hover:bg-green-100 transition-all duration-200 font-medium"
+                              >
+                                Copy
+                              </button>
+                            </div>
+                          )}
+                          {!bulkMode && (
+                            <button
+                              onClick={() => handleDeleteMenuItem(item.id!)}
+                              className="w-full mt-2 px-3 py-2.5 text-sm bg-red-50 text-red-700 rounded-xl hover:bg-red-100 transition-all duration-200 font-medium"
+                            >
+                              Delete
+                            </button>
+                          )}
                         </div>
                       </div>
-                    )}
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-              )}
             </div>
           </div>
         ) : (
-          /* Add-ons Tab Content */
-          <div className="h-full flex flex-col">
-            {/* Add-ons Filters */}
-            <div className="px-6 py-3 bg-white border-b border-gray-200">
-              <div className="flex items-center gap-3">
-                <input
-                  type="text"
-                  placeholder="Search add-ons..."
-                  value={addonSearchQuery}
-                  onChange={(e) => setAddonSearchQuery(e.target.value)}
-                  className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
+          <div className="space-y-8">
             {/* Add-ons Content */}
-            <div className="flex-1 overflow-auto p-6 bg-gray-50">
-              {addons.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <div className="w-24 h-24 mx-auto mb-4 text-gray-300">
-                    <svg fill="currentColor" viewBox="0 0 24 24" className="w-full h-full">
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                      <path d="M16 6V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v2c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6-2h4v2h-4V4z"/>
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Add-ons Available</h3>
-                  <p className="text-gray-600 text-center mb-6 max-w-sm">
-                    You haven&apos;t created any add-ons yet. Add-ons are extras like sauces, drinks, or sides that customers can add to their orders.
-                  </p>
-                  <button
-                    onClick={() => setShowCreateAddonModal(true)}
-                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    Create Your First Add-on
-                  </button>
-                </div>
-              ) : filteredAddons.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <div className="w-24 h-24 mx-auto mb-4 text-gray-300">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-full h-full">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-surface-200/50 shadow-sm overflow-hidden">
+              {/* Add-ons Header */}
+              <div className="px-6 py-4 bg-gradient-to-r from-surface-50 to-surface-100/50 border-b border-surface-200/50">
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <svg className="h-5 w-5 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Add-ons Found</h3>
-                  <p className="text-gray-600 text-center mb-6 max-w-sm">
-                    No add-ons match your current search criteria. Try adjusting your search terms.
-                  </p>
-                  <button
-                    onClick={() => setAddonSearchQuery('')}
-                    className="px-4 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-                  >
-                    Clear Search
-                  </button>
+                  <input
+                    type="text"
+                    placeholder="Search add-ons by name or description..."
+                    value={addonSearchQuery}
+                    onChange={(e) => setAddonSearchQuery(e.target.value)}
+                    className="w-full pl-11 pr-4 py-3 bg-white/80 border border-surface-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all duration-200 text-surface-900 placeholder-surface-500"
+                  />
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {filteredAddons.map((addon) => (
-                    <div key={addon.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow">
-                      {/* Card Header */}
-                      <div className="p-4 pb-2">
-                        <div className="flex items-start justify-between mb-2">
-                          <h3 className="font-semibold text-gray-900 text-sm truncate flex-1">{addon.name}</h3>
-                          <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full ${addon.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
-                            {addon.status === 'active' ? 'Active' : 'Inactive'}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-600 line-clamp-2 mb-2">{addon.description}</p>
-                        <div className="text-xs text-gray-500">
-                          {addon.ingredients && addon.ingredients.length > 0 
-                            ? `Multi-ingredient (${addon.ingredients.length} items)`
-                            : `Inventory: ${addon.inventoryItemName || 'N/A'}`
-                          }
-                        </div>
-                      </div>
+              </div>
 
-                      {/* Card Body */}
-                      <div className="px-4 pb-2">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-lg font-bold text-gray-900">₱{addon.price.toFixed(2)}</span>
-                          <span className="text-xs text-gray-500">Cost: ₱{addon.cost.toFixed(2)}</span>
-                        </div>
-                        
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-xs font-medium text-green-600">
-                            Profit: ₱{(addon.price - addon.cost).toFixed(2)}
-                          </span>
-                          <span className="text-xs text-blue-600">
-                            {addon.ingredients && addon.ingredients.length > 0 
-                              ? `${addon.ingredients.length} ingredients`
-                              : `Qty: ${addon.inventoryQuantity || 'N/A'}`
-                            }
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Card Actions */}
-                      <div className="px-4 pb-4">
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => handleEditAddon(addon)}
-                            className="flex-1 px-2 py-1.5 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleToggleAddon(addon)}
-                            className={`flex-1 px-2 py-1.5 text-xs rounded ${addon.status === 'active' ? 'bg-orange-50 text-orange-700 hover:bg-orange-100' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}
-                          >
-                            {addon.status === 'active' ? 'Disable' : 'Enable'}
-                          </button>
-                          <button
-                            onClick={() => handleDeleteAddon(addon.id!)}
-                            className="flex-1 px-2 py-1.5 text-xs bg-red-50 text-red-700 rounded hover:bg-red-100"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
+              {/* Add-ons Grid */}
+              <div className="p-6">
+                {addons.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16">
+                    <div className="w-20 h-20 mx-auto mb-6 text-surface-300">
+                      <svg fill="currentColor" viewBox="0 0 24 24" className="w-full h-full">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        <path d="M16 6V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v2c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6-2h4v2h-4V4z"/>
+                      </svg>
                     </div>
-                  ))}
-                </div>
-              )}
+                    <h3 className="text-xl font-semibold text-surface-900 mb-2">No Add-ons Available</h3>
+                    <p className="text-surface-600 text-center mb-8 max-w-md leading-relaxed">
+                      You haven&apos;t created any add-ons yet. Add-ons are extras like sauces, drinks, or sides that customers can add to their orders.
+                    </p>
+                    <button
+                      onClick={() => setShowCreateAddonModal(true)}
+                      className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl hover:from-primary-700 hover:to-primary-800 transition-all duration-200 font-medium shadow-lg hover:shadow-xl"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      Create Your First Add-on
+                    </button>
+                  </div>
+                ) : filteredAddons.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16">
+                    <div className="w-20 h-20 mx-auto mb-6 text-surface-300">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-full h-full">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-surface-900 mb-2">No Add-ons Found</h3>
+                    <p className="text-surface-600 text-center mb-8 max-w-md leading-relaxed">
+                      No add-ons match your current search criteria. Try adjusting your search terms.
+                    </p>
+                    <button
+                      onClick={() => setAddonSearchQuery('')}
+                      className="px-6 py-3 text-primary-600 border-2 border-primary-200 rounded-xl hover:bg-primary-50 hover:border-primary-300 transition-all duration-200 font-medium"
+                    >
+                      Clear Search
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {filteredAddons.map((addon) => (
+                      <div key={addon.id} className="bg-white/90 backdrop-blur-sm rounded-2xl border border-surface-200/50 overflow-hidden hover:shadow-xl hover:shadow-surface-200/25 transition-all duration-300 hover:-translate-y-1">
+                        {/* Card Header */}
+                        <div className="p-5 pb-3">
+                          <div className="flex items-start justify-between mb-3">
+                            <h3 className="font-semibold text-surface-900 text-base truncate flex-1">{addon.name}</h3>
+                            <span className={`ml-2 px-3 py-1.5 text-xs font-medium rounded-full ${addon.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-surface-100 text-surface-600'}`}>
+                              {addon.status === 'active' ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
+                          <p className="text-sm text-surface-600 line-clamp-2 mb-3 leading-relaxed">{addon.description}</p>
+                          <div className="inline-flex items-center px-2.5 py-1 bg-surface-100 text-surface-700 rounded-lg text-xs font-medium">
+                            {addon.ingredients && addon.ingredients.length > 0 
+                              ? `Multi-ingredient (${addon.ingredients.length} items)`
+                              : `Inventory: ${addon.inventoryItemName || 'N/A'}`
+                            }
+                          </div>
+                        </div>
+
+                        {/* Card Body */}
+                        <div className="px-5 pb-5">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-xl font-bold bg-gradient-to-r from-surface-900 to-surface-700 bg-clip-text text-transparent">
+                              ₱{addon.price.toFixed(2)}
+                            </span>
+                            <span className="text-sm text-surface-500 bg-surface-50 px-2 py-1 rounded-lg">
+                              Cost: ₱{addon.cost.toFixed(2)}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center justify-between mb-4">
+                            <span className="text-sm font-semibold text-green-600 bg-green-50 px-2.5 py-1 rounded-lg">
+                              Profit: ₱{(addon.price - addon.cost).toFixed(2)}
+                            </span>
+                            <span className="text-xs text-primary-600 bg-primary-50 px-2.5 py-1 rounded-lg font-medium">
+                              {addon.ingredients && addon.ingredients.length > 0 
+                                ? `${addon.ingredients.length} ingredients`
+                                : `Qty: ${addon.inventoryQuantity || 'N/A'}`
+                              }
+                            </span>
+                          </div>
+
+                          {/* Card Actions */}
+                          <div className="grid grid-cols-3 gap-2">
+                            <button
+                              onClick={() => handleEditAddon(addon)}
+                              className="px-3 py-2.5 text-sm bg-primary-50 text-primary-700 rounded-xl hover:bg-primary-100 transition-all duration-200 font-medium"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleToggleAddon(addon)}
+                              className={`px-3 py-2.5 text-sm rounded-xl transition-all duration-200 font-medium ${addon.status === 'active' ? 'bg-orange-50 text-orange-700 hover:bg-orange-100' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}
+                            >
+                              {addon.status === 'active' ? 'Disable' : 'Enable'}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAddon(addon.id!)}
+                              className="px-3 py-2.5 text-sm bg-red-50 text-red-700 rounded-xl hover:bg-red-100 transition-all duration-200 font-medium"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
-      </div>
 
-      {/* Modern Enterprise Add Product Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-hidden">
+        {/* Modern Enterprise Add Product Modal */}
+        {showCreateModal && (
+        <div className="fixed inset-0 bg-surface-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-surface-200/50 w-full max-w-4xl max-h-[95vh] overflow-hidden">
             {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-white bg-opacity-20 rounded-lg">
+            <div className="bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800 px-8 py-6 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-white/5 to-transparent"></div>
+              <div className="relative flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl shadow-lg">
                     <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
                   </div>
                   <div>
-                    <h2 className="text-xl font-semibold text-white">Add New Product</h2>
-                    <p className="text-blue-100 text-sm">Create a new menu item for {selectedBranch?.name}</p>
+                    <h2 className="text-2xl font-bold text-white">Add New Product</h2>
+                    <p className="text-white/80 text-sm">Create a new menu item for {selectedBranch?.name}</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowCreateModal(false)}
-                  className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
+                  className="p-3 hover:bg-white/20 backdrop-blur-sm rounded-2xl transition-all duration-200 hover:scale-105"
                 >
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1660,37 +1835,37 @@ export default function MenuBuilder() {
             </div>
 
             {/* Content */}
-            <div className="max-h-[calc(95vh-200px)] overflow-y-auto">
+            <div className="max-h-[calc(95vh-200px)] overflow-y-auto bg-gradient-to-br from-surface-50 to-white">
               <div className="p-8">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   {/* Left Column - Basic Information */}
                   <div className="space-y-6">
-                    <div className="bg-gray-50 rounded-xl p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                        <div className="p-2 bg-blue-100 rounded-lg mr-3">
-                          <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-surface-200/50 shadow-sm">
+                      <h3 className="text-xl font-bold text-surface-900 mb-4 flex items-center">
+                        <div className="p-2.5 bg-primary-100 rounded-xl mr-3">
+                          <svg className="w-5 h-5 text-primary-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                         </div>
                         Product Details
                       </h3>
                       
-                      <div className="space-y-4">
+                      <div className="space-y-5">
                         <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                          <label className="block text-sm font-semibold text-surface-700 mb-3">
                             Product Name*
                           </label>
                           <input
                             type="text"
                             value={newItem.name}
                             onChange={(e) => setNewItem(prev => ({ ...prev, name: e.target.value }))}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
+                            className="w-full px-4 py-3.5 bg-white/80 border border-surface-200 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all duration-200 placeholder-surface-400 text-surface-900"
                             placeholder="Enter product name"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                          <label className="block text-sm font-semibold text-surface-700 mb-3">
                             Category*
                           </label>
                           <div className="relative">
@@ -1698,7 +1873,7 @@ export default function MenuBuilder() {
                               type="text"
                               value={newItem.category}
                               onChange={(e) => setNewItem(prev => ({ ...prev, category: e.target.value }))}
-                              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
+                              className="w-full px-4 py-3.5 bg-white/80 border border-surface-200 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all duration-200 placeholder-surface-400 text-surface-900"
                               placeholder="e.g., Beverages, Main Course, Desserts"
                               list="categories-datalist"
                             />
@@ -2842,6 +3017,7 @@ export default function MenuBuilder() {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

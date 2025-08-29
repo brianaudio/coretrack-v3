@@ -44,11 +44,16 @@ module.exports = {
         '18': '4.5rem',
         '88': '22rem',
       },
+      backdropBlur: {
+        'xs': '2px',
+        'sm': '4px',
+      },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-in-out',
         'slide-up': 'slideUp 0.3s ease-out',
         'slide-down': 'slideDown 0.3s ease-out',
         'wave': 'wave 2s infinite',
+        'pulse-gentle': 'pulseGentle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
       },
       keyframes: {
         fadeIn: {
@@ -66,6 +71,14 @@ module.exports = {
         wave: {
           '0%': { backgroundPosition: '-200% 0' },
           '100%': { backgroundPosition: '200% 0' },
+        },
+        pulseGentle: {
+          '0%, 100%': {
+            opacity: '1',
+          },
+          '50%': {
+            opacity: '.8',
+          },
         },
       },
     },

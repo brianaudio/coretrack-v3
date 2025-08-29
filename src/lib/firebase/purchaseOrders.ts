@@ -11,7 +11,9 @@ import {
   where, 
   orderBy,
   Timestamp,
-  DocumentData 
+  DocumentData,
+  runTransaction,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -329,8 +331,9 @@ export const deletePurchaseOrder = async (
   }
 };
 
-// Deliver purchase order with inventory updates
-export const deliverPurchaseOrder = async (
+// DEPRECATED: Use deliverPurchaseOrderAtomic instead - this function has race conditions
+// Deliver purchase order with inventory updates - ATOMIC TRANSACTION VERSION
+export const deliverPurchaseOrderAtomic = async (
   tenantId: string,
   orderId: string,
   deliveryItems: Array<{
@@ -342,6 +345,7 @@ export const deliverPurchaseOrder = async (
   deliveredBy?: string
 ): Promise<{
   success: boolean;
+  error?: string;
   inventoryUpdateResult?: {
     updatedItems: string[];
     notFoundItems: string[];
@@ -349,119 +353,300 @@ export const deliverPurchaseOrder = async (
   };
 }> => {
   try {
-    // Import the inventory update function
-    const { updateInventoryFromDelivery } = await import('./inventory');
+    // Import inventory function
+    const { getAllInventoryItems } = await import('./inventory');
     
-    // Get the current purchase order
-    const orderRef = doc(db, `tenants/${tenantId}/purchaseOrders`, orderId);
-    const orderDoc = await getDoc(orderRef);
-    
-    if (!orderDoc.exists()) {
-      throw new Error('Purchase order not found');
-    }
-    
-    const orderData = orderDoc.data() as PurchaseOrder;
-    
-    // Check if order is already delivered
-    if (orderData.status === 'delivered') {
-      throw new Error('Purchase order has already been delivered');
-    }
-    
-    // Check if order can be delivered (must be in 'ordered' or 'partially_delivered' status)
-    if (orderData.status !== 'ordered' && orderData.status !== 'partially_delivered') {
-      throw new Error(`Cannot deliver purchase order. Current status: ${orderData.status}. Order must be in 'ordered' or 'partially_delivered' status to be delivered.`);
-    }
-    
-    // Update the purchase order items with received quantities
-    const updatedItems = orderData.items.map(item => {
-      const deliveryItem = deliveryItems.find(di => 
-        di.itemName.toLowerCase().trim() === item.itemName.toLowerCase().trim()
+    // Pre-validate delivery items and get inventory data outside transaction
+    const inventoryItems = await getAllInventoryItems(tenantId);
+    const validationResult = {
+      updatedItems: [] as string[],
+      notFoundItems: [] as string[],
+      unitMismatches: [] as Array<{ itemName: string; expectedUnit: string; receivedUnit: string }>
+    };
+
+    // Pre-validate all items before starting transaction
+    const itemUpdates: Array<{
+      inventoryItem: any;
+      deliveryItem: typeof deliveryItems[0];
+      newStock: number;
+      newCostPerUnit: number;
+    }> = [];
+
+    for (const deliveryItem of deliveryItems) {
+      if (deliveryItem.quantityReceived <= 0) continue;
+      
+      // Find matching inventory item
+      const matchingItem = inventoryItems.find(item => 
+        item.name.toLowerCase().trim() === deliveryItem.itemName.toLowerCase().trim()
       );
       
-      if (deliveryItem) {
-        // For partial deliveries, accumulate the received quantities
-        const previouslyReceived = item.quantityReceived || 0;
-        const newlyReceived = deliveryItem.quantityReceived;
-        const totalReceived = previouslyReceived + newlyReceived;
-        
-        return {
-          ...item,
-          quantityReceived: Math.min(totalReceived, item.quantity) // Don't exceed ordered quantity
-        };
-      } else {
-        return {
-          ...item,
-          quantityReceived: item.quantityReceived || 0 // Keep existing received quantity
-        };
+      if (!matchingItem) {
+        validationResult.notFoundItems.push(deliveryItem.itemName);
+        continue;
       }
-    });
-    
-    // Update inventory
-    const inventoryUpdateResult = await updateInventoryFromDelivery(
-      tenantId, 
-      deliveryItems,
-      undefined, // userId - can be undefined since it's optional
-      deliveredBy || 'System' // userName - use deliveredBy or 'System' as fallback
-    );
+      
+      // Check unit compatibility
+      if (matchingItem.unit.toLowerCase() !== deliveryItem.unit.toLowerCase()) {
+        validationResult.unitMismatches.push({
+          itemName: deliveryItem.itemName,
+          expectedUnit: matchingItem.unit,
+          receivedUnit: deliveryItem.unit
+        });
+        continue;
+      }
 
-    // Automatically update all menu item costs when inventory costs change
+      // Calculate new stock and cost
+      const newStock = matchingItem.currentStock + deliveryItem.quantityReceived;
+      let newCostPerUnit = matchingItem.costPerUnit || 0;
+
+      if (deliveryItem.unitPrice && deliveryItem.unitPrice > 0) {
+        if (!matchingItem.costPerUnit || matchingItem.costPerUnit === 0) {
+          newCostPerUnit = deliveryItem.unitPrice;
+        } else {
+          // Weighted average cost
+          const existingValue = matchingItem.currentStock * matchingItem.costPerUnit;
+          const newValue = deliveryItem.quantityReceived * deliveryItem.unitPrice;
+          const totalQuantity = matchingItem.currentStock + deliveryItem.quantityReceived;
+          
+          if (totalQuantity > 0) {
+            newCostPerUnit = (existingValue + newValue) / totalQuantity;
+          }
+        }
+      }
+
+      itemUpdates.push({
+        inventoryItem: matchingItem,
+        deliveryItem,
+        newStock,
+        newCostPerUnit
+      });
+      
+      validationResult.updatedItems.push(matchingItem.name);
+    }
+
+    // If there are validation errors, return them immediately
+    if (validationResult.notFoundItems.length > 0 || validationResult.unitMismatches.length > 0) {
+      return {
+        success: false,
+        error: `Validation failed: ${validationResult.notFoundItems.length} items not found, ${validationResult.unitMismatches.length} unit mismatches`,
+        inventoryUpdateResult: validationResult
+      };
+    }
+
+    // Now run the atomic transaction
+    const result = await runTransaction(db, async (transaction) => {
+      // 1. Get current purchase order state
+      const orderRef = doc(db, `tenants/${tenantId}/purchaseOrders`, orderId);
+      const orderDoc = await transaction.get(orderRef);
+      
+      if (!orderDoc.exists()) {
+        throw new Error('Purchase order not found');
+      }
+      
+      const orderData = orderDoc.data() as PurchaseOrder;
+      
+      // 2. Validate order can be delivered
+      if (orderData.status === 'delivered') {
+        throw new Error('Purchase order has already been delivered');
+      }
+      
+      if (orderData.status !== 'ordered' && orderData.status !== 'partially_delivered') {
+        throw new Error(`Cannot deliver purchase order. Current status: ${orderData.status}. Order must be in 'ordered' or 'partially_delivered' status.`);
+      }
+
+      // 3. Get fresh inventory data within transaction
+      const inventoryRefs = itemUpdates.map(update => 
+        doc(db, `tenants/${tenantId}/inventory`, update.inventoryItem.id)
+      );
+      const inventoryDocs = await Promise.all(
+        inventoryRefs.map(ref => transaction.get(ref))
+      );
+
+      // 4. Verify inventory items still exist and get current stock
+      const transactionUpdates: Array<{
+        ref: any;
+        newStock: number;
+        newCostPerUnit: number;
+        previousStock: number;
+        deliveryItem: typeof deliveryItems[0];
+        itemName: string;
+      }> = [];
+
+      for (let i = 0; i < inventoryDocs.length; i++) {
+        const doc = inventoryDocs[i];
+        const update = itemUpdates[i];
+        
+        if (!doc.exists()) {
+          throw new Error(`Inventory item ${update.inventoryItem.name} no longer exists`);
+        }
+
+        const currentData = doc.data();
+        const currentStock = currentData.currentStock || 0;
+        const newStock = currentStock + update.deliveryItem.quantityReceived;
+
+        // Recalculate cost with current stock data
+        let newCostPerUnit = currentData.costPerUnit || 0;
+        if (update.deliveryItem.unitPrice && update.deliveryItem.unitPrice > 0) {
+          if (!currentData.costPerUnit || currentData.costPerUnit === 0) {
+            newCostPerUnit = update.deliveryItem.unitPrice;
+          } else {
+            const existingValue = currentStock * currentData.costPerUnit;
+            const newValue = update.deliveryItem.quantityReceived * update.deliveryItem.unitPrice;
+            const totalQuantity = currentStock + update.deliveryItem.quantityReceived;
+            
+            if (totalQuantity > 0) {
+              newCostPerUnit = (existingValue + newValue) / totalQuantity;
+            }
+          }
+        }
+
+        transactionUpdates.push({
+          ref: inventoryRefs[i],
+          newStock,
+          newCostPerUnit,
+          previousStock: currentStock,
+          deliveryItem: update.deliveryItem,
+          itemName: update.inventoryItem.name
+        });
+      }
+
+      // 5. Update inventory items
+      const now = Timestamp.now();
+      for (const update of transactionUpdates) {
+        const currentData = inventoryDocs[transactionUpdates.indexOf(update)].data();
+        const status = update.newStock <= 0 ? 'out_of_stock' : 
+                     update.newStock <= ((currentData?.minStock) || 0) ? 'low_stock' : 'in_stock';
+
+        transaction.update(update.ref, {
+          currentStock: update.newStock,
+          costPerUnit: update.newCostPerUnit || 0,
+          status,
+          updatedAt: now,
+          lastUpdated: now
+        });
+      }
+
+      // 6. Update purchase order items with received quantities
+      const updatedItems = orderData.items.map(item => {
+        const deliveryItem = deliveryItems.find(di => 
+          di.itemName.toLowerCase().trim() === item.itemName.toLowerCase().trim()
+        );
+        
+        if (deliveryItem) {
+          const previouslyReceived = item.quantityReceived || 0;
+          const newlyReceived = deliveryItem.quantityReceived;
+          const totalReceived = previouslyReceived + newlyReceived;
+          
+          return {
+            ...item,
+            quantityReceived: Math.min(totalReceived, item.quantity)
+          };
+        } else {
+          return {
+            ...item,
+            quantityReceived: item.quantityReceived || 0
+          };
+        }
+      });
+
+      // 7. Determine new purchase order status
+      const isFullyDelivered = updatedItems.every(item => {
+        const quantityReceived = item.quantityReceived || 0;
+        return quantityReceived >= item.quantity;
+      });
+
+      const hasPartialDelivery = updatedItems.some(item => {
+        const quantityReceived = item.quantityReceived || 0;
+        return quantityReceived > 0 && quantityReceived < item.quantity;
+      });
+
+      let newStatus: PurchaseOrder['status'];
+      if (isFullyDelivered) {
+        newStatus = 'delivered';
+      } else if (hasPartialDelivery || updatedItems.some(item => (item.quantityReceived || 0) > 0)) {
+        newStatus = 'partially_delivered';
+      } else {
+        newStatus = 'ordered';
+      }
+
+      // 8. Update purchase order
+      const orderUpdateData: any = {
+        status: newStatus,
+        items: updatedItems,
+        deliveredAt: now,
+        updatedAt: now
+      };
+      
+      if (deliveredBy) {
+        orderUpdateData.deliveredBy = deliveredBy;
+      }
+      
+      transaction.update(orderRef, orderUpdateData);
+
+      // 9. Create inventory movement logs (batch write after transaction)
+      return {
+        transactionUpdates,
+        newStatus,
+        orderData
+      };
+    });
+
+    // 10. Log inventory movements after successful transaction
+    try {
+      const { logInventoryMovement } = await import('./inventory');
+      const movementPromises = result.transactionUpdates.map(update => {
+        const movementReason = update.newCostPerUnit !== update.previousStock 
+          ? `Purchase order delivery - Price updated to ₱${update.newCostPerUnit.toFixed(2)} (weighted average)`
+          : 'Purchase order delivery received';
+
+        return logInventoryMovement({
+          itemId: update.ref.id,
+          itemName: update.itemName,
+          movementType: 'receiving',
+          quantity: update.deliveryItem.quantityReceived,
+          previousStock: update.previousStock,
+          newStock: update.newStock,
+          unit: update.deliveryItem.unit,
+          reason: movementReason,
+          userId: undefined,
+          userName: deliveredBy || 'System',
+          tenantId,
+          locationId: result.orderData.locationId || ''
+        });
+      });
+
+      await Promise.all(movementPromises);
+    } catch (movementError) {
+      console.error('Warning: Failed to log inventory movements:', movementError);
+      // Don't fail the whole operation for logging issues
+    }
+
+    // 11. Trigger menu price sync asynchronously
     try {
       const { triggerMenuPriceSync } = await import('./autoMenuPriceSync');
-      // Use the location from the purchase order
-      if (orderData.locationId) {
-        const updatedMenuItems = await triggerMenuPriceSync(tenantId, orderData.locationId);
+      if (result.orderData.locationId) {
+        const updatedMenuItems = await triggerMenuPriceSync(tenantId, result.orderData.locationId);
         if (updatedMenuItems > 0) {
           console.log(`🍽️ Auto-updated ${updatedMenuItems} menu items with new ingredient costs`);
         }
       }
     } catch (error) {
-      console.error('⚠️ Error auto-updating menu prices:', error);
-      // Don't fail the whole purchase order if menu sync fails
+      console.error('⚠️ Warning: Menu price sync failed:', error);
+      // Don't fail delivery for menu sync issues
     }
 
-    // Check if this is a partial delivery
-    const isPartialDelivery = updatedItems.some(item => {
-      const quantityReceived = item.quantityReceived || 0;
-      return quantityReceived > 0 && quantityReceived < item.quantity;
-    });
-
-    // Check if all items have been fully delivered (considering previous partial deliveries)
-    const isFullyDelivered = updatedItems.every(item => {
-      const quantityReceived = item.quantityReceived || 0;
-      return quantityReceived >= item.quantity;
-    });
-
-    // Determine the status based on delivery completion
-    let newStatus: PurchaseOrder['status'];
-    if (isFullyDelivered) {
-      newStatus = 'delivered';
-    } else if (isPartialDelivery || updatedItems.some(item => (item.quantityReceived || 0) > 0)) {
-      newStatus = 'partially_delivered';
-    } else {
-      newStatus = 'ordered'; // No items received, keep as ordered
-    }
-    
-    // Update purchase order status and items
-    const updateData: any = {
-      status: newStatus,
-      items: updatedItems,
-      deliveredAt: Timestamp.now(),
-      updatedAt: Timestamp.now()
-    };
-    
-    if (deliveredBy) {
-      updateData.deliveredBy = deliveredBy;
-    }
-    
-    await updateDoc(orderRef, updateData);
-    
     return {
       success: true,
-      inventoryUpdateResult
+      inventoryUpdateResult: validationResult
     };
+
   } catch (error) {
-    console.error('Error delivering purchase order:', error);
-    throw new Error('Failed to deliver purchase order');
+    console.error('❌ Atomic delivery transaction failed:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to deliver purchase order',
+      inventoryUpdateResult: undefined
+    };
   }
 };
 

@@ -16,7 +16,7 @@ import {
   updatePurchaseOrderStatus,
   deletePurchaseOrder,
   getSuppliers,
-  deliverPurchaseOrder,
+  deliverPurchaseOrderAtomic,
   type PurchaseOrder,
   type Supplier,
   type CreatePurchaseOrder,
@@ -489,14 +489,6 @@ export default function PurchaseOrders() {
         return
       }
       
-      // Check if order is still in 'ordered' or 'partially_delivered' status before proceeding
-      if (deliveringOrder.status !== 'ordered' && deliveringOrder.status !== 'partially_delivered') {
-        alert(`Cannot deliver order. Current status: ${deliveringOrder.status}`)
-        setShowDeliveryModal(false)
-        setDeliveringOrder(null)
-        return
-      }
-      
       // Filter out items with zero quantity received
       const itemsToDeliver = deliveryItems.filter(item => item.quantityReceived > 0)
       
@@ -505,67 +497,10 @@ export default function PurchaseOrders() {
         return
       }
 
-      // **PERFORMANCE OPTIMIZATION: Calculate everything client-side first**
-      const updatedItems = deliveringOrder.items.map(item => {
-        const deliveredItem = itemsToDeliver.find(di => 
-          di.itemName.toLowerCase().trim() === item.itemName.toLowerCase().trim()
-        )
-        
-        if (deliveredItem) {
-          const previouslyReceived = item.quantityReceived || 0
-          const newlyReceived = deliveredItem.quantityReceived
-          const totalReceived = previouslyReceived + newlyReceived
-          
-          return {
-            ...item,
-            quantityReceived: Math.min(totalReceived, item.quantity)
-          }
-        } else {
-          return {
-            ...item,
-            quantityReceived: item.quantityReceived || 0
-          }
-        }
-      })
-
-      const isPartialDelivery = updatedItems.some(item => {
-        const quantityReceived = item.quantityReceived || 0
-        return quantityReceived > 0 && quantityReceived < item.quantity
-      })
-
-      const isFullyDelivered = updatedItems.every(item => {
-        const quantityReceived = item.quantityReceived || 0
-        return quantityReceived >= item.quantity
-      })
-
-      let newStatus: PurchaseOrder['status']
-      if (isFullyDelivered) {
-        newStatus = 'delivered'
-      } else if (isPartialDelivery || updatedItems.some(item => (item.quantityReceived || 0) > 0)) {
-        newStatus = 'partially_delivered'
-      } else {
-        newStatus = 'ordered'
-      }
-
-      // **PERFORMANCE: Optimistic UI update - Update immediately for responsive feel**
-      setOrders(prev => prev.map(order => 
-        order.id === deliveringOrder.id 
-          ? { 
-              ...order, 
-              status: newStatus,
-              deliveredBy: receivedBy.trim(),
-              deliveredAt: new Date() as any,
-              items: updatedItems
-            } 
-          : order
-      ))
-
-      // **PERFORMANCE: Close modal immediately**
-      setShowDeliveryModal(false)
-      setDeliveringOrder(null)
-
-      // **PERFORMANCE: Process Firebase operations in background**
-      deliverPurchaseOrder(
+      console.log('🚀 Starting atomic delivery transaction...')
+      
+      // **SURGICAL PRECISION: Use atomic transaction - no optimistic updates**
+      const result = await deliverPurchaseOrderAtomic(
         profile.tenantId,
         deliveringOrder.id!,
         itemsToDeliver.map(item => ({
@@ -575,13 +510,24 @@ export default function PurchaseOrders() {
           unitPrice: item.unitPrice
         })),
         receivedBy.trim()
-      ).then(result => {
-        if (result.success) {
-          setDeliveryResult(result.inventoryUpdateResult || null)
+      )
+
+      if (result.success) {
+        console.log('✅ Atomic delivery transaction successful')
+        
+        // **SURGICAL PRECISION: Only update UI after confirmed success**
+        setDeliveryResult(result.inventoryUpdateResult || null)
+        
+        // Handle validation results
+        if (result.inventoryUpdateResult) {
+          const { notFoundItems, unitMismatches, updatedItems } = result.inventoryUpdateResult
           
-          // Handle unit mismatches
-          if (result.inventoryUpdateResult && result.inventoryUpdateResult.unitMismatches.length > 0) {
-            const mismatchesWithQuantity = result.inventoryUpdateResult.unitMismatches.map(mismatch => {
+          if (notFoundItems.length > 0) {
+            alert(`⚠️ Some items were not found in inventory: ${notFoundItems.join(', ')}\n\nThe delivery was processed successfully for ${updatedItems.length} items.`)
+          }
+          
+          if (unitMismatches.length > 0) {
+            const mismatchesWithQuantity = unitMismatches.map(mismatch => {
               const deliveredItem = itemsToDeliver.find(item => 
                 item.itemName.toLowerCase().trim() === mismatch.itemName.toLowerCase().trim()
               )
@@ -594,43 +540,73 @@ export default function PurchaseOrders() {
             setUnitMismatches(mismatchesWithQuantity)
             setShowUnitMismatchModal(true)
           }
-        } else {
-          // Revert optimistic update on error
-          console.error('Delivery failed, reverting UI state')
-          window.location.reload()
-        }
-      }).catch(error => {
-        console.error('Background delivery processing error:', error)
-        // Don't show error to user since they already got feedback
-        // Just log for debugging and revert on next page load if needed
-      })
 
-      // **PERFORMANCE: Send notification asynchronously (don't wait)**
-      notifyDeliveryReceived(
-        profile.tenantId,
-        deliveringOrder.orderNumber,
-        receivedBy.trim(),
-        newStatus === 'partially_delivered' ? 'partial' : 'complete'
-      ).catch(error => console.error('Notification error:', error))
-    } catch (error) {
-      console.error('Error confirming delivery:', error)
-      
-      // Handle specific error cases
-      if (error instanceof Error) {
-        if (error.message.includes('already been delivered')) {
-          alert('This purchase order has already been delivered. The page will refresh to show the current status.')
-          // Refresh the orders list to get current status
+          if (updatedItems.length > 0) {
+            console.log(`📦 Successfully updated inventory for: ${updatedItems.join(', ')}`)
+          }
+        }
+        
+        // **SURGICAL PRECISION: Close modal only after confirmed success**
+        setShowDeliveryModal(false)
+        setDeliveringOrder(null)
+        
+        // **SURGICAL PRECISION: Refresh data to ensure UI consistency**
+        setDataCache({ timestamp: 0, data: null }) // Force cache refresh
+        window.location.reload() // Comprehensive refresh
+        
+        // **PERFORMANCE: Send notification asynchronously (don't wait)**
+        notifyDeliveryReceived(
+          profile.tenantId,
+          deliveringOrder.orderNumber,
+          receivedBy.trim(),
+          'complete' // We'll let the atomic function determine the actual status
+        ).catch(error => console.error('Notification error:', error))
+
+      } else {
+        // **SURGICAL PRECISION: Show exact error message from transaction**
+        console.error('❌ Atomic delivery transaction failed:', result.error)
+        
+        if (result.error?.includes('already been delivered')) {
+          alert('This purchase order has already been delivered. The data will be refreshed to show the current status.')
+          setDataCache({ timestamp: 0, data: null }) // Force cache refresh
           window.location.reload()
-          return
-        } else if (error.message.includes('Purchase order not found')) {
-          alert('Purchase order not found. It may have been deleted.')
-          setShowDeliveryModal(false)
-          setDeliveringOrder(null)
-          return
+        } else if (result.error?.includes('not found')) {
+          alert('Purchase order not found. It may have been deleted. The data will be refreshed.')
+          setDataCache({ timestamp: 0, data: null }) // Force cache refresh
+          window.location.reload()
+        } else if (result.error?.includes('Validation failed')) {
+          // Show validation results
+          if (result.inventoryUpdateResult) {
+            const { notFoundItems, unitMismatches } = result.inventoryUpdateResult
+            let errorMessage = 'Validation failed:\n'
+            
+            if (notFoundItems.length > 0) {
+              errorMessage += `\n• Items not found in inventory: ${notFoundItems.join(', ')}`
+            }
+            
+            if (unitMismatches.length > 0) {
+              errorMessage += `\n• Unit mismatches: ${unitMismatches.map(m => 
+                `${m.itemName} (expected: ${m.expectedUnit}, received: ${m.receivedUnit})`
+              ).join(', ')}`
+            }
+            
+            alert(errorMessage)
+          } else {
+            alert(`Delivery validation failed: ${result.error}`)
+          }
+        } else {
+          alert(`Failed to process delivery: ${result.error || 'Unknown error'}`)
         }
       }
       
-      alert('Failed to confirm delivery. Please try again.')
+    } catch (error) {
+      console.error('❌ Critical error during atomic delivery:', error)
+      alert(`Critical error during delivery processing: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      
+      // Refresh data to ensure UI consistency
+      setDataCache({ timestamp: 0, data: null }) // Force cache refresh
+      window.location.reload()
+      
     } finally {
       setIsDelivering(false)
     }

@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '../lib/context/AuthContext'
 import { collection, query, where, orderBy, onSnapshot, updateDoc, doc, Timestamp } from 'firebase/firestore'
 import { db } from '../lib/firebase'
@@ -23,6 +24,7 @@ export default function NotificationCenter() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!profile?.tenantId) return
@@ -45,6 +47,24 @@ export default function NotificationCenter() {
 
     return () => unsubscribe()
   }, [profile?.tenantId])
+
+  // Close dropdown when clicking outside - Enhanced for portal
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        // For portaled dropdown, also check if click is on the dropdown itself
+        const portaledDropdown = document.querySelector('[data-notification-dropdown]');
+        if (!portaledDropdown || !portaledDropdown.contains(event.target as Node)) {
+          setIsOpen(false);
+        }
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen]);
 
   const markAsRead = async (notificationId: string) => {
     if (!profile?.tenantId) return
@@ -118,7 +138,7 @@ export default function NotificationCenter() {
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={dropdownRef}>
       {/* Notification Bell */}
       <button
         onClick={() => setIsOpen(!isOpen)}
@@ -136,9 +156,20 @@ export default function NotificationCenter() {
         )}
       </button>
 
-      {/* Notification Dropdown */}
-      {isOpen && (
-        <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border border-surface-200 z-50 max-h-[80vh] overflow-hidden">
+      {/* Notification Dropdown - Portal Rendered to document.body */}
+      {typeof window !== 'undefined' && isOpen && createPortal(
+        <div 
+          data-notification-dropdown
+          className="fixed w-96 bg-white rounded-xl shadow-2xl border border-surface-200 overflow-hidden max-h-[80vh]"
+          style={{ 
+            position: 'fixed',
+            top: dropdownRef.current ? dropdownRef.current.getBoundingClientRect().bottom + window.scrollY + 8 : 0,
+            right: dropdownRef.current ? window.innerWidth - dropdownRef.current.getBoundingClientRect().right + window.scrollX : 0,
+            zIndex: 999999999,
+            pointerEvents: 'auto',
+            transform: 'translateZ(0)'
+          }}
+        >
           {/* Header */}
           <div className="p-4 border-b border-surface-200">
             <div className="flex items-center justify-between">
@@ -235,7 +266,8 @@ export default function NotificationCenter() {
               </button>
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

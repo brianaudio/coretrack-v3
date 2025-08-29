@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useBranch } from '../lib/context/BranchContext'
 import { useAuth } from '../lib/context/AuthContext'
 import { deleteLocation, createLocation } from '../lib/firebase/locationManagement'
@@ -196,17 +197,23 @@ export default function BranchSelector() {
     }
   }
 
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking outside - Enhanced for portal
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false)
+        // For portaled dropdown, also check if click is on the dropdown itself
+        const portaledDropdown = document.querySelector('[data-branch-selector-dropdown]');
+        if (!portaledDropdown || !portaledDropdown.contains(event.target as Node)) {
+          setIsOpen(false);
+        }
       }
-    }
+    };
 
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen]);
 
   // Force component re-render when selectedBranch changes
   useEffect(() => {
@@ -299,9 +306,20 @@ export default function BranchSelector() {
         </div>
       </button>
 
-      {/* Dropdown Menu - Modern Design */}
-      {isOpen && !isRefreshing && (
-        <div className="absolute top-full left-0 mt-2 w-80 bg-white/95 backdrop-blur-xl border border-gray-200/50 rounded-2xl shadow-[0_20px_40px_-8px_rgba(0,0,0,0.15)] z-50 overflow-hidden">
+      {/* Dropdown Menu - Portal Rendered to document.body */}
+      {typeof window !== 'undefined' && isOpen && !isRefreshing && createPortal(
+        <div 
+          data-branch-selector-dropdown
+          className="fixed w-80 bg-white border-2 border-gray-300 rounded-2xl shadow-2xl overflow-hidden" 
+          style={{ 
+            position: 'fixed',
+            top: dropdownRef.current ? dropdownRef.current.getBoundingClientRect().bottom + window.scrollY + 8 : 0,
+            left: dropdownRef.current ? dropdownRef.current.getBoundingClientRect().left + window.scrollX : 0,
+            zIndex: 999999999,
+            pointerEvents: 'auto',
+            transform: 'translateZ(0)'
+          }}
+        >
           {/* Header - Minimalist */}
           <div className="px-4 py-3 bg-gradient-to-r from-gray-50/50 to-blue-50/50 border-b border-gray-200/30">
             <h3 className="text-sm font-semibold text-gray-900">Select Location</h3>
@@ -404,7 +422,8 @@ export default function BranchSelector() {
               <span>Add New Location</span>
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Add New Branch Modal */}

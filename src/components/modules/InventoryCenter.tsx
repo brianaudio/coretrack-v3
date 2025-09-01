@@ -798,10 +798,10 @@ export default function InventoryCenter() {
 
   return (
     <FeatureGate feature="inventory">
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white space-y-8">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white space-y-6">
         {/* Modern Ultra-Clean Header - Capital Intelligence Style */}
-        <div className="bg-gradient-to-br from-gray-50 to-white backdrop-blur-lg border border-white/20 rounded-3xl p-12 shadow-2xl shadow-gray-500/10">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+        <div className="bg-gradient-to-br from-gray-50 to-white backdrop-blur-lg border border-white/20 rounded-3xl p-8 shadow-2xl shadow-gray-500/10">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div className="flex items-center space-x-6">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/25">
                 <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -827,10 +827,10 @@ export default function InventoryCenter() {
           </div>
         </div>
 
-        <div className="max-w-7xl mx-auto p-8 space-y-8">
+        <div className="max-w-7xl mx-auto p-6 space-y-6">
           {/* Modern Action Cards */}
-          <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-6">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <div className="space-y-1">
                 <h2 className="text-xl font-light text-gray-900 tracking-wide">Quick Actions</h2>
                 <p className="text-sm text-gray-500 leading-relaxed">Manage your inventory efficiently with powerful tools</p>
@@ -877,17 +877,17 @@ export default function InventoryCenter() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             
             {/* Total Items */}
-            <div className="group relative overflow-hidden bg-white/70 backdrop-blur-lg rounded-3xl p-8 border border-white/20 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
+            <div className="group relative overflow-hidden bg-white/70 backdrop-blur-lg rounded-3xl p-6 border border-white/20 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
               <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <div className="relative">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-3">
                   <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-2xl flex items-center justify-center">
                     <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M9 1L5 3v4l4-2V1zm7 0v4l4 2V3l-4-2z" />
                     </svg>
                   </div>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <p className="text-3xl font-light text-gray-900 tracking-tight">{inventoryItems.length}</p>
                   <p className="text-gray-500 text-sm font-light leading-relaxed">Total Items</p>
                 </div>
@@ -895,17 +895,17 @@ export default function InventoryCenter() {
             </div>
 
             {/* Total Value */}
-            <div className="group relative overflow-hidden bg-white/70 backdrop-blur-lg rounded-3xl p-8 border border-white/20 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
+            <div className="group relative overflow-hidden bg-white/70 backdrop-blur-lg rounded-3xl p-6 border border-white/20 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
               <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <div className="relative">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-3">
                   <div className="w-12 h-12 bg-gradient-to-br from-green-100 to-green-200 rounded-2xl flex items-center justify-center">
                     <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
                     </svg>
                   </div>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <p className="text-3xl font-light text-gray-900 tracking-tight">₱{totalInventoryValue.toFixed(0)}</p>
                   <p className="text-gray-500 text-sm font-light leading-relaxed">Total Value</p>
                 </div>
@@ -913,17 +913,17 @@ export default function InventoryCenter() {
             </div>
 
             {/* Low Stock Items */}
-            <div className="group relative overflow-hidden bg-white/70 backdrop-blur-lg rounded-3xl p-8 border border-white/20 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
+            <div className="group relative overflow-hidden bg-white/70 backdrop-blur-lg rounded-3xl p-6 border border-white/20 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
               <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <div className="relative">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-3">
                   <div className="w-12 h-12 bg-gradient-to-br from-amber-100 to-amber-200 rounded-2xl flex items-center justify-center">
                     <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
                     </svg>
                   </div>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <p className="text-3xl font-light text-gray-900 tracking-tight">{lowStockItems}</p>
                   <p className="text-gray-500 text-sm font-light leading-relaxed">Low Stock</p>
                 </div>
@@ -931,17 +931,17 @@ export default function InventoryCenter() {
             </div>
 
             {/* Critical Items */}
-            <div className="group relative overflow-hidden bg-white/70 backdrop-blur-lg rounded-3xl p-8 border border-white/20 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
+            <div className="group relative overflow-hidden bg-white/70 backdrop-blur-lg rounded-3xl p-6 border border-white/20 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
               <div className="absolute inset-0 bg-gradient-to-br from-red-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <div className="relative">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-3">
                   <div className="w-12 h-12 bg-gradient-to-br from-red-100 to-red-200 rounded-2xl flex items-center justify-center">
                     <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
                     </svg>
                   </div>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <p className="text-3xl font-light text-gray-900 tracking-tight">{criticalItems}</p>
                   <p className="text-gray-500 text-sm font-light leading-relaxed">Critical Items</p>
                 </div>
@@ -951,7 +951,7 @@ export default function InventoryCenter() {
 
           {/* Modern Alert Banner */}
           {(criticalItems > 0 || lowStockItems > 0) && (
-            <div className="bg-white/70 backdrop-blur-lg border border-white/20 rounded-3xl p-8 shadow-xl">
+            <div className="bg-white/70 backdrop-blur-lg border border-white/20 rounded-3xl p-6 shadow-xl">
               <div className="flex items-center">
                 <div className="w-12 h-12 bg-gradient-to-br from-red-100 to-red-200 rounded-2xl flex items-center justify-center flex-shrink-0 mr-6">
                   <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -974,15 +974,15 @@ export default function InventoryCenter() {
         </div>
 
         {/* Main Content Area - Modern Design */}
-        <div className="max-w-7xl mx-auto p-8">
+        <div className="max-w-7xl mx-auto p-6">
           <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl">
             {/* Modern Tab Navigation */}
             <div className="border-b border-gray-100">
-              <div className="px-8">
+              <div className="px-6">
                 <nav className="flex justify-center space-x-8 overflow-x-auto scrollbar-hide" aria-label="Tabs">
                   <button
                     onClick={() => setActiveTab('inventory')}
-                    className={`py-6 px-2 border-b-2 font-light text-sm whitespace-nowrap transition-all duration-300 tracking-wide ${
+                    className={`py-4 px-2 border-b-2 font-light text-sm whitespace-nowrap transition-all duration-300 tracking-wide ${
                       activeTab === 'inventory'
                         ? 'border-blue-500 text-blue-600'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200'

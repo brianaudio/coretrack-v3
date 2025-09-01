@@ -1256,44 +1256,62 @@ export default function MenuBuilder() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-surface-50 to-surface-100">
-      <div className="p-6 lg:p-8 space-y-8">
-        
-        {/* Header Section - iPad OS Style */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-          <div className="space-y-2">
-            <h1 className="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-surface-900 via-primary-600 to-surface-800 bg-clip-text text-transparent">
-              Menu Builder
-            </h1>
-            <div className="flex items-center gap-2 text-surface-600">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white space-y-8">
+      {/* Modern Ultra-Clean Header - Capital Intelligence Style */}
+      <div className="bg-gradient-to-br from-gray-50 to-white backdrop-blur-lg border border-white/20 rounded-3xl p-12 shadow-2xl shadow-gray-500/10">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+          <div className="flex items-center space-x-6">
+            <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/25">
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
               </svg>
-              <span className="font-medium">{selectedBranch?.name || 'Main Branch'}</span>
-              <span className="text-surface-400">•</span>
-              <span>Create and manage menu items with recipe costing</span>
+            </div>
+            <div>
+              <h1 className="text-4xl font-light text-gray-900 tracking-tight mb-2">Menu Builder</h1>
+              <p className="text-lg text-gray-500 font-light leading-relaxed max-w-2xl">
+                Create and manage menu items with intelligent recipe costing and inventory integration.
+              </p>
             </div>
           </div>
           
-          {/* Tab Navigation - Modern Design */}
           <div className="flex items-center gap-4">
-            <div className="flex bg-white/80 backdrop-blur-sm rounded-2xl p-2 border border-surface-200/50 shadow-sm">
+            <div className="text-right space-y-2">
+              <div className="text-sm text-gray-500 font-light">Branch Location</div>
+              <div className="text-2xl font-light tracking-tight text-blue-900">
+                📍 {selectedBranch?.name || 'Main Branch'}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto p-8 space-y-8">
+        {/* Modern Tab Navigation */}
+        <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            <div className="space-y-1">
+              <h2 className="text-xl font-light text-gray-900 tracking-wide">Content Management</h2>
+              <p className="text-sm text-gray-500 leading-relaxed">Build your menu with precision and control</p>
+            </div>
+            
+            {/* Enhanced Tab Navigation */}
+            <div className="flex bg-white/90 backdrop-blur-sm rounded-2xl p-2 border border-gray-200/50 shadow-sm">
               <button
                 onClick={() => setActiveTab('menu-items')}
-                className={`px-6 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                className={`px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 ${
                   activeTab === 'menu-items'
-                    ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-lg scale-105'
-                    : 'text-surface-600 hover:text-surface-900 hover:bg-surface-50'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-lg scale-105'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                 }`}
               >
                 Menu Items
               </button>
               <button
                 onClick={() => setActiveTab('addons')}
-                className={`px-6 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                className={`px-6 py-3 rounded-xl text-sm font-medium transition-all duration-300 ${
                   activeTab === 'addons'
-                    ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-lg scale-105'
-                    : 'text-surface-600 hover:text-surface-900 hover:bg-surface-50'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-lg scale-105'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                 }`}
               >
                 Add-ons
@@ -1302,134 +1320,148 @@ export default function MenuBuilder() {
           </div>
         </div>
 
-        {/* Stats Cards - Modern Design */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+        {/* Modern Stats Cards - Capital Intelligence Style */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           
           {/* Total Menu Items */}
-          <div className="group relative overflow-hidden bg-gradient-to-br from-white/90 to-surface-50/90 backdrop-blur-sm rounded-2xl p-6 border border-surface-200/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-            <div className="absolute inset-0 bg-gradient-to-br from-surface-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div className="group relative overflow-hidden bg-white/70 backdrop-blur-lg rounded-3xl p-8 border border-white/20 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-surface-100 to-surface-200 rounded-xl flex items-center justify-center">
-                  <svg className="w-5 h-5 text-surface-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v6a2 2 0 002 2h2m0 0h2m0 0h2a2 2 0 002-2V7a2 2 0 00-2-2h-2m0 0V3a2 2 0 10-4 0v2M9 5a2 2 0 012 2v6a2 2 0 01-2 2M9 5a2 2 0 012 2v6a2 2 0 01-2 2m0-2V9a2 2 0 012-2h2a2 2 0 012 2v2M7 19a2 2 0 002-2v-2M9 19a2 2 0 002-2v-2m-8 2a2 2 0 002-2V5a2 2 0 012-2z" />
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-2xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
                   </svg>
                 </div>
               </div>
-              <div className="text-2xl font-bold text-surface-900 mb-1">{menuItems.length}</div>
-              <div className="text-sm font-medium text-surface-600">Menu Items</div>
+              <div className="space-y-2">
+                <p className="text-3xl font-light text-gray-900 tracking-tight">{menuItems.length}</p>
+                <p className="text-gray-500 text-sm font-light leading-relaxed">Menu Items</p>
+              </div>
             </div>
           </div>
 
           {/* Active Items */}
-          <div className="group relative overflow-hidden bg-gradient-to-br from-green-50/90 to-green-100/50 backdrop-blur-sm rounded-2xl p-6 border border-green-200/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-            <div className="absolute inset-0 bg-gradient-to-br from-green-400/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div className="group relative overflow-hidden bg-white/70 backdrop-blur-lg rounded-3xl p-8 border border-white/20 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-green-100 to-green-200 rounded-xl flex items-center justify-center">
-                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-green-100 to-green-200 rounded-2xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
               </div>
-              <div className="text-2xl font-bold text-green-700 mb-1">
-                {menuItems.filter(item => item.status === 'active').length}
+              <div className="space-y-2">
+                <p className="text-3xl font-light text-gray-900 tracking-tight">
+                  {menuItems.filter(item => item.status === 'active').length}
+                </p>
+                <p className="text-gray-500 text-sm font-light leading-relaxed">Active Items</p>
               </div>
-              <div className="text-sm font-medium text-green-600">Active Items</div>
             </div>
           </div>
 
           {/* Categories */}
-          <div className="group relative overflow-hidden bg-gradient-to-br from-blue-50/90 to-blue-100/50 backdrop-blur-sm rounded-2xl p-6 border border-blue-200/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-400/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div className="group relative overflow-hidden bg-white/70 backdrop-blur-lg rounded-3xl p-8 border border-white/20 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center">
-                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-indigo-100 to-indigo-200 rounded-2xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                   </svg>
                 </div>
               </div>
-              <div className="text-2xl font-bold text-blue-700 mb-1">{categories.length}</div>
-              <div className="text-sm font-medium text-blue-600">Categories</div>
+              <div className="space-y-2">
+                <p className="text-3xl font-light text-gray-900 tracking-tight">{categories.length}</p>
+                <p className="text-gray-500 text-sm font-light leading-relaxed">Categories</p>
+              </div>
             </div>
           </div>
 
           {/* Add-ons */}
-          <div className="group relative overflow-hidden bg-gradient-to-br from-purple-50/90 to-purple-100/50 backdrop-blur-sm rounded-2xl p-6 border border-purple-200/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-400/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div className="group relative overflow-hidden bg-white/70 backdrop-blur-lg rounded-3xl p-8 border border-white/20 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl flex items-center justify-center">
-                  <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-purple-100 to-purple-200 rounded-2xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                   </svg>
                 </div>
               </div>
-              <div className="text-2xl font-bold text-purple-700 mb-1">{addons.length}</div>
-              <div className="text-sm font-medium text-purple-600">Available Add-ons</div>
+              <div className="space-y-2">
+                <p className="text-3xl font-light text-gray-900 tracking-tight">{addons.length}</p>
+                <p className="text-gray-500 text-sm font-light leading-relaxed">Available Add-ons</p>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Action Buttons Section */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          
-          {/* Primary Actions */}
-          <div className="flex flex-wrap items-center gap-3">
-            {activeTab === 'menu-items' && !bulkMode && (
-              <>
+        {/* Modern Action Cards */}
+        <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            <div className="space-y-1">
+              <h2 className="text-xl font-light text-gray-900 tracking-wide">Quick Actions</h2>
+              <p className="text-sm text-gray-500 leading-relaxed">Manage menu items and add-ons efficiently</p>
+            </div>
+            
+            {/* Enhanced Action Buttons */}
+            <div className="flex flex-wrap gap-3">
+              {activeTab === 'menu-items' && !bulkMode && (
+                <>
+                  <button
+                    onClick={() => setBulkMode(true)}
+                    className="px-6 py-3 backdrop-blur-sm border rounded-2xl hover:shadow-lg hover:scale-[1.02] transition-all duration-300 flex items-center gap-2 font-medium bg-white/80 text-gray-700 border-gray-200 hover:bg-white hover:shadow-gray-500/20"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Bulk Operations
+                  </button>
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl hover:shadow-lg hover:scale-[1.02] transition-all duration-300 flex items-center gap-2 font-medium shadow-blue-500/25"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    Add Menu Item
+                  </button>
+                </>
+              )}
+              {activeTab === 'addons' && (
                 <button
-                  onClick={() => setBulkMode(true)}
-                  className="px-6 py-3 bg-white/80 backdrop-blur-sm text-surface-700 border border-surface-200 rounded-xl hover:bg-white hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 disabled:opacity-50"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  Bulk Operations
-                </button>
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                  className="px-6 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 font-medium"
+                  onClick={() => setShowCreateAddonModal(true)}
+                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl hover:shadow-lg hover:scale-[1.02] transition-all duration-300 flex items-center gap-2 font-medium shadow-blue-500/25"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                   </svg>
-                  Add Menu Item
+                  Add Add-on
                 </button>
-              </>
-            )}
-            {activeTab === 'addons' && (
-              <button
-                onClick={() => setShowCreateAddonModal(true)}
-                className="px-6 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 font-medium"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                Add Add-on
-              </button>
-            )}
+              )}
+            </div>
           </div>
         </div>
 
         {/* Bulk Mode Bar - Enhanced Design */}
         {activeTab === 'menu-items' && bulkMode && (
-          <div className="bg-gradient-to-r from-blue-50/90 via-white/90 to-blue-50/90 backdrop-blur-sm rounded-2xl p-6 border border-blue-200/50 shadow-sm">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
               {/* Left: Mode Indicator & Selection Status */}
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center">
-                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-2xl flex items-center justify-center">
+                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
                   <div>
-                    <div className="text-lg font-bold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
+                    <div className="text-lg font-light text-gray-900 tracking-tight">
                       Bulk Selection Mode
                     </div>
-                    <div className="text-sm text-blue-600">
+                    <div className="text-sm text-gray-500 font-light">
                       {selectedItems.size > 0 
                         ? `${selectedItems.size} item${selectedItems.size !== 1 ? 's' : ''} selected`
                         : 'Click items to select for bulk operations'
@@ -1444,7 +1476,7 @@ export default function MenuBuilder() {
                 {selectedItems.size > 0 && (
                   <>
                     {/* Selection Controls */}
-                    <div className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-xl border border-surface-200">
+                    <div className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-sm rounded-2xl border border-gray-200">
                       <button
                         onClick={handleSelectAll}
                         className="px-3 py-1 text-sm text-blue-700 hover:bg-blue-100 rounded-lg transition-colors font-medium"
@@ -1558,26 +1590,6 @@ export default function MenuBuilder() {
                   <option value="out-of-stock">Out of Stock</option>
                 </select>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Add-ons Search Section */}
-        {activeTab === 'addons' && (
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-surface-200/50 shadow-sm">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              <input
-                type="text"
-                placeholder="Search add-ons by name or description..."
-                value={addonSearchQuery}
-                onChange={(e) => setAddonSearchQuery(e.target.value)}
-                className="w-full pl-11 pr-4 py-3 bg-white/80 border border-surface-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all duration-200 text-surface-900 placeholder-surface-500"
-              />
             </div>
           </div>
         )}

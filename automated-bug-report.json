@@ -1,0 +1,40 @@
+{
+  "timestamp": "2025-09-01T11:50:54.012Z",
+  "healthScore": 85,
+  "health": "GOOD",
+  "results": {
+    "issues": [],
+    "warnings": [
+      {
+        "type": "Unused Variables Not Detected",
+        "description": "Consider enabling noUnusedLocals for cleaner code"
+      }
+    ],
+    "performance": [
+      {
+        "type": "Large Components Detected",
+        "count": 65,
+        "recommendation": "Consider breaking down large components"
+      }
+    ],
+    "info": [
+      {
+        "type": "Server Status",
+        "status": "Running",
+        "port": 3003
+      },
+      {
+        "type": "Firebase Version",
+        "version": "^10.12.5"
+      },
+      {
+        "type": "Total Dependencies",
+        "count": 24
+      },
+      {
+        "type": "TypeScript Target",
+        "target": "es5"
+      }
+    ]
+  }
+}

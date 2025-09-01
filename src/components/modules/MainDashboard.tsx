@@ -848,20 +848,36 @@ const MainDashboard: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-semibold text-surface-900">Advanced Analytics</h2>
-          <p className="text-surface-600 text-sm">
-            Comprehensive business insights and performance metrics
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          {/* Time period filters removed for cleaner interface */}
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white space-y-12">
+      {/* Modern Ultra-Clean Header - Capital Intelligence Style */}
+      <div className="bg-gradient-to-br from-gray-50 to-white backdrop-blur-lg border border-white/20 rounded-3xl p-12 shadow-2xl shadow-gray-500/10">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+          <div className="flex items-center space-x-6">
+            <div className="w-20 h-20 bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl flex items-center justify-center shadow-xl shadow-emerald-500/25">
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-4xl font-light text-gray-900 tracking-tight mb-2">Advanced Analytics</h1>
+              <p className="text-lg text-gray-500 font-light leading-relaxed max-w-2xl">
+                Comprehensive business insights and performance metrics with real-time data visualization and intelligent forecasting.
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <div className="text-right space-y-2">
+              <div className="text-sm text-gray-500 font-light">Analytics Status</div>
+              <div className="text-2xl font-light tracking-tight text-emerald-900">
+                📈 Live Data
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+
+      <div className="max-w-7xl mx-auto p-8 space-y-6">
 
       {/* Tab Navigation */}
       <div className="bg-white rounded-xl border border-surface-200 p-2">
@@ -1075,6 +1091,7 @@ const MainDashboard: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

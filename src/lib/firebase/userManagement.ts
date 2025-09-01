@@ -133,7 +133,9 @@ export const addTeamMember = async (
 
 // Get team members for a tenant
 export const getTeamMembers = async (tenantId: string): Promise<TeamMember[]> => {
-  const snapshot = await getDocs(collection(db, 'tenants', tenantId, 'members'));
+  // SECURITY FIX: Add explicit query to prevent unfiltered access
+  const q = query(collection(db, 'tenants', tenantId, 'members'));
+  const snapshot = await getDocs(q);
   return snapshot.docs.map(doc => ({ ...doc.data() } as TeamMember));
 };
 

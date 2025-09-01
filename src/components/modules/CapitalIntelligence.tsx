@@ -456,19 +456,6 @@ export default function CapitalIntelligence() {
 
   const renderOverview = () => (
     <div className="space-y-10">
-      {/* Ultra Clean Status Header */}
-      <div className="text-center space-y-4">
-        <div className="text-7xl mb-6 animate-pulse">{stockHealth.emoji}</div>
-        <div className="space-y-2">
-          <h2 className="text-3xl font-light text-gray-900 tracking-tight">
-            Business Health: <span className="font-semibold">{stockHealth.status}</span>
-          </h2>
-          <p className="text-lg text-gray-500 max-w-lg mx-auto leading-relaxed">
-            {stockHealth.message}
-          </p>
-        </div>
-      </div>
-
       {/* Modern Minimalist Metric Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {/* Money in Inventory */}
@@ -898,20 +885,40 @@ export default function CapitalIntelligence() {
   )
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
-      <div className="max-w-7xl mx-auto p-8 space-y-12">
-        {/* Ultra Clean Header */}
-        <div className="text-center space-y-6">
-          <div className="space-y-2">
-            <h1 className="text-4xl font-light text-gray-900 tracking-tight">
-              Capital Intelligence
-            </h1>
-            <p className="text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed">
-              Track how efficiently your money is working in your business
-            </p>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white space-y-12">
+      {/* Modern Ultra-Clean Header - Financial Management Style */}
+      <div className="bg-gradient-to-br from-gray-50 to-white backdrop-blur-lg border border-white/20 rounded-3xl p-12 shadow-2xl shadow-gray-500/10">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+          <div className="flex items-center space-x-6">
+            <div className="w-20 h-20 bg-gradient-to-br from-purple-600 to-indigo-700 rounded-2xl flex items-center justify-center shadow-xl shadow-purple-500/25">
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-4xl font-light text-gray-900 tracking-tight mb-2">Capital Intelligence</h1>
+              <p className="text-lg text-gray-500 font-light leading-relaxed max-w-2xl">
+                Advanced analytics for capital efficiency, inventory optimization, and intelligent business insights powered by real-time data.
+              </p>
+            </div>
           </div>
-          <div className="w-24 h-1 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full mx-auto"></div>
+          
+          <div className="flex items-center gap-4">
+            <div className="text-right space-y-2">
+              <div className="text-sm text-gray-500 font-light">Business Health Status</div>
+              <div className={`text-2xl font-light tracking-tight ${
+                stockHealth.status === 'Excellent' ? 'text-emerald-900' :
+                stockHealth.status === 'Good' ? 'text-blue-900' :
+                stockHealth.status === 'Okay' ? 'text-amber-900' : 'text-red-900'
+              }`}>
+                {stockHealth.emoji} {stockHealth.status}
+              </div>
+            </div>
+          </div>
         </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto p-8 space-y-12">
 
         {/* Modern Tab Navigation */}
         <div className="bg-white/80 backdrop-blur-sm rounded-3xl border border-gray-100 overflow-hidden shadow-sm">

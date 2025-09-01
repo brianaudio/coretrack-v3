@@ -143,6 +143,7 @@ export const removePOSItem = async (tenantId: string, menuItemId: string): Promi
 /**
  * Process inventory deductions after a sale
  * Enhanced to handle multiple items using same ingredients correctly
+ * Now includes proper branch isolation via locationId
  */
 export const processInventoryDeduction = async (
   tenantId: string,
@@ -150,11 +151,13 @@ export const processInventoryDeduction = async (
     itemId: string;
     name: string;
     quantity: number;
-  }>
+  }>,
+  locationId?: string
 ): Promise<void> => {
   console.log('🚨 INVENTORY DEDUCTION FUNCTION CALLED! 🚨');
   console.log('🚨 Tenant ID:', tenantId);
   console.log('🚨 Order Items:', orderItems);
+  console.log('🚨 Location ID:', locationId);
   
   try {
     console.log('🔄 Processing inventory deduction for', orderItems.length, 'items')
@@ -220,14 +223,14 @@ export const processInventoryDeduction = async (
       } else {
         // Fallback: Try direct inventory deduction only if no ingredients found
         console.log(`⚠️ [INVENTORY DEDUCTION] No ingredients found, trying direct inventory deduction for: ${orderItem.name}`)
-        const directDeduction = await deductInventoryByName(batch, tenantId, orderItem.name, orderItem.quantity);
+        const directDeduction = await deductInventoryByName(batch, tenantId, orderItem.name, orderItem.quantity, locationId);
         
         if (directDeduction) {
           deductionsMade++;
           console.log(`✅ Direct deduction successful for: ${orderItem.name}`)
         } else {
           // Create inventory item automatically if it doesn't exist
-          const created = await autoCreateInventoryItem(batch, tenantId, orderItem.name, orderItem.quantity);
+          const created = await autoCreateInventoryItem(batch, tenantId, orderItem.name, orderItem.quantity, locationId);
           if (created) {
             deductionsMade++;
           }
@@ -251,7 +254,8 @@ export const processInventoryDeduction = async (
         inventoryItemId,
         deductionData.totalDeduction,
         deductionData.itemName,
-        deductionData.transactions
+        deductionData.transactions,
+        locationId
       );
     }
     
@@ -279,19 +283,32 @@ export const processInventoryDeduction = async (
 
 /**
  * Deduct inventory by matching item name (fallback method)
+ * Now includes branch isolation via locationId filtering
  */
 const deductInventoryByName = async (
   batch: any,
   tenantId: string,
   itemName: string,
-  quantitySold: number
+  quantitySold: number,
+  locationId?: string
 ): Promise<boolean> => {
   try {
-    console.log(`🔍 [INVENTORY DEDUCTION] Searching for inventory item by name: "${itemName}"`);
+    console.log(`🔍 [INVENTORY DEDUCTION] Searching for inventory item by name: "${itemName}" in location: ${locationId || 'any'}`);
     
-    // Find inventory item by name (case-insensitive)
+    // Find inventory item by name (case-insensitive) with optional location filtering
     const inventoryRef = collection(db, `tenants/${tenantId}/inventory`);
-    const inventoryQuery = query(inventoryRef);
+    let inventoryQuery;
+    
+    if (locationId) {
+      // Filter by locationId for branch isolation
+      inventoryQuery = query(inventoryRef, where('locationId', '==', locationId));
+      console.log(`🎯 [INVENTORY DEDUCTION] Filtering by locationId: ${locationId}`);
+    } else {
+      // Fallback to all items if no locationId provided
+      inventoryQuery = query(inventoryRef);
+      console.log(`⚠️ [INVENTORY DEDUCTION] No locationId provided, searching all locations`);
+    }
+    
     const inventorySnapshot = await getDocs(inventoryQuery);
     
     console.log(`📋 [INVENTORY DEDUCTION] Found ${inventorySnapshot.docs.length} inventory items to search through`);
@@ -433,7 +450,8 @@ const autoCreateInventoryItem = async (
   batch: any,
   tenantId: string,
   itemName: string,
-  quantitySold: number
+  quantitySold: number,
+  locationId?: string
 ): Promise<boolean> => {
   try {
     console.log(`🏗️ [INVENTORY DEDUCTION] Auto-creating inventory item for "${itemName}"`);
@@ -452,7 +470,7 @@ const autoCreateInventoryItem = async (
       minStock: 5,
       maxStock: 10000,
       supplier: 'Auto-Created',
-      locationId: `location_default`,
+      locationId: locationId || 'location_default',
       status: 'good',
       lastUpdated: Timestamp.now(),
       tenantId: tenantId,
@@ -660,7 +678,8 @@ const deductInventoryQuantityAccumulated = async (
     orderItemName: string;
     quantity: number;
     deduction: number;
-  }>
+  }>,
+  locationId?: string
 ): Promise<void> => {
   try {
     console.log(`  🎯 [INVENTORY DEDUCTION] Applying accumulated deduction of ${totalQuantityToDeduct} to: ${itemName}`)
@@ -712,7 +731,7 @@ const deductInventoryQuantityAccumulated = async (
       previousStock: currentStock,
       newStock: newQuantity,
       unit: inventoryItem.unit || 'piece',
-      locationId: 'default', // TODO: Use actual branch location ID
+      locationId: locationId || 'location_default', // Use provided locationId or fallback
       reason: `POS Sale - ${transactions.map(t => t.orderItemName).join(', ')}`,
       userId: 'system', // Will be replaced with actual user in a future update
       userName: 'POS System'

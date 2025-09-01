@@ -10,7 +10,7 @@
 				"dev",
 				"--",
 				"-p",
-				"3002"
+				"3003"
 			],
 			"group": "build",
 			"isBackground": true,

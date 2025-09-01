@@ -798,41 +798,46 @@ export default function InventoryCenter() {
 
   return (
     <FeatureGate feature="inventory">
-      <div className="min-h-screen bg-gray-50">
-        {/* Modern Enterprise Header */}
-        <div className="bg-white border-b border-gray-200">
-          <div className="px-6 py-4">
-            <div className="flex items-center justify-between">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white space-y-8">
+        {/* Modern Ultra-Clean Header - Capital Intelligence Style */}
+        <div className="bg-gradient-to-br from-gray-50 to-white backdrop-blur-lg border border-white/20 rounded-3xl p-12 shadow-2xl shadow-gray-500/10">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+            <div className="flex items-center space-x-6">
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/25">
+                <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+              </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Inventory Center</h1>
-                <div className="flex items-center mt-1 text-sm text-gray-600">
-                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                  <span className="font-medium">{selectedBranch?.name || 'Main Branch'}</span>
-                  <span className="mx-2 text-gray-400">•</span>
-                  <span>Real-time inventory management</span>
+                <h1 className="text-4xl font-light text-gray-900 tracking-tight mb-2">Inventory Center</h1>
+                <p className="text-lg text-gray-500 font-light leading-relaxed max-w-2xl">
+                  Real-time inventory management with comprehensive tracking, analytics, and optimization tools.
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <div className="text-right space-y-2">
+                <div className="text-sm text-gray-500 font-light">Branch Location</div>
+                <div className="text-2xl font-light tracking-tight text-blue-900">
+                  📍 {selectedBranch?.name || 'Main Branch'}
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto p-8 space-y-8">
+          {/* Modern Action Cards */}
+          <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+              <div className="space-y-1">
+                <h2 className="text-xl font-light text-gray-900 tracking-wide">Quick Actions</h2>
+                <p className="text-sm text-gray-500 leading-relaxed">Manage your inventory efficiently with powerful tools</p>
+              </div>
               
-              {/* Quick Action Buttons */}
-              <div className="flex items-center space-x-3">
-                <PermissionGate permission="inventory">
-                  <FeatureGate feature="inventory">
-                    <UsageLimit limit="maxProducts" currentUsage={inventoryItems.length}>
-                      <button
-                        onClick={() => setShowAddModal(true)}
-                        className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-                      >
-                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        Add Item
-                      </button>
-                    </UsageLimit>
-                  </FeatureGate>
-                </PermissionGate>
-                
+              {/* Enhanced Action Buttons */}
+              <div className="flex flex-wrap gap-3">
                 <button
                   onClick={() => {
                     setBulkMode(!bulkMode)
@@ -843,115 +848,144 @@ export default function InventoryCenter() {
                       setSelectedItems(new Set())
                     }
                   }}
-                  className={`inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  className={`px-6 py-3 backdrop-blur-sm border rounded-2xl hover:shadow-lg hover:scale-[1.02] transition-all duration-300 flex items-center gap-2 font-medium ${
                     bulkMode
-                      ? 'bg-orange-100 text-orange-800 border border-orange-200'
-                      : 'bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200'
+                      ? 'bg-gradient-to-r from-orange-100 to-orange-50 text-orange-800 border-orange-200 shadow-orange-500/20'
+                      : 'bg-white/80 text-gray-700 border-gray-200 hover:bg-white hover:shadow-gray-500/20'
                   }`}
                 >
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
-                  {bulkMode ? 'Exit Bulk' : 'Bulk Actions'}
+                  {bulkMode ? 'Exit Bulk Mode' : 'Bulk Actions'}
+                </button>
+              
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl hover:shadow-lg hover:scale-[1.02] transition-all duration-300 flex items-center gap-2 font-medium shadow-blue-500/25"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Add Item
                 </button>
               </div>
             </div>
-
-            {/* Key Metrics Dashboard */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-              <div className="bg-blue-50 rounded-lg px-4 py-3 border border-blue-100">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm text-blue-600 font-medium">Total Items</div>
-                    <div className="text-2xl font-bold text-blue-900">{inventoryItems.length}</div>
-                  </div>
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+          </div>
+          
+          {/* Modern Stats Cards - Capital Intelligence Style */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            
+            {/* Total Items */}
+            <div className="group relative overflow-hidden bg-white/70 backdrop-blur-lg rounded-3xl p-8 border border-white/20 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-2xl flex items-center justify-center">
+                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M9 1L5 3v4l4-2V1zm7 0v4l4 2V3l-4-2z" />
                     </svg>
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <p className="text-3xl font-light text-gray-900 tracking-tight">{inventoryItems.length}</p>
+                  <p className="text-gray-500 text-sm font-light leading-relaxed">Total Items</p>
+                </div>
               </div>
-              
-              <div className="bg-green-50 rounded-lg px-4 py-3 border border-green-100">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm text-green-600 font-medium">Total Value</div>
-                    <div className="text-2xl font-bold text-green-900">₱{totalInventoryValue.toFixed(0)}</div>
-                  </div>
-                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            </div>
+
+            {/* Total Value */}
+            <div className="group relative overflow-hidden bg-white/70 backdrop-blur-lg rounded-3xl p-8 border border-white/20 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
+              <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-green-100 to-green-200 rounded-2xl flex items-center justify-center">
+                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
                     </svg>
                   </div>
                 </div>
-              </div>
-              
-              <div className="bg-yellow-50 rounded-lg px-4 py-3 border border-yellow-100">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm text-yellow-600 font-medium">Low Stock</div>
-                    <div className="text-2xl font-bold text-yellow-900">{lowStockItems}</div>
-                  </div>
-                  <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-red-50 rounded-lg px-4 py-3 border border-red-100">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm text-red-600 font-medium">Critical</div>
-                    <div className="text-2xl font-bold text-red-900">{criticalItems}</div>
-                  </div>
-                  <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                    </svg>
-                  </div>
+                <div className="space-y-2">
+                  <p className="text-3xl font-light text-gray-900 tracking-tight">₱{totalInventoryValue.toFixed(0)}</p>
+                  <p className="text-gray-500 text-sm font-light leading-relaxed">Total Value</p>
                 </div>
               </div>
             </div>
 
-            {/* Alert Banner */}
-            {(criticalItems > 0 || lowStockItems > 0) && (
-              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <div className="flex items-center">
-                  <svg className="w-5 h-5 text-red-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                  </svg>
-                  <div>
-                    <h3 className="text-sm font-medium text-red-800">
-                      {criticalItems > 0 ? 'Critical Stock Alert' : 'Low Stock Warning'}
-                    </h3>
-                    <p className="text-sm text-red-700">
-                      {criticalItems > 0 && `${criticalItems} item(s) are critically low or out of stock`}
-                      {criticalItems > 0 && lowStockItems > 0 && ' • '}
-                      {lowStockItems > 0 && `${lowStockItems} item(s) have low stock levels`}
-                    </p>
+            {/* Low Stock Items */}
+            <div className="group relative overflow-hidden bg-white/70 backdrop-blur-lg rounded-3xl p-8 border border-white/20 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
+              <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-amber-100 to-amber-200 rounded-2xl flex items-center justify-center">
+                    <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+                    </svg>
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <p className="text-3xl font-light text-gray-900 tracking-tight">{lowStockItems}</p>
+                  <p className="text-gray-500 text-sm font-light leading-relaxed">Low Stock</p>
+                </div>
               </div>
-            )}
+            </div>
+
+            {/* Critical Items */}
+            <div className="group relative overflow-hidden bg-white/70 backdrop-blur-lg rounded-3xl p-8 border border-white/20 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
+              <div className="absolute inset-0 bg-gradient-to-br from-red-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-red-100 to-red-200 rounded-2xl flex items-center justify-center">
+                    <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-3xl font-light text-gray-900 tracking-tight">{criticalItems}</p>
+                  <p className="text-gray-500 text-sm font-light leading-relaxed">Critical Items</p>
+                </div>
+              </div>
+            </div>
           </div>
+
+          {/* Modern Alert Banner */}
+          {(criticalItems > 0 || lowStockItems > 0) && (
+            <div className="bg-white/70 backdrop-blur-lg border border-white/20 rounded-3xl p-8 shadow-xl">
+              <div className="flex items-center">
+                <div className="w-12 h-12 bg-gradient-to-br from-red-100 to-red-200 rounded-2xl flex items-center justify-center flex-shrink-0 mr-6">
+                  <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-xl font-light text-gray-900 mb-2 tracking-tight">
+                    {criticalItems > 0 ? 'Critical Stock Alert' : 'Low Stock Warning'}
+                  </h3>
+                  <p className="text-gray-600 font-light leading-relaxed">
+                    {criticalItems > 0 && `${criticalItems} item(s) are critically low or out of stock`}
+                    {criticalItems > 0 && lowStockItems > 0 && ' • '}
+                    {lowStockItems > 0 && `${lowStockItems} item(s) have low stock levels`}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Main Content Area */}
-        <div className="p-6">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            {/* Tab Navigation */}
-            <div className="border-b border-gray-200">
-              <div className="px-6">
+        {/* Main Content Area - Modern Design */}
+        <div className="max-w-7xl mx-auto p-8">
+          <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl">
+            {/* Modern Tab Navigation */}
+            <div className="border-b border-gray-100">
+              <div className="px-8">
                 <nav className="flex justify-center space-x-8 overflow-x-auto scrollbar-hide" aria-label="Tabs">
                   <button
                     onClick={() => setActiveTab('inventory')}
-                    className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
+                    className={`py-6 px-2 border-b-2 font-light text-sm whitespace-nowrap transition-all duration-300 tracking-wide ${
                       activeTab === 'inventory'
                         ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200'
                     }`}
                   >
                     Items ({filteredItems.length})

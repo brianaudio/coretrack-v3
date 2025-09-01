@@ -42,16 +42,57 @@ service cloud.firestore {
       allow read, write: if isAuthenticated() && (getUserId() == userId);
     }
     
+    // CRITICAL: Helper function for branch isolation
+    function hasLocationAccess(locationId) {
+      let profile = getUserProfile();
+      return profile != null && 
+             profile.locationIds != null && 
+             locationId in profile.locationIds;
+    }
+    
+    function isValidLocationId(locationId) {
+      return locationId != null && locationId != "";
+    }
+
     // TENANT-SCOPED DATA - More permissive but still secure
     match /tenants/{tenantId} {
       // Tenant document itself - allow read for authenticated users, write for same tenant
       allow read: if isAuthenticated();
       allow write: if isAuthenticated() && (isSameTenant(tenantId) || isOwnerOrAdmin());
       
-      // All tenant subcollections - more permissive access
-      match /{document=**} {
-        allow read: if isAuthenticated();
-        allow write: if isAuthenticated() && (isSameTenant(tenantId) || getUserTenantId() == null);
+      // CRITICAL: Branch-isolated collections requiring locationId filtering
+      match /inventory/{docId} {
+        allow read, write: if isAuthenticated() && isSameTenant(tenantId) && 
+          (isOwnerOrAdmin() || 
+           (resource.data.locationId != null && hasLocationAccess(resource.data.locationId)) ||
+           (request.resource.data.locationId != null && hasLocationAccess(request.resource.data.locationId)));
+      }
+      
+      match /expenses/{docId} {
+        allow read, write: if isAuthenticated() && isSameTenant(tenantId) && 
+          (isOwnerOrAdmin() || 
+           (resource.data.locationId != null && hasLocationAccess(resource.data.locationId)) ||
+           (request.resource.data.locationId != null && hasLocationAccess(request.resource.data.locationId)));
+      }
+      
+      match /posOrders/{docId} {
+        allow read, write: if isAuthenticated() && isSameTenant(tenantId) && 
+          (isOwnerOrAdmin() || 
+           (resource.data.locationId != null && hasLocationAccess(resource.data.locationId)) ||
+           (request.resource.data.locationId != null && hasLocationAccess(request.resource.data.locationId)));
+      }
+      
+      match /inventory_transactions/{docId} {
+        allow read, write: if isAuthenticated() && isSameTenant(tenantId) && 
+          (isOwnerOrAdmin() || 
+           (resource.data.locationId != null && hasLocationAccess(resource.data.locationId)) ||
+           (request.resource.data.locationId != null && hasLocationAccess(request.resource.data.locationId)));
+      }
+      
+      // All other tenant subcollections - more permissive access for non-branch data
+      match /{collection}/{docId} {
+        allow read: if isAuthenticated() && (collection != 'inventory' && collection != 'expenses' && collection != 'posOrders' && collection != 'inventory_transactions');
+        allow write: if isAuthenticated() && (isSameTenant(tenantId) || getUserTenantId() == null) && (collection != 'inventory' && collection != 'expenses' && collection != 'posOrders' && collection != 'inventory_transactions');
       }
     }
     

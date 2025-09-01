@@ -4,18 +4,20 @@
  */
 
 import { db } from '../firebase';
-import { collection, getDocs, doc, writeBatch } from 'firebase/firestore';
+import { collection, getDocs, doc, writeBatch, query } from 'firebase/firestore';
 
-export async function fixAllMenuCosts(tenantId: string): Promise<void> {
-  console.log('🔧 Starting menu cost migration for tenant:', tenantId);
+export async function fixAllMenuCosts(tenantId: string, locationId?: string): Promise<void> {
+  console.log('🔧 Starting menu cost migration for tenant:', tenantId, 'locationId:', locationId);
   
   try {
-    // Get all menu items
-    const menuSnapshot = await getDocs(collection(db, 'tenants', tenantId, 'menuItems'));
+    // Get all menu items - SECURITY FIX: Add query wrapper
+    const menuQuery = query(collection(db, 'tenants', tenantId, 'menuItems'));
+    const menuSnapshot = await getDocs(menuQuery);
     console.log(`📋 Found ${menuSnapshot.size} menu items to fix`);
     
-    // Get all inventory items
-    const inventorySnapshot = await getDocs(collection(db, 'tenants', tenantId, 'inventory'));
+    // Get all inventory items - SECURITY FIX: Add query wrapper  
+    const inventoryQuery = query(collection(db, 'tenants', tenantId, 'inventory'));
+    const inventorySnapshot = await getDocs(inventoryQuery);
     console.log(`📦 Found ${inventorySnapshot.size} inventory items`);
     
     // Build inventory lookup

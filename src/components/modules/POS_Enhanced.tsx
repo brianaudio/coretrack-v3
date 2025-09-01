@@ -1046,7 +1046,7 @@ export default function POSEnhanced() {
               price: item.price,
               cost: item.cost || 0,
               description: hasValidDescription ? item.description : fallbackDescription, // Enhanced fallback logic
-              emoji: '🍽️', // Default emoji for menu items
+              emoji: item.emoji || '🍽️', // 🎯 FIXED: Use MenuBuilder emoji first, fallback to default
               isAvailable: true,
               preparationTime: 5, // Default prep time
               tenantId: profile.tenantId,
@@ -1450,6 +1450,12 @@ export default function POSEnhanced() {
 
   // 🎨 Get Item Emoji
   const getItemEmoji = (item: POSItem) => {
+    // 🎯 PRIORITY: Use emoji saved from MenuBuilder first
+    if (item.emoji && item.emoji !== '🍽️') {
+      return item.emoji
+    }
+
+    // Fallback to name-based guessing if no emoji saved
     const category = item.category?.toLowerCase() || ''
     const name = item.name?.toLowerCase() || ''
 

@@ -481,40 +481,72 @@ export default function PurchaseOrders() {
   const handleConfirmDelivery = async () => {
     if (!profile?.tenantId || !deliveringOrder || isDelivering) return
 
-    try {
-      setIsDelivering(true)
-      
-      // Validate required fields
-      if (!receivedBy.trim()) {
-        alert('Please enter the name of the person who received the delivery.')
-        return
-      }
-      
-      // Filter out items with zero quantity received
-      const itemsToDeliver = deliveryItems.filter(item => item.quantityReceived > 0)
-      
-      if (itemsToDeliver.length === 0) {
-        alert('Please specify quantities received for at least one item.')
-        return
-      }
+    // QUOTA OPTIMIZATION: Retry mechanism for quota exceeded errors
+    const deliveryWithRetry = async (retryCount = 0): Promise<any> => {
+      try {
+        setIsDelivering(true)
+        
+        // Validate required fields
+        if (!receivedBy.trim()) {
+          alert('Please enter the name of the person who received the delivery.')
+          return { success: false, error: 'No receiver name provided' }
+        }
+        
+        // Filter out items with zero quantity received
+        const itemsToDeliver = deliveryItems.filter(item => item.quantityReceived > 0)
+        
+        if (itemsToDeliver.length === 0) {
+          alert('Please specify quantities received for at least one item.')
+          return { success: false, error: 'No items to deliver' }
+        }
 
-      console.log('🚀 Starting atomic delivery transaction...')
-      
-      // **SURGICAL PRECISION: Use atomic transaction - no optimistic updates**
-      const result = await deliverPurchaseOrderAtomic(
-        profile.tenantId,
-        deliveringOrder.id!,
-        itemsToDeliver.map(item => ({
-          itemName: item.itemName,
-          quantityReceived: item.quantityReceived,
-          unit: item.unit,
-          unitPrice: item.unitPrice
-        })),
-        receivedBy.trim()
-      )
+        console.log(`🚀 Starting quota-optimized delivery transaction... (attempt ${retryCount + 1})`)
+        
+        // **QUOTA OPTIMIZED: Use quota-efficient atomic transaction**
+        const result = await deliverPurchaseOrderAtomic(
+          profile.tenantId,
+          deliveringOrder.id!,
+          itemsToDeliver.map(item => ({
+            itemName: item.itemName,
+            quantityReceived: item.quantityReceived,
+            unit: item.unit,
+            unitPrice: item.unitPrice
+          })),
+          receivedBy.trim()
+        )
+
+        return result
+      } catch (error: any) {
+        // QUOTA HANDLING: Check if it's a quota exceeded error
+        const errorMessage = error?.message || String(error)
+        
+        if (errorMessage.includes('Quota exceeded') || errorMessage.includes('resource-exhausted')) {
+          if (retryCount < 2) { // Max 3 attempts
+            const delay = Math.pow(2, retryCount) * 1000 // Exponential backoff: 1s, 2s, 4s
+            console.log(`⏳ Quota exceeded, retrying in ${delay}ms... (attempt ${retryCount + 1}/3)`)
+            
+            // Show user feedback
+            alert(`Firebase quota exceeded. Retrying in ${delay/1000} seconds... (${retryCount + 1}/3)`)
+            
+            await new Promise(resolve => setTimeout(resolve, delay))
+            return deliveryWithRetry(retryCount + 1)
+          } else {
+            throw new Error('Firebase quota exceeded after 3 attempts. Please try again in a few minutes.')
+          }
+        }
+        
+        throw error
+      }
+    }
+
+    try {
+      const result = await deliveryWithRetry()
 
       if (result.success) {
-        console.log('✅ Atomic delivery transaction successful')
+        console.log('✅ Quota-optimized delivery transaction successful')
+        
+        // Get items to deliver for validation processing
+        const itemsToDeliver = deliveryItems.filter(item => item.quantityReceived > 0)
         
         // **SURGICAL PRECISION: Only update UI after confirmed success**
         setDeliveryResult(result.inventoryUpdateResult || null)
@@ -528,8 +560,8 @@ export default function PurchaseOrders() {
           }
           
           if (unitMismatches.length > 0) {
-            const mismatchesWithQuantity = unitMismatches.map(mismatch => {
-              const deliveredItem = itemsToDeliver.find(item => 
+            const mismatchesWithQuantity = unitMismatches.map((mismatch: any) => {
+              const deliveredItem = itemsToDeliver.find((item: any) => 
                 item.itemName.toLowerCase().trim() === mismatch.itemName.toLowerCase().trim()
               )
               return {
@@ -586,7 +618,7 @@ export default function PurchaseOrders() {
             }
             
             if (unitMismatches.length > 0) {
-              errorMessage += `\n• Unit mismatches: ${unitMismatches.map(m => 
+              errorMessage += `\n• Unit mismatches: ${unitMismatches.map((m: any) => 
                 `${m.itemName} (expected: ${m.expectedUnit}, received: ${m.receivedUnit})`
               ).join(', ')}`
             }

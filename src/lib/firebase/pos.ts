@@ -288,7 +288,7 @@ const handleCompletedOrder = async (tenantId: string, orderId: string, order: Cr
     
     try {
       console.log('🚨 CALLING INVENTORY DEDUCTION NOW! 🚨')
-      await processInventoryDeduction(tenantId, order.items)
+      await processInventoryDeduction(tenantId, order.items, order.locationId)
       console.log('✅ Inventory deduction completed successfully!')
     } catch (error) {
       console.log('❌ Inventory deduction failed:', error instanceof Error ? error.message : String(error))

@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '../../lib/context/AuthContext'
 import { useBranch } from '../../lib/context/BranchContext'
 import { getBranchLocationId } from '../../lib/utils/branchUtils'
@@ -102,6 +103,8 @@ interface CategoryIconSelectorProps {
 
 function CategoryIconSelector({ category, selectedIcon, onIconChange }: CategoryIconSelectorProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const [buttonRect, setButtonRect] = useState<DOMRect | null>(null)
   
   // Auto-select default icon when no icon is selected
   useEffect(() => {
@@ -110,27 +113,81 @@ function CategoryIconSelector({ category, selectedIcon, onIconChange }: Category
     }
   }, [selectedIcon, onIconChange])
 
+  // Update button position when dropdown opens
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      setButtonRect(buttonRef.current.getBoundingClientRect())
+    }
+  }, [isOpen])
+
+  // Close dropdown when pressing Escape
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        setIsOpen(false)
+      }
+    }
+    
+    const handleScroll = (e: Event) => {
+      if (isOpen) {
+        // Only close if scrolling outside the dropdown
+        const target = e.target as Element
+        const dropdownElement = document.querySelector('[data-dropdown-content="true"]')
+        
+        // If scrolling inside the dropdown, don't close
+        if (dropdownElement && (dropdownElement.contains(target) || dropdownElement === target)) {
+          return
+        }
+        
+        // Close if scrolling outside the dropdown
+        setIsOpen(false)
+      }
+    }
+    
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscape)
+      window.addEventListener('scroll', handleScroll, true)
+      return () => {
+        document.removeEventListener('keydown', handleEscape)
+        window.removeEventListener('scroll', handleScroll, true)
+      }
+    }
+  }, [isOpen])
+
   const handleIconSelect = (icon: string) => {
     onIconChange(icon)
     setIsOpen(false)
   }
 
+  const handleToggle = () => {
+    setIsOpen(!isOpen)
+  }
+
   return (
     <div className="relative">
-      <div className="flex items-center bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+      <div className="flex items-center bg-white rounded-2xl border border-slate-200 p-6 shadow-sm relative">
         <div className="flex items-center gap-4 w-full">
           <div className="flex items-center bg-slate-50 rounded-xl p-3 min-w-[80px] justify-center">
-            <div className="text-3xl">{selectedIcon || getDefaultIcon()}</div>
+            <div className="text-3xl select-none">{selectedIcon || getDefaultIcon()}</div>
           </div>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <div className="text-sm font-semibold text-slate-700 mb-1">Menu Item Icon</div>
             <button
+              ref={buttonRef}
               type="button"
-              onClick={() => setIsOpen(!isOpen)}
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 transition-colors"
+              onClick={handleToggle}
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-1 py-0.5"
+              aria-expanded={isOpen}
+              aria-haspopup="true"
             >
               Choose from {ALL_FOOD_EMOJIS.length} Food Emojis
-              <svg className={`w-4 h-4 transform transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg 
+                className={`w-4 h-4 transform transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </button>
@@ -138,27 +195,68 @@ function CategoryIconSelector({ category, selectedIcon, onIconChange }: Category
         </div>
       </div>
       
-      {/* Icon Selection Panel */}
-      {isOpen && (
-        <div className="absolute top-full left-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-200 p-6 z-20 min-w-[600px]">
-          <div className="text-sm text-slate-600 mb-4 font-medium">Choose any food emoji for your menu item:</div>
-          <div className="grid grid-cols-8 gap-3 max-h-80 overflow-y-auto">
-            {ALL_FOOD_EMOJIS.map((icon, index) => (
+      {/* Portal-rendered dropdown to escape modal stacking context */}
+      {isOpen && buttonRect && typeof window !== 'undefined' && createPortal(
+        <>
+          {/* Backdrop to close dropdown */}
+          <div 
+            className="fixed inset-0 bg-transparent z-[9999]"
+            onClick={() => setIsOpen(false)}
+          />
+          
+          {/* Dropdown Panel positioned absolutely relative to button */}
+          <div 
+            className="fixed bg-white rounded-xl shadow-2xl border border-slate-200 p-4 sm:p-6 z-[10000] min-w-[320px] max-w-[90vw] sm:min-w-[500px] sm:max-w-[600px]"
+            data-dropdown-content="true"
+            style={{
+              top: buttonRect.bottom + window.scrollY + 8,
+              left: Math.max(16, Math.min(buttonRect.left + window.scrollX, window.innerWidth - 600))
+            }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-sm text-slate-600 font-medium">Choose any food emoji for your menu item:</div>
               <button
-                key={index}
                 type="button"
-                onClick={() => handleIconSelect(icon)}
-                className={`p-3 text-3xl rounded-lg transition-all hover:bg-blue-50 hover:scale-110 ${
-                  selectedIcon === icon 
-                    ? 'bg-blue-100 ring-2 ring-blue-500 shadow-sm' 
-                    : 'bg-slate-50 hover:bg-blue-50 hover:shadow-sm'
-                }`}
+                onClick={() => setIsOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 transition-colors rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label="Close emoji selector"
               >
-                {icon}
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
-            ))}
+            </div>
+            
+            <div 
+              className="grid grid-cols-6 sm:grid-cols-8 gap-2 max-h-60 sm:max-h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent"
+              data-dropdown-content="true"
+            >
+              {ALL_FOOD_EMOJIS.map((icon, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => handleIconSelect(icon)}
+                  className={`p-2 text-xl sm:text-2xl rounded-lg transition-all hover:bg-blue-50 hover:scale-110 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                    selectedIcon === icon 
+                      ? 'bg-blue-100 ring-2 ring-blue-500 shadow-sm' 
+                      : 'bg-slate-50 hover:bg-blue-50 hover:shadow-sm'
+                  }`}
+                  title={`Select ${icon}`}
+                  aria-label={`Select ${icon} emoji`}
+                >
+                  {icon}
+                </button>
+              ))}
+            </div>
+            
+            <div className="mt-4 pt-4 border-t border-slate-200">
+              <div className="text-xs text-slate-500">
+                Showing {ALL_FOOD_EMOJIS.length} food emojis • Click any emoji to select
+              </div>
+            </div>
           </div>
-        </div>
+        </>,
+        document.body
       )}
     </div>
   )
@@ -1235,7 +1333,7 @@ export default function MenuBuilder() {
                 </div>
               </div>
               <div className="text-2xl font-bold text-green-700 mb-1">
-                {menuItems.filter(item => item.isActive !== false).length}
+                {menuItems.filter(item => item.status === 'active').length}
               </div>
               <div className="text-sm font-medium text-green-600">Active Items</div>
             </div>
@@ -1908,7 +2006,10 @@ export default function MenuBuilder() {
 
                         {/* Category-based Icon Selector */}
                         {newItem.category && (
-                          <div>
+                          <div className="transition-all duration-300 ease-in-out">
+                            <label className="block text-sm font-semibold text-gray-700 mb-3">
+                              Menu Item Icon
+                            </label>
                             <CategoryIconSelector
                               category={newItem.category}
                               selectedIcon={newItem.emoji}

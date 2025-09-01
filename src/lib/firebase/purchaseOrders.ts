@@ -331,9 +331,9 @@ export const deletePurchaseOrder = async (
   }
 };
 
-// DEPRECATED: Use deliverPurchaseOrderAtomic instead - this function has race conditions
-// Deliver purchase order with inventory updates - ATOMIC TRANSACTION VERSION
-export const deliverPurchaseOrderAtomic = async (
+// QUOTA-OPTIMIZED: Use quota-efficient delivery instead - this function has quota issues
+// export const deliverPurchaseOrderAtomic = async (
+export const deliverPurchaseOrderAtomicLegacy = async (
   tenantId: string,
   orderId: string,
   deliveryItems: Array<{
@@ -353,11 +353,30 @@ export const deliverPurchaseOrderAtomic = async (
   };
 }> => {
   try {
-    // Import inventory function
-    const { getAllInventoryItems } = await import('./inventory');
+    // CRITICAL FIX: Import location-specific inventory function instead of getAllInventoryItems
+    const { getInventoryItems } = await import('./inventory');
     
-    // Pre-validate delivery items and get inventory data outside transaction
-    const inventoryItems = await getAllInventoryItems(tenantId);
+    // SECURITY FIX: Get inventory items ONLY for the specific locationId
+    if (!deliveredBy) {
+      throw new Error('deliveredBy parameter is required for audit trail');
+    }
+    
+    // Get the purchase order first to extract locationId
+    const orderRef = doc(db, `tenants/${tenantId}/purchaseOrders`, orderId);
+    const orderDoc = await getDoc(orderRef);
+    
+    if (!orderDoc.exists()) {
+      throw new Error('Purchase order not found');
+    }
+    
+    const orderData = orderDoc.data() as PurchaseOrder;
+    
+    if (!orderData.locationId) {
+      throw new Error('Purchase order missing locationId - cannot determine which branch inventory to update');
+    }
+    
+    // CRITICAL FIX: Get inventory ONLY for the specific branch that made the purchase order
+    const inventoryItems = await getInventoryItems(tenantId, orderData.locationId);
     const validationResult = {
       updatedItems: [] as string[],
       notFoundItems: [] as string[],
@@ -468,6 +487,7 @@ export const deliverPurchaseOrderAtomic = async (
         newStock: number;
         newCostPerUnit: number;
         previousStock: number;
+        previousCostPerUnit: number; // CRITICAL FIX: Add previous cost for proper comparison
         deliveryItem: typeof deliveryItems[0];
         itemName: string;
       }> = [];
@@ -505,6 +525,7 @@ export const deliverPurchaseOrderAtomic = async (
           newStock,
           newCostPerUnit,
           previousStock: currentStock,
+          previousCostPerUnit: currentData.costPerUnit || 0, // CRITICAL FIX: Store previous cost
           deliveryItem: update.deliveryItem,
           itemName: update.inventoryItem.name
         });
@@ -594,9 +615,13 @@ export const deliverPurchaseOrderAtomic = async (
     // 10. Log inventory movements after successful transaction
     try {
       const { logInventoryMovement } = await import('./inventory');
-      const movementPromises = result.transactionUpdates.map(update => {
-        const movementReason = update.newCostPerUnit !== update.previousStock 
-          ? `Purchase order delivery - Price updated to ₱${update.newCostPerUnit.toFixed(2)} (weighted average)`
+      const movementPromises = result.transactionUpdates.map((update, index) => {
+        // CRITICAL FIX: Store previous cost in the transaction result for proper comparison
+        const priceChanged = update.deliveryItem.unitPrice && update.deliveryItem.unitPrice > 0 &&
+          Math.abs(update.newCostPerUnit - (update.previousCostPerUnit || 0)) > 0.01;
+        
+        const movementReason = priceChanged
+          ? `Purchase order delivery - Price updated from ₱${(update.previousCostPerUnit || 0).toFixed(2)} to ₱${update.newCostPerUnit.toFixed(2)} (weighted average)`
           : 'Purchase order delivery received';
 
         return logInventoryMovement({
@@ -684,3 +709,6 @@ export const getPurchaseOrderStats = async (tenantId: string) => {
     throw new Error('Failed to get purchase order statistics');
   }
 };
+
+// QUOTA-OPTIMIZED VERSION: Export the new quota-efficient delivery function
+export { deliverPurchaseOrderQuotaOptimized as deliverPurchaseOrderAtomic } from './purchaseOrdersQuotaOptimized';

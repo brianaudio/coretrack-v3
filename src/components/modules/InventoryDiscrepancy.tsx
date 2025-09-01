@@ -11,7 +11,9 @@ import {
   query, 
   orderBy,
   where,
-  Timestamp 
+  Timestamp,
+  doc,
+  updateDoc
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { getInventoryItems } from '../../lib/firebase/inventory';
@@ -34,9 +36,15 @@ interface AuditReport {
   totalItems: number;
   itemsWithIssues: number;
   totalCostImpact: number;
-  status: 'completed' | 'needs-review';
+  status: 'completed' | 'needs-review' | 'applied-to-inventory';
   createdBy: string;
   inventoryCounts: InventoryCount[];
+  auditType?: string; // Add this optional field
+  branchId?: string;
+  branchName?: string;
+  locationId?: string;
+  appliedAt?: string; // When it was applied to inventory
+  appliedBy?: string; // Who applied it to inventory
 }
 
 export default function InventoryDiscrepancy() {
@@ -316,6 +324,92 @@ export default function InventoryDiscrepancy() {
     }
   };
 
+  // Apply audit results to inventory
+  const applyToInventory = async (audit: AuditReport) => {
+    if (!profile?.tenantId || !selectedBranch) {
+      addToast('Missing tenant or branch information', 'error');
+      return;
+    }
+
+    const itemsWithDiscrepancies = audit.inventoryCounts.filter(item => Math.abs(item.discrepancy) > 0);
+    
+    if (itemsWithDiscrepancies.length === 0) {
+      addToast('No discrepancies to apply - all counts match current inventory', 'info');
+      return;
+    }
+
+    const confirmed = confirm(
+      `This will update ${itemsWithDiscrepancies.length} items in your inventory to match the actual counts from the audit.\n\n` +
+      `Items to be updated:\n${itemsWithDiscrepancies.map(item => 
+        `• ${item.itemName}: ${item.expectedCount} → ${item.actualCount} (${item.discrepancy > 0 ? '+' : ''}${item.discrepancy})`
+      ).join('\n')}\n\nAre you sure you want to apply these changes?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setLoading(true);
+      
+      // Import the inventory update function
+      const { updateStockQuantity } = await import('../../lib/firebase/inventory');
+      
+      const updatePromises = itemsWithDiscrepancies.map(async (item) => {
+        try {
+          await updateStockQuantity(
+            profile.tenantId,
+            item.itemId,
+            item.actualCount,
+            'set', // Set to the actual count
+            `Inventory audit adjustment - ${audit.date} (${audit.auditType || 'audit'})`,
+            user?.uid,
+            user?.displayName || user?.email || 'Unknown User'
+          );
+          return { success: true, itemName: item.itemName };
+        } catch (error) {
+          console.error(`Failed to update ${item.itemName}:`, error);
+          return { success: false, itemName: item.itemName, error };
+        }
+      });
+
+      const results = await Promise.all(updatePromises);
+      const successful = results.filter(r => r.success);
+      const failed = results.filter(r => !r.success);
+
+      // Update the audit status to show it's been applied
+      if (successful.length > 0) {
+        try {
+          const auditRef = doc(db, `tenants/${profile.tenantId}/audits`, audit.id);
+          await updateDoc(auditRef, {
+            status: 'applied-to-inventory',
+            appliedAt: new Date().toISOString(),
+            appliedBy: user?.displayName || user?.email || 'Unknown User'
+          });
+        } catch (error) {
+          console.error('Failed to update audit status:', error);
+        }
+      }
+
+      if (successful.length > 0) {
+        addToast(`✅ Successfully updated ${successful.length} items to match audit counts! Your inventory is now synchronized.`, 'success');
+      }
+      
+      if (failed.length > 0) {
+        addToast(`❌ Failed to update ${failed.length} items: ${failed.map(f => f.itemName).join(', ')}`, 'error');
+      }
+
+      // Close the modal and reload data
+      setShowReportModal(false);
+      setSelectedAudit(null);
+      await loadAuditHistory();
+
+    } catch (error) {
+      console.error('Error applying audit to inventory:', error);
+      addToast('Failed to apply audit results to inventory', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Update quick check count
   const updateQuickCheckCount = (itemId: string, count: number) => {
     setQuickCheckItems(prev => 
@@ -508,43 +602,400 @@ export default function InventoryDiscrepancy() {
     setShowReportModal(true);
   };
 
-  // Export report as PDF
+  // Export report as HTML PDF
   const exportToPDF = (audit: AuditReport) => {
-    const content = `
-INVENTORY DISCREPANCY REPORT
-${selectedBranch?.name || 'Branch'} - ${audit.date}
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory Discrepancy Report - ${selectedBranch?.name || 'Branch'}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #2d3748;
+            background: white;
+            padding: 40px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            border-bottom: 3px solid #3182ce;
+            padding-bottom: 20px;
+        }
+        
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: #3182ce;
+            margin-bottom: 10px;
+        }
+        
+        .report-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1a202c;
+            margin-bottom: 8px;
+        }
+        
+        .report-subtitle {
+            font-size: 16px;
+            color: #718096;
+            margin-bottom: 5px;
+        }
+        
+        .report-date {
+            font-size: 14px;
+            color: #a0aec0;
+        }
+        
+        .summary-section {
+            margin-bottom: 40px;
+        }
+        
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 20px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .summary-card {
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #3182ce;
+            text-align: center;
+        }
+        
+        .summary-card.warning {
+            border-left-color: #f6ad55;
+            background: #fffbf0;
+        }
+        
+        .summary-card.danger {
+            border-left-color: #fc8181;
+            background: #fef5e7;
+        }
+        
+        .summary-card.success {
+            border-left-color: #68d391;
+            background: #f0fff4;
+        }
+        
+        .summary-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .summary-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #718096;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-needs-review {
+            background: #fed7d7;
+            color: #c53030;
+        }
+        
+        .status-completed {
+            background: #c6f6d5;
+            color: #2f855a;
+        }
+        
+        .status-applied {
+            background: #e9d8fd;
+            color: #6b46c1;
+        }
+        
+        .details-section {
+            margin-bottom: 40px;
+        }
+        
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .items-table th {
+            background: #4299e1;
+            color: white;
+            padding: 15px 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .items-table td {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 14px;
+        }
+        
+        .items-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        
+        .items-table tr.discrepancy-row {
+            background: #fed7d7;
+        }
+        
+        .items-table tr.match-row {
+            background: #c6f6d5;
+        }
+        
+        .discrepancy-positive {
+            color: #c53030;
+            font-weight: 600;
+        }
+        
+        .discrepancy-negative {
+            color: #c53030;
+            font-weight: 600;
+        }
+        
+        .discrepancy-zero {
+            color: #2f855a;
+            font-weight: 600;
+        }
+        
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 2px solid #e2e8f0;
+            text-align: center;
+            font-size: 12px;
+            color: #718096;
+        }
+        
+        .footer-info {
+            margin-bottom: 10px;
+        }
+        
+        .footer-branding {
+            font-weight: 600;
+            color: #3182ce;
+        }
+        
+        @media print {
+            body {
+                padding: 20px;
+            }
+            
+            .summary-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+            
+            .items-table {
+                font-size: 12px;
+            }
+            
+            .items-table th,
+            .items-table td {
+                padding: 8px;
+            }
+        }
+        
+        .meta-info {
+            background: #edf2f7;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .meta-item {
+            font-size: 14px;
+        }
+        
+        .meta-label {
+            font-weight: 600;
+            color: #4a5568;
+        }
+        
+        .meta-value {
+            color: #2d3748;
+        }
+        
+        .applied-info {
+            background: #e9d8fd;
+            border: 1px solid #b794f6;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-size: 13px;
+            color: #553c9a;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">📊 CoreTrack</div>
+        <h1 class="report-title">Inventory Discrepancy Report</h1>
+        <p class="report-subtitle">${selectedBranch?.name || 'Branch Location'}</p>
+        <p class="report-date">Report Date: ${audit.date} | Generated: ${new Date().toLocaleDateString()}</p>
+    </div>
 
-SUMMARY:
-- Total Items Checked: ${audit.totalItems}
-- Items with Issues: ${audit.itemsWithIssues}
-- Total Cost Impact: ₱${audit.totalCostImpact.toFixed(2)}
-- Status: ${audit.status === 'needs-review' ? 'NEEDS REVIEW' : 'COMPLETED'}
-- Checked by: ${audit.createdBy}
+    <div class="summary-section">
+        <h2 class="section-title">Executive Summary</h2>
+        
+        <div class="meta-info">
+            <div class="meta-item">
+                <span class="meta-label">Audit Type:</span>
+                <span class="meta-value">${audit.auditType === 'full-audit' ? 'Full Inventory Audit' : 'Quick Check Audit'}</span>
+            </div>
+            <div class="meta-item">
+                <span class="meta-label">Conducted By:</span>
+                <span class="meta-value">${audit.createdBy}</span>
+            </div>
+            <div class="meta-item">
+                <span class="meta-label">Status:</span>
+                <span class="status-badge ${
+                  audit.status === 'needs-review' ? 'status-needs-review' : 
+                  audit.status === 'applied-to-inventory' ? 'status-applied' : 'status-completed'
+                }">
+                  ${audit.status === 'needs-review' ? 'Needs Review' : 
+                    audit.status === 'applied-to-inventory' ? 'Applied to Inventory' : 'Completed'}
+                </span>
+            </div>
+            ${audit.status === 'applied-to-inventory' && audit.appliedAt ? `
+            <div class="meta-item">
+                <span class="meta-label">Applied On:</span>
+                <span class="meta-value">${new Date(audit.appliedAt).toLocaleDateString()}</span>
+            </div>
+            ` : ''}
+        </div>
+        
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="summary-value">${audit.totalItems}</div>
+                <div class="summary-label">Total Items Checked</div>
+            </div>
+            
+            <div class="summary-card ${audit.itemsWithIssues > 0 ? 'warning' : 'success'}">
+                <div class="summary-value">${audit.itemsWithIssues}</div>
+                <div class="summary-label">Items with Discrepancies</div>
+            </div>
+            
+            <div class="summary-card ${audit.totalCostImpact > 0 ? 'danger' : 'success'}">
+                <div class="summary-value">₱${audit.totalCostImpact.toFixed(2)}</div>
+                <div class="summary-label">Total Cost Impact</div>
+            </div>
+            
+            <div class="summary-card success">
+                <div class="summary-value">${((audit.totalItems - audit.itemsWithIssues) / audit.totalItems * 100).toFixed(1)}%</div>
+                <div class="summary-label">Accuracy Rate</div>
+            </div>
+        </div>
+        
+        ${audit.status === 'applied-to-inventory' ? `
+        <div class="applied-info">
+            <strong>✅ Applied to Inventory:</strong> This audit has been applied to your inventory system on ${new Date(audit.appliedAt || '').toLocaleDateString()} by ${audit.appliedBy || 'Unknown User'}. All discrepancies have been synchronized.
+        </div>
+        ` : ''}
+    </div>
 
-DETAILED FINDINGS:
-${audit.inventoryCounts.map(item => 
-  `- ${item.itemName}
-    Expected: ${item.expectedCount}
-    Actual: ${item.actualCount}
-    Discrepancy: ${item.discrepancy > 0 ? '+' : ''}${item.discrepancy}
-    Cost Impact: ₱${item.totalCost.toFixed(2)}
-`).join('\n')}
+    <div class="details-section">
+        <h2 class="section-title">Detailed Findings</h2>
+        
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th>Item Name</th>
+                    <th>Expected Count</th>
+                    <th>Actual Count</th>
+                    <th>Discrepancy</th>
+                    <th>Unit Cost</th>
+                    <th>Cost Impact</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${audit.inventoryCounts.map(item => `
+                <tr class="${Math.abs(item.discrepancy) > 0 ? 'discrepancy-row' : 'match-row'}">
+                    <td><strong>${item.itemName}</strong></td>
+                    <td>${item.expectedCount}</td>
+                    <td>${item.actualCount}</td>
+                    <td>
+                        <span class="${item.discrepancy > 0 ? 'discrepancy-positive' : item.discrepancy < 0 ? 'discrepancy-negative' : 'discrepancy-zero'}">
+                            ${item.discrepancy > 0 ? '+' : ''}${item.discrepancy}
+                        </span>
+                    </td>
+                    <td>₱${item.costPerUnit.toFixed(2)}</td>
+                    <td>
+                        <strong ${item.totalCost > 0 ? 'style="color: #c53030;"' : 'style="color: #2f855a;"'}>
+                            ₱${item.totalCost.toFixed(2)}
+                        </strong>
+                    </td>
+                </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    </div>
 
-Generated on: ${new Date().toLocaleString()}
-CoreTrack Inventory Management System
+    <div class="footer">
+        <div class="footer-info">
+            <strong>Report ID:</strong> ${audit.id} | 
+            <strong>Generated:</strong> ${new Date().toLocaleString()} | 
+            <strong>Branch:</strong> ${selectedBranch?.name || 'N/A'}
+        </div>
+        <div class="footer-branding">CoreTrack Business Inventory Management System</div>
+    </div>
+</body>
+</html>
     `;
 
-    const blob = new Blob([content], { type: 'text/plain' });
+    // Create blob and download
+    const blob = new Blob([htmlContent], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `inventory-report-${audit.date}-${selectedBranch?.name || 'branch'}.txt`;
+    a.download = `inventory-discrepancy-report-${audit.date}-${selectedBranch?.name?.replace(/\s+/g, '-') || 'branch'}.html`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     
-    addToast('Report exported successfully!', 'success');
+    addToast('📊 Professional HTML report downloaded successfully!', 'success');
   };
 
   // Get today's status
@@ -568,20 +1019,36 @@ CoreTrack Inventory Management System
   ).length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
-      <div className="max-w-7xl mx-auto p-8 space-y-12">
-        {/* Ultra Clean Header */}
-        <div className="text-center space-y-6">
-          <div className="space-y-2">
-            <h1 className="text-4xl font-light text-gray-900 tracking-tight">
-              Discrepancy Monitoring
-            </h1>
-            <p className="text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed">
-              Track inventory levels and catch discrepancies early with intelligent monitoring
-            </p>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white space-y-12">
+      {/* Modern Ultra-Clean Header - Capital Intelligence Style */}
+      <div className="bg-gradient-to-br from-gray-50 to-white backdrop-blur-lg border border-white/20 rounded-3xl p-12 shadow-2xl shadow-gray-500/10">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+          <div className="flex items-center space-x-6">
+            <div className="w-20 h-20 bg-gradient-to-br from-red-600 to-pink-700 rounded-2xl flex items-center justify-center shadow-xl shadow-red-500/25">
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-4xl font-light text-gray-900 tracking-tight mb-2">Discrepancy Monitoring</h1>
+              <p className="text-lg text-gray-500 font-light leading-relaxed max-w-2xl">
+                Track inventory levels and catch discrepancies early with intelligent monitoring and comprehensive audit trails.
+              </p>
+            </div>
           </div>
-          <div className="w-24 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent mx-auto"></div>
+          
+          <div className="flex items-center gap-4">
+            <div className="text-right space-y-2">
+              <div className="text-sm text-gray-500 font-light">System Status</div>
+              <div className="text-2xl font-light tracking-tight text-red-900">
+                🔍 Monitoring Active
+              </div>
+            </div>
+          </div>
         </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto p-8 space-y-12">
 
         {/* Modern Status Card */}
         <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8">
@@ -601,6 +1068,24 @@ CoreTrack Inventory Management System
                     {todayStatus.text}
                   </span>
                   <p className="text-sm text-gray-500 leading-relaxed">{todayStatus.desc}</p>
+                </div>
+              </div>
+              
+              {/* New Feature Callout */}
+              <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl">
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-blue-900">🚀 Enhanced Features</p>
+                    <p className="text-xs text-blue-700 mt-1 leading-relaxed">
+                      • <strong>Apply to Inventory:</strong> Automatically sync audit results to your inventory system<br/>
+                      • <strong>Professional Reports:</strong> Download beautiful HTML reports with detailed findings
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -708,11 +1193,19 @@ CoreTrack Inventory Management System
                           <p className="font-medium text-gray-900">
                             {(audit as any).auditType === 'full-audit' ? 'Full Audit' : 'Quick Check'}
                           </p>
-                          {audit.status === 'needs-review' && (
-                            <span className="text-xs bg-gradient-to-r from-amber-100 to-amber-50 text-amber-700 px-3 py-1 rounded-full font-medium border border-amber-200">
-                              Needs Review
-                            </span>
-                          )}
+                            {audit.status === 'applied-to-inventory' && (
+                              <span className="text-xs bg-gradient-to-r from-purple-100 to-purple-50 text-purple-700 px-3 py-1 rounded-full font-medium border border-purple-200 flex items-center gap-1">
+                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                Applied to Inventory
+                              </span>
+                            )}
+                            {audit.status === 'needs-review' && (
+                              <span className="text-xs bg-gradient-to-r from-amber-100 to-amber-50 text-amber-700 px-3 py-1 rounded-full font-medium border border-amber-200">
+                                Needs Review
+                              </span>
+                            )}
                         </div>
                         <div className="flex items-center gap-2 text-sm text-gray-500">
                           <span>{audit.date}</span>
@@ -732,9 +1225,13 @@ CoreTrack Inventory Management System
                     <div className="flex items-center gap-3">
                       <div className="text-right space-y-1">
                         <div className={`text-sm font-medium ${
-                          audit.status === 'needs-review' ? 'text-amber-700' : 'text-emerald-700'
+                          audit.status === 'needs-review' ? 'text-amber-700' : 
+                          audit.status === 'applied-to-inventory' ? 'text-purple-700' :
+                          'text-emerald-700'
                         }`}>
-                          {audit.status === 'needs-review' ? 'Needs Review' : 'All Good'}
+                          {audit.status === 'needs-review' ? 'Needs Review' : 
+                           audit.status === 'applied-to-inventory' ? '✅ Applied to Inventory' :
+                           'All Good'}
                         </div>
                         {audit.itemsWithIssues > 0 && (
                           <div className="text-xs text-gray-500">
@@ -742,13 +1239,38 @@ CoreTrack Inventory Management System
                           </div>
                         )}
                       </div>
-                      {audit.status === 'needs-review' && (
-                        <button
-                          onClick={() => viewReport(audit)}
-                          className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:from-blue-600 hover:to-blue-700 transition-all duration-300 shadow-sm hover:shadow-md"
-                        >
-                          View Report
-                        </button>
+                      {(audit.status === 'needs-review' || audit.status === 'applied-to-inventory' || audit.status === 'completed') && (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => viewReport(audit)}
+                            className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:from-blue-600 hover:to-blue-700 transition-all duration-300 shadow-sm hover:shadow-md"
+                          >
+                            View Report
+                          </button>
+                          <button
+                            onClick={() => exportToPDF(audit)}
+                            className="bg-gradient-to-r from-purple-500 to-purple-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:from-purple-600 hover:to-purple-700 transition-all duration-300 shadow-sm hover:shadow-md flex items-center gap-2"
+                            title="Download professional HTML report"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Download
+                          </button>
+                          {audit.itemsWithIssues > 0 && audit.status === 'needs-review' && (
+                            <button
+                              onClick={() => applyToInventory(audit)}
+                              disabled={loading}
+                              className="bg-gradient-to-r from-green-500 to-green-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                              title="Apply actual counts to inventory system"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                              {loading ? 'Applying...' : 'Apply to Inventory'}
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1067,9 +1589,13 @@ CoreTrack Inventory Management System
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => exportToPDF(selectedAudit)}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm"
+                  className="bg-gradient-to-r from-purple-500 to-purple-600 text-white px-4 py-2 rounded-lg hover:from-purple-600 hover:to-purple-700 transition-colors text-sm flex items-center gap-2"
+                  title="Download professional HTML report"
                 >
-                  📄 Export PDF
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  📊 Download HTML Report
                 </button>
                 <button 
                   onClick={() => {
@@ -1100,18 +1626,32 @@ CoreTrack Inventory Management System
                 <div className="text-sm text-red-700">Cost Impact</div>
               </div>
               <div className={`p-4 rounded-lg ${
-                selectedAudit.status === 'needs-review' ? 'bg-yellow-50' : 'bg-green-50'
+                selectedAudit.status === 'needs-review' ? 'bg-yellow-50' : 
+                selectedAudit.status === 'applied-to-inventory' ? 'bg-purple-50' :
+                'bg-green-50'
               }`}>
                 <div className={`text-2xl font-bold ${
-                  selectedAudit.status === 'needs-review' ? 'text-yellow-900' : 'text-green-900'
+                  selectedAudit.status === 'needs-review' ? 'text-yellow-900' : 
+                  selectedAudit.status === 'applied-to-inventory' ? 'text-purple-900' :
+                  'text-green-900'
                 }`}>
-                  {selectedAudit.status === 'needs-review' ? '⚠️' : '✅'}
+                  {selectedAudit.status === 'needs-review' ? '⚠️' : 
+                   selectedAudit.status === 'applied-to-inventory' ? '🔄' : '✅'}
                 </div>
                 <div className={`text-sm ${
-                  selectedAudit.status === 'needs-review' ? 'text-yellow-700' : 'text-green-700'
+                  selectedAudit.status === 'needs-review' ? 'text-yellow-700' : 
+                  selectedAudit.status === 'applied-to-inventory' ? 'text-purple-700' :
+                  'text-green-700'
                 }`}>
-                  {selectedAudit.status === 'needs-review' ? 'Needs Review' : 'All Good'}
+                  {selectedAudit.status === 'needs-review' ? 'Needs Review' : 
+                   selectedAudit.status === 'applied-to-inventory' ? 'Applied to Inventory' : 
+                   'All Good'}
                 </div>
+                {selectedAudit.status === 'applied-to-inventory' && selectedAudit.appliedAt && (
+                  <div className="text-xs text-purple-600 mt-1">
+                    Applied {new Date(selectedAudit.appliedAt).toLocaleDateString()} by {selectedAudit.appliedBy || 'Unknown'}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1158,7 +1698,20 @@ CoreTrack Inventory Management System
               </div>
             </div>
 
-            <div className="flex items-center justify-center pt-6">
+            <div className="flex items-center justify-center gap-3 pt-6">
+              {selectedAudit.itemsWithIssues > 0 && selectedAudit.status === 'needs-review' && (
+                <button
+                  onClick={() => applyToInventory(selectedAudit)}
+                  disabled={loading}
+                  className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-2 rounded-lg font-medium hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  title="Apply actual counts to your inventory system"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  {loading ? 'Applying Changes...' : 'Apply to Inventory'}
+                </button>
+              )}
               <button
                 onClick={() => {
                   setShowReportModal(false);

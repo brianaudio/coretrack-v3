@@ -941,156 +941,185 @@ export default function PurchaseOrders() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-surface-50 to-surface-100">
-      <div className="p-6 lg:p-8 space-y-8">
-        
-        {/* Header Section - iPad OS Style */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-          <div className="space-y-2">
-            <h1 className="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-surface-900 via-primary-600 to-surface-800 bg-clip-text text-transparent">
-              Purchase Orders
-            </h1>
-            <div className="flex items-center gap-2 text-surface-600">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white space-y-8">
+      {/* Modern Ultra-Clean Header - Capital Intelligence Style */}
+      <div className="bg-gradient-to-br from-gray-50 to-white backdrop-blur-lg border border-white/20 rounded-3xl p-12 shadow-2xl shadow-gray-500/10">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+          <div className="flex items-center space-x-6">
+            <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/25">
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <span className="font-medium">{selectedBranch?.name || 'Main Branch'}</span>
-              <span className="text-surface-400">•</span>
-              <span>Supplier orders and inventory management</span>
+            </div>
+            <div>
+              <h1 className="text-4xl font-light text-gray-900 tracking-tight mb-2">Purchase Orders</h1>
+              <p className="text-lg text-gray-500 font-light leading-relaxed max-w-2xl">
+                Streamlined supplier ordering with automated inventory integration and delivery tracking.
+              </p>
             </div>
           </div>
           
-          {/* Action Buttons */}
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={() => {
-                const filteredOrders = statusFilter === 'all' 
-                  ? orders 
-                  : orders.filter(order => order.status === statusFilter)
-                generatePurchaseOrderSummaryPDF(filteredOrders)
-              }}
-              className="px-6 py-3 bg-white/80 backdrop-blur-sm text-surface-700 border border-surface-200 rounded-xl hover:bg-white hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 disabled:opacity-50"
-              disabled={orders.length === 0}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              Export PDF
-            </button>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="px-6 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 font-medium"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              New Order
-            </button>
+          <div className="flex items-center gap-4">
+            <div className="text-right space-y-2">
+              <div className="text-sm text-gray-500 font-light">Branch Location</div>
+              <div className="text-2xl font-light tracking-tight text-blue-900">
+                📍 {selectedBranch?.name || 'Main Branch'}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto p-8 space-y-8">
+        {/* Modern Action Cards */}
+        <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            <div className="space-y-1">
+              <h2 className="text-xl font-light text-gray-900 tracking-wide">Quick Actions</h2>
+              <p className="text-sm text-gray-500 leading-relaxed">Manage purchase orders and supplier relationships efficiently</p>
+            </div>
+            
+            {/* Enhanced Action Buttons */}
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => {
+                  const filteredOrders = statusFilter === 'all' 
+                    ? orders 
+                    : orders.filter(order => order.status === statusFilter)
+                  generatePurchaseOrderSummaryPDF(filteredOrders)
+                }}
+                className="px-6 py-3 backdrop-blur-sm border rounded-2xl hover:shadow-lg hover:scale-[1.02] transition-all duration-300 flex items-center gap-2 font-medium bg-white/80 text-gray-700 border-gray-200 hover:bg-white hover:shadow-gray-500/20 disabled:opacity-50"
+                disabled={orders.length === 0}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Export PDF
+              </button>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl hover:shadow-lg hover:scale-[1.02] transition-all duration-300 flex items-center gap-2 font-medium shadow-blue-500/25"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                New Order
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Stats Cards - Modern Design */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-6">
+        {/* Modern Stats Cards - Capital Intelligence Style */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
           
           {/* Total Orders */}
-          <div className="group relative overflow-hidden bg-gradient-to-br from-white/90 to-surface-50/90 backdrop-blur-sm rounded-2xl p-6 border border-surface-200/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-            <div className="absolute inset-0 bg-gradient-to-br from-surface-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div className="group relative overflow-hidden bg-white/70 backdrop-blur-lg rounded-3xl p-8 border border-white/20 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-surface-100 to-surface-200 rounded-xl flex items-center justify-center">
-                  <svg className="w-5 h-5 text-surface-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-2xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
               </div>
-              <div className="text-2xl font-bold text-surface-900 mb-1">{orders.length}</div>
-              <div className="text-sm font-medium text-surface-600">Total Orders</div>
+              <div className="space-y-2">
+                <p className="text-3xl font-light text-gray-900 tracking-tight">{orders.length}</p>
+                <p className="text-gray-500 text-sm font-light leading-relaxed">Total Orders</p>
+              </div>
             </div>
           </div>
 
           {/* Pending Orders */}
-          <div className="group relative overflow-hidden bg-gradient-to-br from-amber-50/90 to-amber-100/50 backdrop-blur-sm rounded-2xl p-6 border border-amber-200/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-            <div className="absolute inset-0 bg-gradient-to-br from-amber-400/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div className="group relative overflow-hidden bg-white/70 backdrop-blur-lg rounded-3xl p-8 border border-white/20 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-amber-100 to-amber-200 rounded-xl flex items-center justify-center">
-                  <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-amber-100 to-amber-200 rounded-2xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
               </div>
-              <div className="text-2xl font-bold text-amber-700 mb-1">
-                {orders.filter(o => o.status === 'pending').length}
+              <div className="space-y-2">
+                <p className="text-3xl font-light text-gray-900 tracking-tight">
+                  {orders.filter(o => o.status === 'pending').length}
+                </p>
+                <p className="text-gray-500 text-sm font-light leading-relaxed">Pending Approval</p>
               </div>
-              <div className="text-sm font-medium text-amber-600">Pending Approval</div>
             </div>
           </div>
 
           {/* Ordered */}
-          <div className="group relative overflow-hidden bg-gradient-to-br from-blue-50/90 to-blue-100/50 backdrop-blur-sm rounded-2xl p-6 border border-blue-200/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-400/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div className="group relative overflow-hidden bg-white/70 backdrop-blur-lg rounded-3xl p-8 border border-white/20 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center">
-                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-indigo-100 to-indigo-200 rounded-2xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                   </svg>
                 </div>
               </div>
-              <div className="text-2xl font-bold text-blue-700 mb-1">
-                {orders.filter(o => o.status === 'ordered').length}
+              <div className="space-y-2">
+                <p className="text-3xl font-light text-gray-900 tracking-tight">
+                  {orders.filter(o => o.status === 'ordered').length}
+                </p>
+                <p className="text-gray-500 text-sm font-light leading-relaxed">Currently Ordered</p>
               </div>
-              <div className="text-sm font-medium text-blue-600">Currently Ordered</div>
             </div>
           </div>
 
           {/* Partial Delivery */}
-          <div className="group relative overflow-hidden bg-gradient-to-br from-purple-50/90 to-purple-100/50 backdrop-blur-sm rounded-2xl p-6 border border-purple-200/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-400/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div className="group relative overflow-hidden bg-white/70 backdrop-blur-lg rounded-3xl p-8 border border-white/20 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl flex items-center justify-center">
-                  <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-purple-100 to-purple-200 rounded-2xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                   </svg>
                 </div>
               </div>
-              <div className="text-2xl font-bold text-purple-700 mb-1">
-                {orders.filter(o => o.status === 'partially_delivered').length}
+              <div className="space-y-2">
+                <p className="text-3xl font-light text-gray-900 tracking-tight">
+                  {orders.filter(o => o.status === 'partially_delivered').length}
+                </p>
+                <p className="text-gray-500 text-sm font-light leading-relaxed">Partial Delivery</p>
               </div>
-              <div className="text-sm font-medium text-purple-600">Partial Delivery</div>
             </div>
           </div>
 
           {/* Delivered */}
-          <div className="group relative overflow-hidden bg-gradient-to-br from-green-50/90 to-green-100/50 backdrop-blur-sm rounded-2xl p-6 border border-green-200/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-            <div className="absolute inset-0 bg-gradient-to-br from-green-400/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div className="group relative overflow-hidden bg-white/70 backdrop-blur-lg rounded-3xl p-8 border border-white/20 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-green-100 to-green-200 rounded-xl flex items-center justify-center">
-                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-green-100 to-green-200 rounded-2xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
               </div>
-              <div className="text-2xl font-bold text-green-700 mb-1">
-                {orders.filter(o => o.status === 'delivered').length}
+              <div className="space-y-2">
+                <p className="text-3xl font-light text-gray-900 tracking-tight">
+                  {orders.filter(o => o.status === 'delivered').length}
+                </p>
+                <p className="text-gray-500 text-sm font-light leading-relaxed">Completed</p>
               </div>
-              <div className="text-sm font-medium text-green-600">Completed</div>
             </div>
           </div>
         </div>
 
-
-        {/* Filters Section - Clean Design */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-surface-200/50 shadow-sm">
-          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+        {/* Filters Section - Capital Intelligence Style */}
+        <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-6">
             
             {/* Search Bar */}
             <div className="flex-1">
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <svg className="h-5 w-5 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                 </div>
@@ -1099,7 +1128,7 @@ export default function PurchaseOrders() {
                   placeholder="Search orders, suppliers, items..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 bg-white/80 border border-surface-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all duration-200 text-surface-900 placeholder-surface-500"
+                  className="w-full pl-11 pr-4 py-3 bg-white/90 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all duration-300 text-gray-900 placeholder-gray-500 backdrop-blur-sm"
                 />
               </div>
             </div>
@@ -1109,7 +1138,7 @@ export default function PurchaseOrders() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-4 py-3 bg-white/80 border border-surface-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all duration-200 text-surface-900 min-w-[120px]"
+                className="px-4 py-3 bg-white/90 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all duration-300 text-gray-900 min-w-[120px] backdrop-blur-sm"
               >
                 <option value="all">All Status</option>
                 <option value="draft">Draft</option>
@@ -1121,33 +1150,33 @@ export default function PurchaseOrders() {
                 <option value="cancelled">Cancelled</option>
               </select>
 
-              <label className="flex items-center gap-3 px-4 py-3 bg-white/80 border border-surface-200 rounded-xl hover:bg-white transition-all duration-200 cursor-pointer">
+              <label className="flex items-center gap-3 px-4 py-3 bg-white/90 border border-gray-200 rounded-2xl hover:bg-white transition-all duration-300 cursor-pointer backdrop-blur-sm">
                 <input
                   type="checkbox"
                   checked={showRecentOrders}
                   onChange={(e) => setShowRecentOrders(e.target.checked)}
-                  className="w-4 h-4 text-primary-600 border-surface-300 rounded focus:ring-primary-500 focus:ring-2"
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
                 />
-                <span className="text-sm font-medium text-surface-700 whitespace-nowrap">Last 7 days</span>
+                <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Last 7 days</span>
               </label>
             </div>
           </div>
         </div>
 
-        {/* Orders List - Modern Table Design */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-surface-200/50 shadow-sm overflow-hidden">
+        {/* Orders List - Capital Intelligence Style */}
+        <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl overflow-hidden">
           {filteredOrders.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gradient-to-r from-surface-50 to-surface-100/50">
+                <thead className="bg-gradient-to-r from-gray-50/80 to-gray-100/50 backdrop-blur-sm">
                   <tr>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-surface-700 tracking-wide">Order</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-surface-700 tracking-wide">Supplier</th>
-                    <th className="px-6 py-4 text-center text-sm font-semibold text-surface-700 tracking-wide">Items</th>
-                    <th className="px-6 py-4 text-right text-sm font-semibold text-surface-700 tracking-wide">Amount</th>
-                    <th className="px-6 py-4 text-center text-sm font-semibold text-surface-700 tracking-wide">Status</th>
-                    <th className="px-6 py-4 text-center text-sm font-semibold text-surface-700 tracking-wide">Date</th>
-                    <th className="px-6 py-4 text-center text-sm font-semibold text-surface-700 tracking-wide">Actions</th>
+                    <th className="px-6 py-4 text-left text-sm font-light text-gray-700 tracking-wide">Order</th>
+                    <th className="px-6 py-4 text-left text-sm font-light text-gray-700 tracking-wide">Supplier</th>
+                    <th className="px-6 py-4 text-center text-sm font-light text-gray-700 tracking-wide">Items</th>
+                    <th className="px-6 py-4 text-right text-sm font-light text-gray-700 tracking-wide">Amount</th>
+                    <th className="px-6 py-4 text-center text-sm font-light text-gray-700 tracking-wide">Status</th>
+                    <th className="px-6 py-4 text-center text-sm font-light text-gray-700 tracking-wide">Date</th>
+                    <th className="px-6 py-4 text-center text-sm font-light text-gray-700 tracking-wide">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-100">

@@ -97,15 +97,21 @@ export default function InventoryCenter() {
       
       const movements = await getRecentInventoryMovements(
         profile.tenantId, 
-        limit
+        limit,
+        locationId  // Pass locationId to filter by current branch
+      )
+      
+      // Additional client-side filtering as fallback (in case Firebase index isn't ready)
+      const branchFilteredMovements = movements.filter(movement => 
+        movement.locationId === locationId
       )
       
       // Filter movements based on time period
-      const filteredMovements = filterMovementsByTime(movements, movementsFilter)
+      const filteredMovements = filterMovementsByTime(branchFilteredMovements, movementsFilter)
       setRecentMovements(filteredMovements)
       
       // Show success toast with movement count
-      addToast(`Loaded ${filteredMovements.length} inventory movements`, 'success')
+      addToast(`Loaded ${filteredMovements.length} inventory movements for ${selectedBranch.name}`, 'success')
     } catch (error) {
       console.error('Error loading recent movements:', error)
       addToast('Failed to load inventory movements. Please try again.', 'error')

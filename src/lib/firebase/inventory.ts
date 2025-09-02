@@ -724,18 +724,31 @@ export const getInventoryMovements = async (
 // Get recent inventory movements (for dashboard)
 export const getRecentInventoryMovements = async (
   tenantId: string,
-  hours: number = 24
+  hours: number = 24,
+  locationId?: string
 ): Promise<InventoryMovement[]> => {
   try {
     const movementsRef = getInventoryMovementsCollection(tenantId);
     const hoursAgo = new Date();
     hoursAgo.setHours(hoursAgo.getHours() - hours);
     
-    const q = query(
-      movementsRef,
-      where('timestamp', '>=', Timestamp.fromDate(hoursAgo)),
-      orderBy('timestamp', 'desc')
-    );
+    let q;
+    if (locationId) {
+      // Filter by both timestamp and locationId for branch-specific movements
+      q = query(
+        movementsRef,
+        where('timestamp', '>=', Timestamp.fromDate(hoursAgo)),
+        where('locationId', '==', locationId),
+        orderBy('timestamp', 'desc')
+      );
+    } else {
+      // Original query without location filtering (for compatibility)
+      q = query(
+        movementsRef,
+        where('timestamp', '>=', Timestamp.fromDate(hoursAgo)),
+        orderBy('timestamp', 'desc')
+      );
+    }
     
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({

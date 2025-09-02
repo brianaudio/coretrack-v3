@@ -19,13 +19,30 @@ export const getBranchName = (branchId: string): string => {
   return branchId.charAt(0).toUpperCase() + branchId.slice(1)
 }
 
-// New utility functions for the enhanced branch system
+// Enhanced utility functions for the branch system with safeguards
 export const getBranchLocationId = (branchId: string): string => {
-  return `location_${branchId}`
+  // Input validation and normalization for consistency
+  if (!branchId || typeof branchId !== 'string') {
+    console.warn('Invalid branchId provided to getBranchLocationId:', branchId)
+    return 'location_main' // Safe fallback
+  }
+  
+  // Normalize the branch ID (trim whitespace, convert to lowercase)
+  const normalizedBranchId = branchId.trim().toLowerCase()
+  
+  if (normalizedBranchId === '') {
+    console.warn('Empty branchId provided, using main branch')
+    return 'location_main'
+  }
+  
+  return `location_${normalizedBranchId}`
 }
 
 export const isMainBranch = (branchId: string): boolean => {
-  return branchId === 'main'
+  if (!branchId || typeof branchId !== 'string') {
+    return false
+  }
+  return branchId.trim().toLowerCase() === 'main'
 }
 
 export const getBranchIcon = (branchId: string): string => {

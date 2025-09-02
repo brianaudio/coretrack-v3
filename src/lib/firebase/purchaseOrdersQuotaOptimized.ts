@@ -57,13 +57,21 @@ export const deliverPurchaseOrderQuotaOptimized = async (
     
     const orderData = orderDoc.data();
     
+    // ENHANCED VALIDATION: Multiple checks for branch isolation
     if (!orderData.locationId) {
       throw new Error('Purchase order missing locationId - cannot determine which branch inventory to update');
+    }
+
+    // SAFEGUARD: Validate locationId format
+    if (!orderData.locationId.startsWith('location_')) {
+      console.warn(`⚠️ Unusual locationId format detected: ${orderData.locationId}`);
     }
 
     if (orderData.status === 'delivered') {
       throw new Error('Purchase order has already been delivered');
     }
+
+    console.log(`📦 Processing delivery for PO in branch: ${orderData.locationId}`);
 
     // QUOTA OPTIMIZATION 3: Get only the specific inventory items needed
     const { getInventoryItems } = await import('./inventory');

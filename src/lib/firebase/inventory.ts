@@ -655,6 +655,18 @@ export const logInventoryMovement = async (
   movement: CreateInventoryMovement
 ): Promise<string> => {
   try {
+    // SAFEGUARD: Validate movement data integrity
+    if (!movement.itemId || !movement.itemName || !movement.tenantId || !movement.locationId || !movement.movementType) {
+      throw new Error('Inventory movement missing required fields');
+    }
+
+    // SAFEGUARD: Validate locationId format
+    if (!movement.locationId.startsWith('location_')) {
+      console.warn(`⚠️ Unusual locationId format in movement: ${movement.locationId}`);
+    }
+
+    console.log(`📈 Logging inventory movement for ${movement.itemName} in ${movement.locationId}`);
+
     const movementsRef = getInventoryMovementsCollection(movement.tenantId);
     const now = Timestamp.now();
     

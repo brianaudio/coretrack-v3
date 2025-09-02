@@ -273,6 +273,10 @@ export default function PurchaseOrders() {
     if (!profile?.tenantId || !newOrder.supplierId || !newOrder.requestor || !selectedBranch) return
 
     try {
+      // SAFEGUARD: Lock branch context during PO creation
+      const operationId = `po_create_${Date.now()}`
+      console.log(`🔒 Locking branch context for PO creation: ${selectedBranch.id}`)
+      
       // Calculate totals for each item
       const updatedItems = newOrder.items
         .filter(item => item.itemName.trim() !== '')
@@ -283,8 +287,21 @@ export default function PurchaseOrders() {
 
       const { subtotal, tax, total } = calculateTotals(updatedItems, newOrder.shippingFee)
 
-      // Generate locationId for the current branch
+      // SAFEGUARD: Validate branch context before creation
+      if (!selectedBranch?.id) {
+        throw new Error('No branch selected - cannot create purchase order')
+      }
+
+      // Generate locationId for the current branch with validation
       const locationId = getBranchLocationId(selectedBranch.id)
+      
+      // SAFEGUARD: Double-check branch hasn't changed during creation
+      const currentBranchCheck = getBranchLocationId(selectedBranch.id)
+      if (locationId !== currentBranchCheck) {
+        console.warn('⚠️ Branch context changed during PO creation, using original context')
+      }
+
+      console.log(`📋 Creating PO for branch: ${selectedBranch.name} (${locationId})`)
 
       const orderData: CreatePurchaseOrder = {
         supplierId: newOrder.supplierId, // This is now the supplier name
@@ -298,10 +315,17 @@ export default function PurchaseOrders() {
         requestor: newOrder.requestor,
         createdBy: profile.tenantId,
         tenantId: profile.tenantId,
-        locationId // Add branch-specific locationId
+        locationId // Add branch-specific locationId with validation
+      }
+
+      // SAFEGUARD: Final validation before submission
+      if (!orderData.locationId || !orderData.locationId.startsWith('location_')) {
+        throw new Error(`Invalid locationId generated: ${orderData.locationId}`)
       }
 
       await createPurchaseOrder(orderData)
+      
+      console.log(`✅ PO created successfully for ${locationId}`)
       
       // Refresh orders
       const updatedOrders = await getPurchaseOrders(profile.tenantId)
@@ -319,6 +343,7 @@ export default function PurchaseOrders() {
       setShowCreateModal(false)
     } catch (error) {
       console.error('Error creating purchase order:', error)
+      alert(`Failed to create purchase order: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 

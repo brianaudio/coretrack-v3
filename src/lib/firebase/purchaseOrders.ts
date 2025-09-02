@@ -641,6 +641,32 @@ export const deliverPurchaseOrderAtomicLegacy = async (
       });
 
       await Promise.all(movementPromises);
+
+      // 🆕 NEW: Send inventory delivery notification with branch information
+      try {
+        const { notifyInventoryDelivered } = await import('./notifications');
+        
+        // Get branch name from locationId
+        const branchId = result.orderData.locationId?.replace('location_', '') || 'unknown';
+        const branchName = branchId.charAt(0).toUpperCase() + branchId.slice(1);
+        
+        // Count delivered items
+        const deliveredItemsCount = result.transactionUpdates.length;
+        
+        await notifyInventoryDelivered(
+          tenantId,
+          result.orderData.orderNumber || 'N/A',
+          branchName,
+          deliveredItemsCount,
+          deliveredBy || 'System',
+          result.orderData.supplierName || result.orderData.supplierId
+        );
+        
+        console.log(`📦 Inventory delivery notification sent for ${branchName}`);
+      } catch (notificationError) {
+        console.warn('Failed to send inventory delivery notification:', notificationError);
+      }
+
     } catch (movementError) {
       console.error('Warning: Failed to log inventory movements:', movementError);
       // Don't fail the whole operation for logging issues

@@ -399,14 +399,14 @@ export const notifyApprovalRequired = async (
 // Helper function for delivery notifications
 export const notifyDeliveryReceived = async (
   tenantId: string,
-  orderId: string,
-  supplierName: string,
+  orderNumber: string,
   receivedBy: string,
-  isPartialDelivery: boolean = false
+  status: 'complete' | 'partial'
 ) => {
+  const isPartialDelivery = status === 'partial'
   const message = isPartialDelivery 
-    ? `Partial delivery from ${supplierName} received by ${receivedBy}`
-    : `Full delivery from ${supplierName} received by ${receivedBy}`
+    ? `Partial delivery for order ${orderNumber} received by ${receivedBy}`
+    : `Full delivery for order ${orderNumber} received by ${receivedBy}`
   
   return createNotification({
     tenantId,
@@ -414,9 +414,41 @@ export const notifyDeliveryReceived = async (
     title: 'Delivery Received',
     message,
     priority: 'medium',
-    category: 'system',
-    data: { orderId, supplierName, receivedBy, isPartialDelivery },
-    actionUrl: `/purchase-orders/${orderId}`
+    category: 'orders',
+    data: { orderNumber, receivedBy, isPartialDelivery },
+    actionUrl: '/purchase-orders'
+  })
+}
+
+// NEW: Inventory delivery notification with branch information
+export const notifyInventoryDelivered = async (
+  tenantId: string,
+  orderNumber: string,
+  branchName: string,
+  itemsCount: number,
+  deliveredBy: string,
+  supplierName?: string
+) => {
+  const itemText = itemsCount === 1 ? 'item' : 'items'
+  const supplierText = supplierName ? ` from ${supplierName}` : ''
+  
+  const message = `${itemsCount} inventory ${itemText}${supplierText} delivered to ${branchName} by ${deliveredBy}`
+  
+  return createNotification({
+    tenantId,
+    type: 'delivery',
+    title: '📦 Inventory Delivered',
+    message,
+    priority: 'medium',
+    category: 'inventory',
+    data: { 
+      orderNumber, 
+      branchName, 
+      itemsCount, 
+      deliveredBy, 
+      supplierName 
+    },
+    actionUrl: '/inventory'
   })
 }
 

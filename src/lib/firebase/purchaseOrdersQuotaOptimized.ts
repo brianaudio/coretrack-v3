@@ -257,6 +257,32 @@ export const deliverPurchaseOrderQuotaOptimized = async (
         });
 
         await Promise.all(movementPromises);
+
+        // 🆕 NEW: Send inventory delivery notification with branch information
+        try {
+          const { notifyInventoryDelivered } = await import('./notifications');
+          
+          // Get branch name from locationId
+          const branchId = orderData.locationId?.replace('location_', '') || 'unknown';
+          const branchName = branchId.charAt(0).toUpperCase() + branchId.slice(1);
+          
+          // Count delivered items
+          const deliveredItemsCount = deliveryItems.filter(item => item.quantityReceived > 0).length;
+          
+          await notifyInventoryDelivered(
+            tenantId,
+            orderData.orderNumber || 'N/A',
+            branchName,
+            deliveredItemsCount,
+            deliveredBy,
+            orderData.supplierName || orderData.supplierId
+          );
+          
+          console.log(`📦 Inventory delivery notification sent for ${branchName}`);
+        } catch (notificationError) {
+          console.warn('Failed to send inventory delivery notification:', notificationError);
+        }
+
       } catch (error) {
         console.warn('Background logging failed:', error);
       }

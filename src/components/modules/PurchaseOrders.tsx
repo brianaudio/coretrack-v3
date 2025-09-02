@@ -6,8 +6,7 @@ import { useAuth } from '../../lib/context/AuthContext'
 import { useBranch } from '../../lib/context/BranchContext'
 import { 
   notifyOrderStatusChange, 
-  notifyApprovalRequired, 
-  notifyDeliveryReceived 
+  notifyApprovalRequired
 } from '../../lib/firebase/notifications'
 import { getBranchLocationId } from '../../lib/utils/branchUtils'
 import { debugTrace, debugStep, debugError, debugSuccess, debugInspect } from '../../lib/utils/debugHelper'
@@ -612,13 +611,7 @@ export default function PurchaseOrders() {
         setDataCache({ timestamp: 0, data: null }) // Force cache refresh
         window.location.reload() // Comprehensive refresh
         
-        // **PERFORMANCE: Send notification asynchronously (don't wait)**
-        notifyDeliveryReceived(
-          profile.tenantId,
-          deliveringOrder.orderNumber,
-          receivedBy.trim(),
-          'complete' // We'll let the atomic function determine the actual status
-        ).catch(error => console.error('Notification error:', error))
+        // 📦 Inventory delivery notification is automatically sent by the delivery function
 
       } else {
         // **SURGICAL PRECISION: Show exact error message from transaction**

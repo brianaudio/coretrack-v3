@@ -1141,10 +1141,10 @@ export default function BusinessReports() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white space-y-12">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white space-y-6">
       {/* Modern Ultra-Clean Header - Capital Intelligence Style */}
-      <div className="bg-gradient-to-br from-gray-50 to-white backdrop-blur-lg border border-white/20 rounded-3xl p-12 shadow-2xl shadow-gray-500/10">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+      <div className="bg-gradient-to-br from-gray-50 to-white backdrop-blur-lg border border-white/20 rounded-3xl p-8 shadow-2xl shadow-gray-500/10">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div className="flex items-center space-x-6">
             <div className="w-20 h-20 bg-gradient-to-br from-indigo-600 to-blue-700 rounded-2xl flex items-center justify-center shadow-xl shadow-indigo-500/25">
               <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1170,10 +1170,10 @@ export default function BusinessReports() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-8 space-y-12">
+      <div className="max-w-7xl mx-auto p-6 space-y-6">
 
         {/* Modern Date Range Selector */}
-        <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8">
+        <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-6">
           <h3 className="text-xl font-light text-gray-900 tracking-wide mb-6">Select Reporting Period</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <button 
@@ -1252,9 +1252,9 @@ export default function BusinessReports() {
       </div>
 
       {/* Modern Export Options */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Enhanced Analytics Report */}
-        <div className="group bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8 hover:shadow-2xl hover:scale-[1.02] transition-all duration-500">
+        <div className="group bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-500">
           <div className="text-center mb-6">
             <div className="w-16 h-16 mx-auto bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-blue-500/30">
               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1288,7 +1288,7 @@ export default function BusinessReports() {
         </div>
 
         {/* Enhanced Financial Report */}
-        <div className="group bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8 hover:shadow-2xl hover:scale-[1.02] transition-all duration-500">
+        <div className="group bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-500">
           <div className="text-center mb-6">
             <div className="w-16 h-16 mx-auto bg-gradient-to-br from-green-400 to-green-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-green-500/30">
               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1322,7 +1322,7 @@ export default function BusinessReports() {
         </div>
 
         {/* Enhanced Inventory Report */}
-        <div className="group bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8 hover:shadow-2xl hover:scale-[1.02] transition-all duration-500">
+        <div className="group bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-500">
           <div className="text-center mb-6">
             <div className="w-16 h-16 mx-auto bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-orange-500/30">
               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">

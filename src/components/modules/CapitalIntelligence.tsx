@@ -885,10 +885,10 @@ export default function CapitalIntelligence() {
   )
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white space-y-12">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white space-y-6">
       {/* Modern Ultra-Clean Header - Financial Management Style */}
-      <div className="bg-gradient-to-br from-gray-50 to-white backdrop-blur-lg border border-white/20 rounded-3xl p-12 shadow-2xl shadow-gray-500/10">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+      <div className="bg-gradient-to-br from-gray-50 to-white backdrop-blur-lg border border-white/20 rounded-3xl p-8 shadow-2xl shadow-gray-500/10">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div className="flex items-center space-x-6">
             <div className="w-20 h-20 bg-gradient-to-br from-purple-600 to-indigo-700 rounded-2xl flex items-center justify-center shadow-xl shadow-purple-500/25">
               <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -918,7 +918,7 @@ export default function CapitalIntelligence() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-8 space-y-12">
+      <div className="max-w-7xl mx-auto p-6 space-y-6">
 
         {/* Modern Tab Navigation */}
         <div className="bg-white/80 backdrop-blur-sm rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
@@ -928,7 +928,7 @@ export default function CapitalIntelligence() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`group flex-1 py-6 px-8 text-sm font-medium transition-all duration-300 ${
+                  className={`group flex-1 py-4 px-6 text-sm font-medium transition-all duration-300 ${
                     activeTab === tab.id
                       ? 'text-blue-600 bg-blue-50/50 relative'
                       : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
@@ -946,7 +946,7 @@ export default function CapitalIntelligence() {
             </nav>
           </div>
 
-          <div className="p-10">
+          <div className="p-6">
             {loading ? (
               <div className="flex items-center justify-center py-20">
                 <div className="relative">

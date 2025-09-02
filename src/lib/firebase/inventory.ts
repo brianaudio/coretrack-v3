@@ -734,13 +734,23 @@ export const getRecentInventoryMovements = async (
     
     let q;
     if (locationId) {
-      // Filter by both timestamp and locationId for branch-specific movements
-      q = query(
-        movementsRef,
-        where('timestamp', '>=', Timestamp.fromDate(hoursAgo)),
-        where('locationId', '==', locationId),
-        orderBy('timestamp', 'desc')
-      );
+      // Try composite query first, fallback to simple query if index not ready
+      try {
+        q = query(
+          movementsRef,
+          where('timestamp', '>=', Timestamp.fromDate(hoursAgo)),
+          where('locationId', '==', locationId),
+          orderBy('timestamp', 'desc')
+        );
+      } catch (indexError) {
+        console.warn('Composite index not ready, using fallback query:', indexError);
+        // Fallback: Simple timestamp query, filter locationId client-side
+        q = query(
+          movementsRef,
+          where('timestamp', '>=', Timestamp.fromDate(hoursAgo)),
+          orderBy('timestamp', 'desc')
+        );
+      }
     } else {
       // Original query without location filtering (for compatibility)
       q = query(
@@ -751,12 +761,47 @@ export const getRecentInventoryMovements = async (
     }
     
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
+    let movements = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as InventoryMovement[];
+    
+    // Client-side filter by locationId if composite query failed
+    if (locationId) {
+      movements = movements.filter(movement => movement.locationId === locationId);
+    }
+    
+    return movements;
   } catch (error) {
     console.error('Error fetching recent movements:', error);
-    throw new Error('Failed to fetch recent movements');
+    
+    // Final fallback: Get all recent movements without location filter
+    try {
+      const movementsRef = getInventoryMovementsCollection(tenantId);
+      const hoursAgo = new Date();
+      hoursAgo.setHours(hoursAgo.getHours() - hours);
+      
+      const fallbackQuery = query(
+        movementsRef,
+        where('timestamp', '>=', Timestamp.fromDate(hoursAgo)),
+        orderBy('timestamp', 'desc')
+      );
+      
+      const snapshot = await getDocs(fallbackQuery);
+      let movements = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as InventoryMovement[];
+      
+      // Filter by locationId client-side
+      if (locationId) {
+        movements = movements.filter(movement => movement.locationId === locationId);
+      }
+      
+      return movements;
+    } catch (fallbackError) {
+      console.error('Fallback query also failed:', fallbackError);
+      throw new Error('Failed to fetch recent movements');
+    }
   }
 };

@@ -848,10 +848,10 @@ const MainDashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white space-y-12">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white space-y-6">
       {/* Modern Ultra-Clean Header - Capital Intelligence Style */}
-      <div className="bg-gradient-to-br from-gray-50 to-white backdrop-blur-lg border border-white/20 rounded-3xl p-12 shadow-2xl shadow-gray-500/10">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+      <div className="bg-gradient-to-br from-gray-50 to-white backdrop-blur-lg border border-white/20 rounded-3xl p-8 shadow-2xl shadow-gray-500/10">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div className="flex items-center space-x-6">
             <div className="w-20 h-20 bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl flex items-center justify-center shadow-xl shadow-emerald-500/25">
               <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -877,7 +877,7 @@ const MainDashboard: React.FC = () => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-8 space-y-6">
+      <div className="max-w-7xl mx-auto p-6 space-y-6">
 
       {/* Tab Navigation */}
       <div className="bg-white rounded-xl border border-surface-200 p-2">
@@ -907,7 +907,7 @@ const MainDashboard: React.FC = () => {
 
       {/* Sales Analytics Tab */}
       {selectedTab === 'sales' && (
-        <div className="space-y-8">
+        <div className="space-y-6">
           {/* Payment Methods Analytics - Top Priority */}
           <PaymentMethodsAnalytics />
         </div>

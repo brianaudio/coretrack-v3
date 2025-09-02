@@ -124,7 +124,7 @@ export default function DashboardOverview() {
     <div className="min-h-screen bg-gray-50/50">
       {/* Minimalist Header */}
       <div className="bg-white/70 backdrop-blur-md border-b border-gray-200/50 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 py-6">
+        <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <h1 className="text-3xl font-light text-gray-900 tracking-tight">Dashboard</h1>

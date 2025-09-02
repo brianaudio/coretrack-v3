@@ -5,7 +5,7 @@ import Sidebar from './Sidebar'
 import Header from './Header'
 import DashboardOverview from './modules/DashboardOverview'
 import MainDashboard from './modules/MainDashboard'
-import EnhancedTeamManagement from './modules/EnhancedTeamManagement'
+import SecureTeamManagement from './modules/SecureTeamManagement'
 import DevTools from './DevTools'
 import ProfessionalFooter from './ProfessionalFooter'
 import InventoryCenter from './modules/InventoryCenter'
@@ -135,7 +135,7 @@ function DashboardInner({ onLogout }: DashboardProps) {
       case 'team-management':
         return (
           <div className="space-y-6" key={`team-${shiftKey}`}>
-            <EnhancedTeamManagement />
+            <SecureTeamManagement />
           </div>
         )
       case 'location-management':

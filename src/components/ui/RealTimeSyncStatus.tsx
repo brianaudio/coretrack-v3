@@ -56,38 +56,6 @@ export default function RealTimeSyncStatus({ className = '' }: RealTimeSyncStatu
     }
   }, [profile?.tenantId, selectedBranch?.id])
 
-  if (!syncStatus.active) {
-    return null
-  }
-
-  return (
-    <div className={`flex items-center space-x-2 text-sm ${className}`}>
-      {/* Status Indicator */}
-      <div className="flex items-center space-x-1">
-        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-        <span className="text-green-600 dark:text-green-400 font-medium">
-          Real-time Sync Active
-        </span>
-      </div>
-
-      {/* Sync Details */}
-      <div className="flex items-center space-x-4 text-gray-600 dark:text-gray-400 text-xs">
-        <span>📋 {syncStatus.menuItemsCount} menu items</span>
-        <span>📦 {syncStatus.inventoryItemsCount} inventory items</span>
-        {lastUpdate && (
-          <span title={`Last update: ${lastUpdate.toLocaleTimeString()}`}>
-            💰 Updated {Math.round((Date.now() - lastUpdate.getTime()) / 1000)}s ago
-          </span>
-        )}
-      </div>
-
-      {/* Info Tooltip */}
-      <div 
-        className="w-4 h-4 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xs cursor-help"
-        title="Menu costs automatically update when inventory prices change"
-      >
-        ℹ️
-      </div>
-    </div>
-  )
+  // Hide the sync status display
+  return null
 }

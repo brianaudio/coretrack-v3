@@ -28,6 +28,7 @@ import FloatingCalculator from './ui/FloatingCalculator'
 import { ContextualHints } from './ui/ux-enhancements'
 import { BranchProvider } from '../lib/context/BranchContext'
 import { ShiftProvider, useShift } from '../lib/context/ShiftContext'
+import { getVersionString } from '../lib/version'
 
 export type ModuleType = 'dashboard' | 'inventory' | 'pos' | 'purchase-orders' | 'menu-builder' | 'expenses' | 'team-management' | 'location-management' | 'settings' | 'discrepancy-monitoring' | 'business-reports' | 'capital-intelligence'
 
@@ -187,7 +188,7 @@ function DashboardInner({ onLogout }: DashboardProps) {
                 </button>
               )}
               <div className="text-xs text-surface-500">
-                Logged in as {currentUser?.email} • {currentRole}
+                Logged in as {currentUser?.email} • {currentRole} • {getVersionString()}
               </div>
             </div>
           </div>

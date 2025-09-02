@@ -6,6 +6,7 @@ import { ModulePermission, UserRole } from '../lib/rbac/permissions'
 import { hasModuleAccess } from '../lib/rbac/subscriptionPermissions'
 import { useSubscription } from '../lib/context/SubscriptionContext'
 import { useBusinessSettings } from '../lib/context/BusinessSettingsContext'
+import { getVersionString } from '../lib/version'
 
 interface SidebarProps {
   activeModule: ModuleType
@@ -240,6 +241,7 @@ export default function Sidebar({
                 <div className="ml-2.5">
                   <h1 className="text-base font-bold text-surface-900">CoreTrack</h1>
                   <p className="text-xs text-surface-600">Business Management</p>
+                  <div className="text-xs text-surface-400 font-mono mt-0.5">{getVersionString()}</div>
                 </div>
               )}
             </div>

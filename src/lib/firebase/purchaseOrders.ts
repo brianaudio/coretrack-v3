@@ -673,16 +673,74 @@ export const deliverPurchaseOrderAtomicLegacy = async (
     }
 
     // 11. Trigger menu price sync asynchronously
+    console.log(`🚨 CRITICAL DEBUG: About to trigger menu price sync for delivery`);
+    console.log(`🚨 CRITICAL DEBUG: Tenant ID: ${tenantId}`);
+    console.log(`🚨 CRITICAL DEBUG: Location ID: ${result.orderData.locationId}`);
+    console.log(`🚨 CRITICAL DEBUG: Order Data:`, result.orderData);
+    
+    // Store debug info in localStorage to survive page reload
+    localStorage.setItem('lastPODeliveryDebug', JSON.stringify({
+      timestamp: new Date().toISOString(),
+      tenantId,
+      locationId: result.orderData.locationId,
+      orderData: result.orderData,
+      step: 'starting_menu_sync'
+    }));
+    
     try {
+      console.log(`🚨 CRITICAL DEBUG: Importing autoMenuPriceSync module...`);
+      localStorage.setItem('lastPODeliveryDebug', JSON.stringify({
+        timestamp: new Date().toISOString(),
+        step: 'importing_module'
+      }));
+      
       const { triggerMenuPriceSync } = await import('./autoMenuPriceSync');
+      console.log(`🚨 CRITICAL DEBUG: Import successful, triggerMenuPriceSync:`, typeof triggerMenuPriceSync);
+      
+      localStorage.setItem('lastPODeliveryDebug', JSON.stringify({
+        timestamp: new Date().toISOString(),
+        step: 'import_successful',
+        functionType: typeof triggerMenuPriceSync
+      }));
+      
       if (result.orderData.locationId) {
+        console.log(`🚨 CRITICAL DEBUG: Calling triggerMenuPriceSync now...`);
+        localStorage.setItem('lastPODeliveryDebug', JSON.stringify({
+          timestamp: new Date().toISOString(),
+          step: 'calling_trigger_function'
+        }));
+        
         const updatedMenuItems = await triggerMenuPriceSync(tenantId, result.orderData.locationId);
+        console.log(`🚨 CRITICAL DEBUG: triggerMenuPriceSync returned: ${updatedMenuItems}`);
+        
+        localStorage.setItem('lastPODeliveryDebug', JSON.stringify({
+          timestamp: new Date().toISOString(),
+          step: 'function_completed',
+          updatedMenuItems
+        }));
+        
         if (updatedMenuItems > 0) {
           console.log(`🍽️ Auto-updated ${updatedMenuItems} menu items with new ingredient costs`);
+        } else {
+          console.log(`🚨 CRITICAL DEBUG: No menu items were updated!`);
         }
+      } else {
+        console.log(`🚨 CRITICAL DEBUG: NO LOCATION ID FOUND - Cannot sync menu prices!`);
+        localStorage.setItem('lastPODeliveryDebug', JSON.stringify({
+          timestamp: new Date().toISOString(),
+          step: 'no_location_id_error'
+        }));
       }
     } catch (error) {
-      console.error('⚠️ Warning: Menu price sync failed:', error);
+      console.error('🚨 CRITICAL ERROR: Menu price sync failed:', error);
+      console.error('🚨 CRITICAL ERROR: Full error details:', error instanceof Error ? error.stack : String(error));
+      
+      localStorage.setItem('lastPODeliveryDebug', JSON.stringify({
+        timestamp: new Date().toISOString(),
+        step: 'error_occurred',
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      }));
       // Don't fail delivery for menu sync issues
     }
 

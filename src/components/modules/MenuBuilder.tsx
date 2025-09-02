@@ -35,6 +35,8 @@ import {
   handleMenuItemDeletion,
   getAffectedMenuItems
 } from '../../lib/firebase/integration'
+import { startRealTimeMenuCostSync, stopRealTimeMenuCostSync } from '../../lib/firebase/realTimeMenuCostSync'
+import RealTimeSyncStatus from '../ui/RealTimeSyncStatus'
 
 // Category to Icon mapping for seamless selection
 const CATEGORY_ICON_MAP: Record<string, string[]> = {
@@ -323,6 +325,8 @@ export default function MenuBuilder() {
   useEffect(() => {
     if (!profile?.tenantId || !selectedBranch) return
 
+    let handleMenuCostUpdate: (event: CustomEvent) => void
+
     const loadData = async () => {
       try {
         setLoading(true)
@@ -371,6 +375,21 @@ export default function MenuBuilder() {
         setInventoryItems(inventoryData)
         setAddons(addonsData)
         console.log('📊 MenuBuilder: State updated, addons.length should be:', addonsData.length)
+
+        // 🚀 START REAL-TIME MENU COST SYNCHRONIZATION
+        console.log('🔄 Starting real-time menu cost synchronization...')
+        startRealTimeMenuCostSync(profile.tenantId, locationId)
+
+        // Listen for menu cost updates
+        handleMenuCostUpdate = (event: CustomEvent) => {
+          console.log('💰 Menu costs updated automatically:', event.detail)
+          // Refresh menu items to show updated costs
+          setTimeout(() => loadData(), 1000) // Small delay to ensure Firebase has processed updates
+        }
+
+        window.addEventListener('menuCostsUpdated', handleMenuCostUpdate as EventListener)
+
+        // Cleanup function will be handled in useEffect cleanup
       } catch (error) {
         console.error('Error loading menu data:', error)
       } finally {
@@ -379,6 +398,20 @@ export default function MenuBuilder() {
     }
 
     loadData()
+
+    // Cleanup function for real-time sync
+    return () => {
+      if (profile?.tenantId && selectedBranch) {
+        const locationId = getBranchLocationId(selectedBranch.id)
+        console.log('🛑 Stopping real-time menu cost sync for location:', locationId)
+        stopRealTimeMenuCostSync(profile.tenantId, locationId)
+        
+        // Remove event listener
+        if (handleMenuCostUpdate) {
+          window.removeEventListener('menuCostsUpdated', handleMenuCostUpdate as EventListener)
+        }
+      }
+    }
   }, [profile?.tenantId, selectedBranch?.id])
 
   // Debug addons state changes
@@ -1280,6 +1313,8 @@ export default function MenuBuilder() {
               <div className="text-2xl font-light tracking-tight text-blue-900">
                 📍 {selectedBranch?.name || 'Main Branch'}
               </div>
+              {/* Real-time Sync Status */}
+              <RealTimeSyncStatus className="justify-end" />
             </div>
           </div>
         </div>

@@ -30,6 +30,7 @@ import InventoryEnhancements from './InventoryEnhancements'
 import WastageTracker from './WastageTracker'
 import WastageThresholds from './WastageThresholds'
 import WastageReports from './WastageReports'
+import { startRealTimeMenuCostSync, stopRealTimeMenuCostSync } from '../../lib/firebase/realTimeMenuCostSync'
 
 export default function InventoryCenter() {
   const { profile } = useAuth()
@@ -163,6 +164,11 @@ export default function InventoryCenter() {
         setInventoryItems(items || [])
         setLoading(false)
         
+        // 🚀 START REAL-TIME MENU COST SYNCHRONIZATION
+        // This ensures menu costs update when inventory prices change
+        console.log('🔄 Starting real-time menu cost synchronization from Inventory Center...')
+        startRealTimeMenuCostSync(profile.tenantId, locationId)
+        
         // Check for critical items and show notification if any exist
         const criticalItems = (items || []).filter(item => item.status === 'critical' || item.status === 'out')
         const lowStockItems = (items || []).filter(item => item.status === 'low')
@@ -190,6 +196,13 @@ export default function InventoryCenter() {
     return () => {
       if (unsubscribe) unsubscribe()
       clearTimeout(timeoutId)
+      
+      // 🛑 Stop real-time menu cost sync when component unmounts or branch changes
+      if (profile?.tenantId && selectedBranch) {
+        const locationId = getBranchLocationId(selectedBranch.id)
+        console.log('🛑 Stopping real-time menu cost sync from Inventory Center for location:', locationId)
+        stopRealTimeMenuCostSync(profile.tenantId, locationId)
+      }
     }
   }, [profile?.tenantId, profile?.uid, selectedBranch])
 

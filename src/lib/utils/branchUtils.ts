@@ -21,21 +21,26 @@ export const getBranchName = (branchId: string): string => {
 
 // Enhanced utility functions for the branch system with safeguards
 export const getBranchLocationId = (branchId: string): string => {
-  // Input validation and normalization for consistency
+  // Input validation for consistency
   if (!branchId || typeof branchId !== 'string') {
     console.warn('Invalid branchId provided to getBranchLocationId:', branchId)
     return 'location_main' // Safe fallback
   }
   
-  // Normalize the branch ID (trim whitespace, convert to lowercase)
-  const normalizedBranchId = branchId.trim().toLowerCase()
+  // Only trim whitespace - preserve original case for Firebase compatibility
+  const trimmedBranchId = branchId.trim()
   
-  if (normalizedBranchId === '') {
+  if (trimmedBranchId === '') {
     console.warn('Empty branchId provided, using main branch')
     return 'location_main'
   }
   
-  return `location_${normalizedBranchId}`
+  // Special handling for main branch
+  if (trimmedBranchId.toLowerCase() === 'main') {
+    return 'location_main'
+  }
+  
+  return `location_${trimmedBranchId}`
 }
 
 export const isMainBranch = (branchId: string): boolean => {

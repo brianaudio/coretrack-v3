@@ -18,7 +18,6 @@ const ProfessionalFooter: React.FC<ProfessionalFooterProps> = ({ className = '' 
           </div>
           
           <div className="flex items-center space-x-6 text-sm text-gray-600">
-            <span>v3.0.0</span>
             <span>Enterprise Edition</span>
           </div>
         </div>

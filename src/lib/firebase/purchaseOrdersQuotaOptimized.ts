@@ -224,69 +224,78 @@ export const deliverPurchaseOrderQuotaOptimized = async (
       });
     });
 
-    // QUOTA OPTIMIZATION 6: Async logging after transaction (non-blocking)
-    setTimeout(async () => {
-      try {
-        const { logInventoryMovement } = await import('./inventory');
+    // QUOTA OPTIMIZATION 6: Log movements immediately after transaction to ensure they appear
+    try {
+      const { logInventoryMovement } = await import('./inventory');
+      
+      console.log(`📝 Logging ${inventoryUpdates.length} inventory movements for delivery`);
+      
+      // Log movements immediately to ensure they appear in movements list
+      const movementPromises = inventoryUpdates.map(update => {
+        const deliveryItem = deliveryItems.find(di => 
+          di.itemName.toLowerCase().trim() === update.itemName.toLowerCase().trim()
+        );
         
-        // Log movements in parallel without blocking main flow
-        const movementPromises = inventoryUpdates.map(update => {
-          const priceChanged = Math.abs(update.newCostPerUnit - update.previousCostPerUnit) > 0.01;
-          const reason = priceChanged
-            ? `Purchase order delivery - Price updated from ₱${update.previousCostPerUnit.toFixed(2)} to ₱${update.newCostPerUnit.toFixed(2)} (weighted average)`
-            : 'Purchase order delivery received';
-
-          return logInventoryMovement({
-            itemId: update.itemId,
-            itemName: update.itemName,
-            movementType: 'receiving',
-            quantity: deliveryItems.find(di => 
-              di.itemName.toLowerCase().trim() === update.itemName.toLowerCase().trim()
-            )?.quantityReceived || 0,
-            previousStock: update.currentStock,
-            newStock: update.newStock,
-            unit: deliveryItems.find(di => 
-              di.itemName.toLowerCase().trim() === update.itemName.toLowerCase().trim()
-            )?.unit || 'piece',
-            reason,
-            userId: undefined,
-            userName: deliveredBy,
-            tenantId,
-            locationId: orderData.locationId
-          }).catch(err => console.warn('Movement log failed:', err));
-        });
-
-        await Promise.all(movementPromises);
-
-        // 🆕 NEW: Send inventory delivery notification with branch information
-        try {
-          const { notifyInventoryDelivered } = await import('./notifications');
-          
-          // Get branch name from locationId
-          const branchId = orderData.locationId?.replace('location_', '') || 'unknown';
-          const branchName = branchId.charAt(0).toUpperCase() + branchId.slice(1);
-          
-          // Count delivered items
-          const deliveredItemsCount = deliveryItems.filter(item => item.quantityReceived > 0).length;
-          
-          await notifyInventoryDelivered(
-            tenantId,
-            orderData.orderNumber || 'N/A',
-            branchName,
-            deliveredItemsCount,
-            deliveredBy,
-            orderData.supplierName || orderData.supplierId
-          );
-          
-          console.log(`📦 Inventory delivery notification sent for ${branchName}`);
-        } catch (notificationError) {
-          console.warn('Failed to send inventory delivery notification:', notificationError);
+        if (!deliveryItem) {
+          console.warn(`⚠️ Could not find delivery item for ${update.itemName}`);
+          return Promise.resolve();
         }
+        
+        const priceChanged = Math.abs(update.newCostPerUnit - update.previousCostPerUnit) > 0.01;
+        const reason = priceChanged
+          ? `Purchase order delivery - Price updated from ₱${update.previousCostPerUnit.toFixed(2)} to ₱${update.newCostPerUnit.toFixed(2)} (weighted average)`
+          : 'Purchase order delivery received';
 
-      } catch (error) {
-        console.warn('Background logging failed:', error);
+        console.log(`📈 Logging movement: ${update.itemName} +${deliveryItem.quantityReceived} ${deliveryItem.unit} in ${orderData.locationId}`);
+
+        return logInventoryMovement({
+          itemId: update.itemId,
+          itemName: update.itemName,
+          movementType: 'receiving',
+          quantity: deliveryItem.quantityReceived,
+          previousStock: update.currentStock,
+          newStock: update.newStock,
+          unit: deliveryItem.unit,
+          reason,
+          userId: undefined,
+          userName: deliveredBy,
+          tenantId,
+          locationId: orderData.locationId
+        });
+      });
+
+      await Promise.all(movementPromises);
+      console.log(`✅ Successfully logged ${inventoryUpdates.length} inventory movements`);
+
+      // Send inventory delivery notification after movements are logged
+      try {
+        const { notifyInventoryDelivered } = await import('./notifications');
+        
+        // Get branch name from locationId
+        const branchId = orderData.locationId?.replace('location_', '') || 'unknown';
+        const branchName = branchId.charAt(0).toUpperCase() + branchId.slice(1);
+        
+        // Count delivered items
+        const deliveredItemsCount = deliveryItems.filter(item => item.quantityReceived > 0).length;
+        
+        await notifyInventoryDelivered(
+          tenantId,
+          orderData.orderNumber || 'N/A',
+          branchName,
+          deliveredItemsCount,
+          deliveredBy,
+          orderData.supplierName || orderData.supplierId
+        );
+        
+        console.log(`📦 Inventory delivery notification sent for ${branchName}`);
+      } catch (notificationError) {
+        console.warn('Failed to send inventory delivery notification:', notificationError);
       }
-    }, 100); // Small delay to not block main response
+
+    } catch (error) {
+      console.error('Error logging inventory movements:', error);
+      // Don't throw here - delivery was successful, just logging failed
+    }
 
     return {
       success: true,

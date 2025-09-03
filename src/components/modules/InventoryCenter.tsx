@@ -90,15 +90,18 @@ export default function InventoryCenter() {
     setLoadingMovements(true)
     try {
       const locationId = getBranchLocationId(selectedBranch.id)
-      let limit = 50
+      let hours = 24 * 7 // Default to 7 days
       
-      // Adjust limit based on filter
-      if (movementsFilter === 'today') limit = 25
-      if (movementsFilter === 'week') limit = 100
+      // Adjust hours based on filter
+      if (movementsFilter === 'today') hours = 24
+      if (movementsFilter === 'week') hours = 24 * 7
+      if (movementsFilter === 'all') hours = 24 * 30 // 30 days for 'all'
+      
+      console.log(`🔍 Loading inventory movements for ${selectedBranch.name} (${hours} hours, locationId: ${locationId})`)
       
       const movements = await getRecentInventoryMovements(
         profile.tenantId, 
-        limit,
+        hours,      // ✅ FIXED: Pass hours instead of limit
         locationId  // Pass locationId to filter by current branch
       )
       

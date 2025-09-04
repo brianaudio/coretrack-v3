@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { FaStickyNote, FaTruck } from 'react-icons/fa'
+import { FaStickyNote } from 'react-icons/fa'
 import { useAuth } from '../../lib/context/AuthContext'
 import { useBranch } from '../../lib/context/BranchContext'
 import { 
@@ -1432,36 +1432,38 @@ export default function PurchaseOrders() {
         {/* Modals */}
         {/* Create Order Modal - Sleek & Minimalist Design */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl border border-surface-200/50 w-full max-w-6xl max-h-[95vh] overflow-hidden animate-slide-up">
+        <div className="fixed inset-0 bg-slate-900/25 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/60 w-full max-w-5xl max-h-[92vh] overflow-hidden">
             
-            {/* Enhanced Modal Header */}
-            <div className="relative bg-gradient-to-r from-primary-50/80 via-white/90 to-primary-50/80 backdrop-blur-sm border-b border-surface-200/50">
-              <div className="px-8 py-8">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-2">
-                    <h3 className="text-2xl font-bold bg-gradient-to-r from-surface-900 via-primary-600 to-surface-800 bg-clip-text text-transparent">
-                      Create Purchase Order
-                    </h3>
-                    <p className="text-surface-600 text-base">Build your supplier order with smart inventory integration</p>
-                  </div>
-                  
-                  {/* Close Button */}
-                  <button
-                    onClick={() => setShowCreateModal(false)}
-                    className="w-12 h-12 bg-surface-100/80 hover:bg-surface-200/80 rounded-2xl flex items-center justify-center transition-all duration-200 hover:scale-105 hover:rotate-90 group"
-                  >
-                    <svg className="w-5 h-5 text-surface-600 group-hover:text-surface-800 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            {/* Clean Professional Header */}
+            <div className="bg-gradient-to-r from-slate-50 to-blue-50/30 border-b border-slate-200/60 px-8 py-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                  </button>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold text-slate-900">Create Purchase Order</h3>
+                    <p className="text-sm text-slate-500 mt-0.5">Configure supplier order with intelligent inventory management</p>
+                  </div>
                 </div>
+                
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  className="w-8 h-8 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center justify-center transition-colors"
+                >
+                  <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
             </div>
             
-            {/* Modal Content with Enhanced Design */}
-            <div className="overflow-y-auto flex-1 max-h-[calc(95vh-200px)]">
-              <div className="px-8 py-8 space-y-10">
+            {/* Clean Content Layout */}
+            <div className="overflow-y-auto flex-1 max-h-[calc(92vh-140px)]">
+              <div className="px-8 py-8 space-y-8">
                 
                 {/* Supplier & Delivery Section - Modern Cards */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1854,8 +1856,8 @@ export default function PurchaseOrders() {
                             </div>
                           </div>
 
-                          {/* Calculation Display - Enhanced */}
-                          <div className="bg-gradient-to-r from-surface-50/80 to-primary-50/50 backdrop-blur-sm rounded-2xl p-6 border border-surface-200/50">
+                          {/* Calculation Display - Enhanced (Hidden for production) */}
+                          {/* <div className="bg-gradient-to-r from-surface-50/80 to-primary-50/50 backdrop-blur-sm rounded-2xl p-6 border border-surface-200/50">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               <div>
                                 <div className="text-xs font-semibold text-surface-600 mb-2 flex items-center gap-2">
@@ -1878,7 +1880,7 @@ export default function PurchaseOrders() {
                                 <div className="text-2xl font-bold text-primary-600">₱{(item.quantity * item.unitPrice).toFixed(2)}</div>
                               </div>
                             </div>
-                          </div>
+                          </div> */}
                         </div>
                       </div>
                     ))}
@@ -1916,29 +1918,6 @@ export default function PurchaseOrders() {
                   </div>
                 </div>
 
-                {/* Shipping Fee Section */}
-                <div className="bg-white/95 backdrop-blur-md rounded-3xl border border-gray-100 shadow-lg hover:shadow-xl transition-all duration-300">
-                  <div className="p-6">
-                    <div className="flex items-center gap-3 mb-6">
-                      <div className="p-3 bg-gradient-to-br from-green-100 to-green-200 rounded-xl">
-                        <FaTruck className="text-green-600" size={20} />
-                      </div>
-                      <h3 className="text-xl font-bold text-gray-800">Shipping & Fees</h3>
-                    </div>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-lg font-semibold">$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        placeholder="Enter shipping fee"
-                        value={newOrder.shippingFee || ''}
-                        onChange={(e) => setNewOrder(prev => ({ ...prev, shippingFee: parseFloat(e.target.value) || 0 }))}
-                        className="input-field pl-8 text-lg font-semibold h-14"
-                      />
-                    </div>
-                  </div>
-                </div>
-
                 {/* Order Summary */}
                 <div className="bg-gradient-to-br from-blue-50/80 via-white/95 to-indigo-50/80 backdrop-blur-md rounded-3xl border border-blue-100 shadow-xl">
                   <div className="p-8">
@@ -1948,17 +1927,13 @@ export default function PurchaseOrders() {
                     <div className="space-y-4">
                       <div className="flex justify-between items-center text-lg">
                         <span className="font-medium text-gray-600">Subtotal:</span>
-                        <span className="font-bold text-xl text-gray-800">${calculateTotals(newOrder.items, newOrder.shippingFee || 0).subtotal.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-lg">
-                        <span className="font-medium text-gray-600">Shipping Fee:</span>
-                        <span className="font-bold text-xl text-gray-800">${(newOrder.shippingFee || 0).toFixed(2)}</span>
+                        <span className="font-bold text-xl text-gray-800">₱{calculateTotals(newOrder.items, newOrder.shippingFee || 0).subtotal.toFixed(2)}</span>
                       </div>
                       <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
                       <div className="flex justify-between items-center text-xl">
-                        <span className="font-bold text-gray-800">Total:</span>
+                        <span className="font-bold text-gray-800">Total (includes shipping fee):</span>
                         <span className="font-bold text-2xl bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                          ${calculateTotals(newOrder.items, newOrder.shippingFee || 0).total.toFixed(2)}
+                          ₱{calculateTotals(newOrder.items, newOrder.shippingFee || 0).total.toFixed(2)}
                         </span>
                       </div>
                     </div>
@@ -1967,18 +1942,19 @@ export default function PurchaseOrders() {
               </div>
 
               {/* Modal Footer */}
-              <div className="sticky bottom-0 bg-white/95 backdrop-blur-md border-t border-gray-200 px-8 py-6">
+              {/* Clean Action Buttons */}
+              <div className="sticky bottom-0 bg-white border-t border-slate-200 px-8 py-6">
                 <div className="flex gap-4">
                   <button
                     onClick={() => setShowCreateModal(false)}
-                    className="flex-1 btn-secondary py-4 text-lg font-medium transition-all duration-200 hover:scale-[1.02]"
+                    className="flex-1 px-6 py-3 border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleCreateOrder}
                     disabled={!newOrder.supplierId || newOrder.items.length === 0}
-                    className="flex-1 btn-primary py-4 text-lg font-medium transition-all duration-200 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                   >
                     Create Purchase Order
                   </button>

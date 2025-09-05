@@ -6,6 +6,195 @@ import { useBranch } from '../../lib/context/BranchContext'
 import { getBranchLocationId } from '../../lib/utils/branchUtils'
 import { InventoryItem, InventoryMovement } from '../../lib/firebase/inventory'
 import { useToast } from '../ui/Toast'
+import { createPurchaseOrder } from '../../lib/firebase/purchaseOrders'
+
+// Quick Reorder Modal Component
+function QuickReorderModal({ 
+  item, 
+  isOpen, 
+  onClose, 
+  insightSource 
+}: { 
+  item: any
+  isOpen: boolean
+  onClose: () => void
+  insightSource: string
+}) {
+  const { profile } = useAuth()
+  const { selectedBranch } = useBranch()
+  const { addToast } = useToast()
+  const [loading, setLoading] = useState(false)
+  const [formData, setFormData] = useState({
+    supplierName: '',
+    quantity: item?.suggestedQuantity || 0,
+    unitPrice: item?.costPerUnit || 0,
+    notes: `Quick reorder from ${insightSource} - ${item?.name}`
+  })
+
+  useEffect(() => {
+    if (item) {
+      setFormData({
+        supplierName: '',
+        quantity: item.suggestedQuantity || 0,
+        unitPrice: item.costPerUnit || 0,
+        notes: `Quick reorder from ${insightSource} - ${item.name}`
+      })
+    }
+  }, [item, insightSource])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+
+    try {
+      if (!selectedBranch || !profile) {
+        throw new Error('Missing branch or profile information')
+      }
+
+      const locationId = getBranchLocationId(selectedBranch.id)
+      const subtotal = formData.quantity * formData.unitPrice
+      const tax = 0 // No tax for now
+      const total = subtotal + tax
+
+      const orderData = {
+        supplierId: 'quick-reorder', // Temporary supplier ID for quick orders
+        supplierName: formData.supplierName,
+        items: [{
+          itemName: item.name,
+          description: `Quick reorder for ${item.name}`,
+          quantity: formData.quantity,
+          unit: item.unit || 'pcs',
+          unitPrice: formData.unitPrice,
+          total: formData.quantity * formData.unitPrice
+        }],
+        subtotal,
+        tax,
+        total,
+        expectedDelivery: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+        notes: formData.notes,
+        requestor: profile.displayName || profile.email,
+        createdBy: profile.uid,
+        tenantId: profile.tenantId,
+        locationId
+      }
+
+      await createPurchaseOrder(orderData)
+      addToast(`Quick reorder created for ${item.name}`, 'success')
+      onClose()
+    } catch (error) {
+      console.error('Error creating quick reorder:', error)
+      addToast('Failed to create quick reorder', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Quick Reorder</h3>
+              <p className="text-sm text-gray-600 mt-1">Fast purchase order for {item?.name}</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Supplier Name</label>
+            <input
+              type="text"
+              required
+              value={formData.supplierName}
+              onChange={(e) => setFormData(prev => ({ ...prev, supplierName: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Enter supplier name"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
+              <input
+                type="number"
+                required
+                min="1"
+                value={formData.quantity}
+                onChange={(e) => setFormData(prev => ({ ...prev, quantity: Number(e.target.value) }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Unit Price (₱)</label>
+              <input
+                type="number"
+                required
+                min="0"
+                step="0.01"
+                value={formData.unitPrice}
+                onChange={(e) => setFormData(prev => ({ ...prev, unitPrice: Number(e.target.value) }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              rows={3}
+              placeholder="Additional notes..."
+            />
+          </div>
+
+          {/* Total */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium text-gray-600">Total Amount:</span>
+              <span className="text-lg font-bold text-gray-900">
+                ₱{(formData.quantity * formData.unitPrice).toLocaleString()}
+              </span>
+            </div>
+          </div>
+
+          {/* Buttons */}
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {loading ? 'Creating...' : 'Create Order'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
 
 // 📊 Smart Reorder Suggestions Component
 export function SmartReorderSuggestions({ 
@@ -16,7 +205,19 @@ export function SmartReorderSuggestions({
   recentMovements: InventoryMovement[]
 }) {
   const [reorderSuggestions, setReorderSuggestions] = useState<any[]>([])
+  const [quickReorderModal, setQuickReorderModal] = useState<{
+    isOpen: boolean
+    item: any | null
+  }>({ isOpen: false, item: null })
   const { addToast } = useToast()
+
+  const openQuickReorder = (item: any) => {
+    setQuickReorderModal({ isOpen: true, item })
+  }
+
+  const closeQuickReorder = () => {
+    setQuickReorderModal({ isOpen: false, item: null })
+  }
 
   useEffect(() => {
     const generateSuggestions = () => {
@@ -120,12 +321,12 @@ export function SmartReorderSuggestions({
               </div>
               <div className="flex gap-2">
                 <button 
-                  onClick={() => addToast(`Added ${item.name} to reorder list`, 'success')}
-                  className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+                  onClick={() => openQuickReorder(item)}
+                  className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                  Add to Reorder
+                  Quick Reorder
                 </button>
-                <button className="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200">
+                <button className="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition-colors">
                   Skip
                 </button>
               </div>
@@ -150,6 +351,14 @@ export function SmartReorderSuggestions({
           </button>
         </div>
       </div>
+
+      {/* Quick Reorder Modal */}
+      <QuickReorderModal
+        item={quickReorderModal.item}
+        isOpen={quickReorderModal.isOpen}
+        onClose={closeQuickReorder}
+        insightSource="Smart Inventory Insights"
+      />
     </div>
   )
 }

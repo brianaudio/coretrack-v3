@@ -364,18 +364,6 @@ export default function BranchSelector() {
                         <span className="capitalize text-xs">{branch.status}</span>
                       </div>
                     </div>
-
-                    {/* Branch Stats - Simplified */}
-                    <div className="flex items-center space-x-4 mt-2 text-xs">
-                      <div className="text-gray-600">
-                        <span className="font-medium">₱{(branch.stats?.totalRevenue / 1000 || 0).toFixed(0)}k</span>
-                        <span className="text-gray-400 ml-1">revenue</span>
-                      </div>
-                      <div className="text-gray-600">
-                        <span className="font-medium">{branch.stats?.totalOrders || 0}</span>
-                        <span className="text-gray-400 ml-1">orders</span>
-                      </div>
-                    </div>
                   </div>
                 </button>
 

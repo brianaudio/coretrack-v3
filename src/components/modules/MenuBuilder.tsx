@@ -37,6 +37,7 @@ import {
 } from '../../lib/firebase/integration'
 import { startRealTimeMenuCostSync, stopRealTimeMenuCostSync } from '../../lib/firebase/realTimeMenuCostSync'
 import RealTimeSyncStatus from '../ui/RealTimeSyncStatus'
+import { useToast } from '../ui/Toast'
 
 // Category to Icon mapping for seamless selection
 const CATEGORY_ICON_MAP: Record<string, string[]> = {
@@ -267,6 +268,7 @@ function CategoryIconSelector({ category, selectedIcon, onIconChange }: Category
 export default function MenuBuilder() {
   const { profile } = useAuth()
   const { selectedBranch } = useBranch()
+  const { addToast } = useToast()
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [categories, setCategories] = useState<MenuCategory[]>([])
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
@@ -383,6 +385,13 @@ export default function MenuBuilder() {
         // Listen for menu cost updates
         handleMenuCostUpdate = (event: CustomEvent) => {
           console.log('💰 Menu costs updated automatically:', event.detail)
+          
+          // 🛡️ MODAL STATE PROTECTION: Prevent background updates when edit modal is open
+          if (editingItem) {
+            console.log('⏸️ Skipping real-time update - edit modal is open')
+            return
+          }
+          
           // Refresh menu items to show updated costs
           setTimeout(() => loadData(), 1000) // Small delay to ensure Firebase has processed updates
         }
@@ -458,6 +467,9 @@ export default function MenuBuilder() {
       
       setMenuItems(updatedItems)
       
+      // Show success notification
+      addToast(`Menu item "${newItem.name}" created successfully`, 'success')
+      
       // Reset form
       setNewItem({
         name: '',
@@ -471,7 +483,7 @@ export default function MenuBuilder() {
       setShowCreateModal(false)
     } catch (error) {
       console.error('Error creating menu item:', error)
-      alert('Error creating menu item. Please try again.')
+      addToast('Error creating menu item. Please try again.', 'error')
     }
   }
 
@@ -479,6 +491,8 @@ export default function MenuBuilder() {
     if (!profile?.tenantId || !editingItem) return
 
     try {
+      console.log('🔄 Starting menu item update for:', editingItem.name)
+      
       await updateMenuItem(profile.tenantId, editingItem.id!, {
         name: editingItem.name,
         description: editingItem.description,
@@ -488,23 +502,35 @@ export default function MenuBuilder() {
         ingredients: editingItem.ingredients
       })
       
+      console.log('✅ Firebase update completed for:', editingItem.name)
+      
       // Update local state
       setMenuItems(prev => prev.map(item => 
         item.id === editingItem.id ? editingItem : item
       ))
       
-      // Sync changes to POS (silent sync)
+      console.log('✅ Local state updated for:', editingItem.name)
+      
+      // Show success notification
+      addToast(`Menu item "${editingItem.name}" updated successfully`, 'success')
+      
+      // Sync changes to POS (silent sync) - Don't let this block modal closure
       try {
         await handleMenuItemUpdate(editingItem)
         console.log('✅ Menu item updated and synced to POS:', editingItem.name)
       } catch (syncError) {
-        console.error('❌ Error syncing update to POS:', syncError)
+        console.error('❌ Error syncing update to POS (non-blocking):', syncError)
+        // Don't throw - POS sync failure shouldn't prevent modal closure
       }
       
+      console.log('🎯 Closing edit modal for:', editingItem.name)
+      // 🎯 AUTO-MINIMIZE: Close modal after successful update
       setEditingItem(null)
+      console.log('✅ Edit modal closed successfully')
+      
     } catch (error) {
       console.error('Error updating menu item:', error)
-      alert('Error updating menu item. Please try again.')
+      addToast('Error updating menu item. Please try again.', 'error')
     }
   }
 
@@ -523,9 +549,13 @@ export default function MenuBuilder() {
       }
       
       setMenuItems(prev => prev.filter(item => item.id !== itemId))
+      
+      // Show success notification
+      const deletedItem = menuItems.find(item => item.id === itemId)
+      addToast(`Menu item "${deletedItem?.name || 'Item'}" deleted successfully`, 'success')
     } catch (error) {
       console.error('Error deleting menu item:', error)
-      alert('Error deleting menu item. Please try again.')
+      addToast('Error deleting menu item. Please try again.', 'error')
     }
   }
 
@@ -756,11 +786,16 @@ export default function MenuBuilder() {
         selectedItems.has(item.id!) ? { ...item, status: newStatus } : item
       ))
       
+      // Show success notification
+      const statusText = newStatus === 'active' ? 'activated' : 'deactivated'
+      addToast(`${selectedItems.size} menu item(s) ${statusText} successfully`, 'success')
+      
       // Clear selection
       setSelectedItems(new Set())
       setBulkMode(false)
     } catch (error) {
       console.error('Error updating items status:', error)
+      addToast('Error updating menu items status. Please try again.', 'error')
     }
   }
 
@@ -780,11 +815,15 @@ export default function MenuBuilder() {
       // Update local state
       setMenuItems(prev => prev.filter(item => !selectedItems.has(item.id!)))
       
+      // Show success notification
+      addToast(`${selectedItems.size} menu item(s) deleted successfully`, 'success')
+      
       // Clear selection
       setSelectedItems(new Set())
       setBulkMode(false)
     } catch (error) {
       console.error('Error deleting items:', error)
+      addToast('Error deleting menu items. Please try again.', 'error')
     }
   }
 
@@ -823,8 +862,13 @@ export default function MenuBuilder() {
       setMenuItems(prev => prev.map(menuItem => 
         menuItem.id === item.id ? { ...menuItem, status: newStatus } : menuItem
       ))
+      
+      // Show success notification
+      const statusText = newStatus === 'active' ? 'activated' : 'deactivated'
+      addToast(`"${item.name}" ${statusText} successfully`, 'success')
     } catch (error) {
       console.error('Error toggling status:', error)
+      addToast(`Error updating "${item.name}" status. Please try again.`, 'error')
     }
   }
 
@@ -1708,18 +1752,18 @@ export default function MenuBuilder() {
                     </button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
                     {filteredItems.map((item) => (
                       <div 
                         key={item.id} 
-                        className={`relative bg-white/90 backdrop-blur-sm rounded-2xl border border-surface-200/50 overflow-hidden hover:shadow-xl hover:shadow-surface-200/25 transition-all duration-300 hover:-translate-y-1 ${
+                        className={`group relative bg-white rounded-3xl shadow-sm hover:shadow-2xl border border-gray-100 overflow-hidden transition-all duration-300 hover:-translate-y-2 ${
                           bulkMode ? 'cursor-pointer' : ''
                         } ${
                           bulkMode 
                             ? selectedItems.has(item.id!) 
-                              ? 'border-primary-300 bg-primary-50/50 ring-2 ring-primary-200' 
-                              : 'border-surface-200/50 hover:border-primary-300'
-                            : 'border-surface-200/50 hover:border-surface-300'
+                              ? 'border-blue-200 bg-blue-50/30 ring-2 ring-blue-100 shadow-lg' 
+                              : 'border-gray-100 hover:border-blue-200'
+                            : 'border-gray-100 hover:border-gray-200'
                         }`}
                         onClick={bulkMode ? (e) => {
                           e.preventDefault();
@@ -1729,78 +1773,125 @@ export default function MenuBuilder() {
                       >
                         {/* Bulk Mode Checkbox */}
                         {bulkMode && (
-                          <div className="absolute top-3 left-3 z-10">
-                            <input
-                              type="checkbox"
-                              checked={selectedItems.has(item.id!)}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                handleSelectItem(item.id!);
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-5 h-5 text-primary-600 bg-white/90 border-surface-300 rounded-lg focus:ring-2 focus:ring-primary-500/20 transition-colors"
-                            />
+                          <div className="absolute top-4 left-4 z-10">
+                            <div className="w-6 h-6 bg-white rounded-xl shadow-lg flex items-center justify-center">
+                              <input
+                                type="checkbox"
+                                checked={selectedItems.has(item.id!)}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  handleSelectItem(item.id!);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-4 h-4 text-blue-600 bg-transparent border-2 border-gray-300 rounded focus:ring-2 focus:ring-blue-500/20 transition-colors"
+                              />
+                            </div>
                           </div>
                         )}
                         
-                        {/* Card Header */}
-                        <div className="p-5 pb-3">
-                          <div className="mb-3">
-                            <h3 className="font-semibold text-surface-900 text-base truncate flex items-center gap-2">
-                              {item.emoji && <span className="text-xl">{item.emoji}</span>}
-                              {item.name}
-                            </h3>
+                        {/* Product Image/Icon Area */}
+                        <div className="relative h-32 bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+                          <div className="text-4xl group-hover:scale-110 transition-transform duration-300">
+                            {item.emoji || '🍽️'}
                           </div>
-                          <p className="text-sm text-surface-600 line-clamp-2 mb-3 leading-relaxed">{item.description}</p>
-                          <div className="inline-flex items-center px-2.5 py-1 bg-surface-100 text-surface-700 rounded-lg text-xs font-medium">
-                            {item.category}
+                          
+                          {/* Status Badge */}
+                          <div className="absolute top-4 right-4">
+                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                              item.status === 'active' 
+                                ? 'bg-green-100 text-green-800' 
+                                : item.status === 'out_of_stock'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {item.status === 'active' ? 'Available' : item.status === 'out_of_stock' ? 'Out of Stock' : 'Inactive'}
+                            </span>
                           </div>
                         </div>
 
-                        {/* Card Body */}
-                        <div className="px-5 pb-5">
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-xl font-bold bg-gradient-to-r from-surface-900 to-surface-700 bg-clip-text text-transparent">
-                              ₱{item.price.toFixed(2)}
-                            </span>
-                            <span className="text-sm text-surface-500 bg-surface-50 px-2 py-1 rounded-lg">
-                              Cost: ₱{item.cost.toFixed(2)}
-                            </span>
-                          </div>
-                          
-                          <div className="flex items-center justify-between mb-4">
-                            <span className="text-sm font-semibold text-green-600 bg-green-50 px-2.5 py-1 rounded-lg">
-                              Profit: ₱{(item.price - item.cost).toFixed(2)}
-                            </span>
-                            <span className={`text-xs px-3 py-1.5 rounded-full font-medium ${getStockStatusColor(getStockStatus(item))}`}>
-                              {getStockStatusText(getStockStatus(item), calculateMaxServings(item))}
-                            </span>
+                        {/* Product Details */}
+                        <div className="p-6">
+                          {/* Title & Category */}
+                          <div className="mb-4">
+                            <h3 className="font-semibold text-gray-900 text-lg mb-1 line-clamp-1">
+                              {item.name}
+                            </h3>
+                            <div className="flex items-center justify-between">
+                              <span className="inline-flex items-center px-2.5 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium">
+                                {item.category}
+                              </span>
+                              <span className={`text-xs px-2 py-1 rounded-lg font-medium ${getStockStatusColor(getStockStatus(item))}`}>
+                                {calculateMaxServings(item)} servings
+                              </span>
+                            </div>
                           </div>
 
-                          {/* Card Actions */}
+                          {/* Description */}
+                          {item.description && (
+                            <p className="text-sm text-gray-600 line-clamp-2 mb-4 leading-relaxed">
+                              {item.description}
+                            </p>
+                          )}
+
+                          {/* Pricing Row */}
+                          <div className="flex items-center justify-between mb-6">
+                            <div className="flex flex-col">
+                              <span className="text-2xl font-bold text-gray-900">
+                                ₱{item.price.toFixed(2)}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                Cost: ₱{item.cost.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm font-semibold text-green-600">
+                                +₱{(item.price - item.cost).toFixed(2)}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {item.price > 0 && item.cost > 0 ? 
+                                  `${(((item.price - item.cost) / item.price) * 100).toFixed(0)}% margin`
+                                  : 'No margin'
+                                }
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Action Buttons */}
                           {!bulkMode && (
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-3">
+                              {/* Primary Actions Row */}
+                              <div className="grid grid-cols-2 gap-3">
+                                <button
+                                  onClick={() => setEditingItem(item)}
+                                  className="flex items-center justify-center px-4 py-2.5 text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-2xl transition-all duration-200 font-medium group"
+                                >
+                                  <svg className="w-4 h-4 mr-1.5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDuplicateMenuItem(item)}
+                                  className="flex items-center justify-center px-4 py-2.5 text-sm bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-2xl transition-all duration-200 font-medium group"
+                                >
+                                  <svg className="w-4 h-4 mr-1.5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                  Copy
+                                </button>
+                              </div>
+                              
+                              {/* Delete Button */}
                               <button
-                                onClick={() => setEditingItem(item)}
-                                className="px-3 py-2.5 text-sm bg-primary-50 text-primary-700 rounded-xl hover:bg-primary-100 transition-all duration-200 font-medium"
+                                onClick={() => handleDeleteMenuItem(item.id!)}
+                                className="w-full flex items-center justify-center px-4 py-2.5 text-sm bg-red-50 hover:bg-red-100 text-red-700 rounded-2xl transition-all duration-200 font-medium group"
                               >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleDuplicateMenuItem(item)}
-                                className="px-3 py-2.5 text-sm bg-green-50 text-green-700 rounded-xl hover:bg-green-100 transition-all duration-200 font-medium"
-                              >
-                                Copy
+                                <svg className="w-4 h-4 mr-1.5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                Delete
                               </button>
                             </div>
-                          )}
-                          {!bulkMode && (
-                            <button
-                              onClick={() => handleDeleteMenuItem(item.id!)}
-                              className="w-full mt-2 px-3 py-2.5 text-sm bg-red-50 text-red-700 rounded-xl hover:bg-red-100 transition-all duration-200 font-medium"
-                            >
-                              Delete
-                            </button>
                           )}
                         </div>
                       </div>
@@ -2384,217 +2475,259 @@ export default function MenuBuilder() {
         </div>
       )}
 
-      {/* Edit Item Modal */}
+      {/* Modern Minimalist Edit Item Modal */}
       {editingItem && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Edit Menu Item</h3>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Basic Information */}
-              <div className="space-y-4">
-                <h4 className="font-medium text-gray-900 border-b pb-2">Basic Information</h4>
-                
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Name
-                    </label>
-                    <input
-                      type="text"
-                      value={editingItem.name}
-                      onChange={(e) => setEditingItem(prev => prev ? { ...prev, name: e.target.value } : null)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Description
-                  </label>
-                  <textarea
-                    value={editingItem.description}
-                    onChange={(e) => setEditingItem(prev => prev ? { ...prev, description: e.target.value } : null)}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                {/* Category-based Icon Selector for Edit */}
-                {editingItem.category && (
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <CategoryIconSelector
-                      category={editingItem.category}
-                      selectedIcon={editingItem.emoji || ''}
-                      onIconChange={(icon) => setEditingItem(prev => prev ? { ...prev, emoji: icon } : null)}
-                    />
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Price
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={editingItem.price}
-                      onChange={(e) => setEditingItem(prev => prev ? { ...prev, price: parseFloat(e.target.value) || 0 } : null)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[95vh] overflow-hidden">
+            {/* Clean Header */}
+            <div className="px-8 py-6 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-blue-50 rounded-2xl flex items-center justify-center">
+                    <span className="text-xl">{editingItem.emoji || '🍽️'}</span>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Status
-                    </label>
-                    <select
-                      value={editingItem.status}
-                      onChange={(e) => setEditingItem(prev => prev ? { ...prev, status: e.target.value as any } : null)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                      <option value="out_of_stock">Out of Stock</option>
-                    </select>
+                    <h3 className="text-xl font-semibold text-gray-900">Edit Menu Item</h3>
+                    <p className="text-sm text-gray-500">Update your product details</p>
                   </div>
                 </div>
-
-                {/* Cost Summary */}
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h5 className="text-sm font-medium text-gray-900 mb-2">Cost Summary</h5>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Ingredient Cost:</span>
-                      <span className="font-medium">₱{editingItem.ingredients.reduce((sum, ing) => sum + ing.cost, 0).toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Selling Price:</span>
-                      <span className="font-medium">₱{editingItem.price.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between border-t pt-2">
-                      <span className="text-gray-600">Profit Margin:</span>
-                      <span className="font-medium text-green-600">
-                        {editingItem.price > 0 && editingItem.ingredients.length > 0 ? 
-                          `₱${(editingItem.price - editingItem.ingredients.reduce((sum, ing) => sum + ing.cost, 0)).toFixed(2)} (${(((editingItem.price - editingItem.ingredients.reduce((sum, ing) => sum + ing.cost, 0)) / editingItem.price) * 100).toFixed(1)}%)`
-                          : 'N/A'
-                        }
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Ingredients Section */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between border-b pb-2">
-                  <div>
-                    <h4 className="font-medium text-gray-900">Recipe Ingredients</h4>
-                    <p className="text-sm text-gray-600">Manage ingredients to calculate product cost</p>
-                  </div>
-                  <button
-                    onClick={addIngredientToEdit}
-                    className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    Add Ingredient
-                  </button>
-                </div>
-
-                {editingItem.ingredients.length > 0 ? (
-                  <div className="space-y-3 max-h-80 overflow-y-auto">
-                    {editingItem.ingredients.map((ingredient, index) => (
-                      <div key={index} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                        <div className="flex-1 min-w-0">
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Inventory Item
-                          </label>
-                          <select
-                            value={ingredient.inventoryItemId}
-                            onChange={(e) => updateIngredientInEdit(index, 'inventoryItemId', e.target.value)}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          >
-                            <option value="">Select ingredient</option>
-                            {inventoryItems.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.name} ({item.unit})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="w-16">
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Qty
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={ingredient.quantity}
-                            onChange={(e) => updateIngredientInEdit(index, 'quantity', parseFloat(e.target.value) || 0)}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          />
-                        </div>
-                        <div className="w-12">
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Unit
-                          </label>
-                          <input
-                            type="text"
-                            value={ingredient.unit}
-                            readOnly
-                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-gray-100 text-gray-600"
-                          />
-                        </div>
-                        <div className="w-16">
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Cost
-                          </label>
-                          <input
-                            type="text"
-                            value={`₱${ingredient.cost.toFixed(2)}`}
-                            readOnly
-                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-gray-100 text-gray-600"
-                          />
-                        </div>
-                        <button
-                          onClick={() => removeIngredientFromEdit(index)}
-                          className="p-1 text-red-600 hover:bg-red-50 rounded mt-5"
-                          title="Remove ingredient"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <svg className="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                    </svg>
-                    <p className="text-sm">No ingredients added yet</p>
-                    <p className="text-xs text-gray-400">Click &quot;Add Ingredient&quot; to start building your recipe</p>
-                  </div>
-                )}
+                <button
+                  onClick={() => setEditingItem(null)}
+                  className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors"
+                >
+                  <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
             </div>
 
-            <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
-              <button
-                onClick={() => setEditingItem(null)}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleUpdateMenuItem}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Update Item
-              </button>
+            {/* Content Body */}
+            <div className="px-8 py-6 max-h-[70vh] overflow-y-auto">
+              <div className="space-y-8">
+                {/* Essential Details */}
+                <div className="space-y-6">
+                  {/* Name & Icon Row */}
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Product Name
+                      </label>
+                      <input
+                        type="text"
+                        value={editingItem.name}
+                        onChange={(e) => setEditingItem(prev => prev ? { ...prev, name: e.target.value } : null)}
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                        placeholder="Enter product name"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Description
+                    </label>
+                    <textarea
+                      value={editingItem.description}
+                      onChange={(e) => setEditingItem(prev => prev ? { ...prev, description: e.target.value } : null)}
+                      rows={3}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all resize-none"
+                      placeholder="Product description (optional)"
+                    />
+                  </div>
+
+                  {/* Icon Selector */}
+                  {editingItem.category && (
+                    <div className="bg-gray-50 rounded-2xl p-6">
+                      <label className="block text-sm font-medium text-gray-700 mb-3">
+                        Product Icon
+                      </label>
+                      <CategoryIconSelector
+                        category={editingItem.category}
+                        selectedIcon={editingItem.emoji || ''}
+                        onIconChange={(icon) => setEditingItem(prev => prev ? { ...prev, emoji: icon } : null)}
+                      />
+                    </div>
+                  )}
+
+                  {/* Price & Status */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Price (₱)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={editingItem.price}
+                        onChange={(e) => setEditingItem(prev => prev ? { ...prev, price: parseFloat(e.target.value) || 0 } : null)}
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Status
+                      </label>
+                      <select
+                        value={editingItem.status}
+                        onChange={(e) => setEditingItem(prev => prev ? { ...prev, status: e.target.value as any } : null)}
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                      >
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                        <option value="out_of_stock">Out of Stock</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Smart Cost Analytics */}
+                {editingItem.ingredients.length > 0 && (
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6">
+                    <h5 className="font-medium text-gray-900 mb-4 flex items-center">
+                      <div className="w-6 h-6 bg-blue-100 rounded-lg flex items-center justify-center mr-2">
+                        <svg className="w-3 h-3 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      Profit Analytics
+                    </h5>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="text-center">
+                        <div className="text-sm text-gray-600">Cost</div>
+                        <div className="text-lg font-semibold text-red-600">
+                          ₱{editingItem.ingredients.reduce((sum, ing) => sum + ing.cost, 0).toFixed(2)}
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-sm text-gray-600">Revenue</div>
+                        <div className="text-lg font-semibold text-blue-600">
+                          ₱{editingItem.price.toFixed(2)}
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-sm text-gray-600">Profit</div>
+                        <div className="text-lg font-semibold text-green-600">
+                          {editingItem.price > 0 && editingItem.ingredients.length > 0 ? 
+                            `₱${(editingItem.price - editingItem.ingredients.reduce((sum, ing) => sum + ing.cost, 0)).toFixed(2)}`
+                            : '₱0.00'
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Ingredients Management */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium text-gray-900">Recipe Ingredients</h4>
+                      <p className="text-sm text-gray-500">Manage your product recipe</p>
+                    </div>
+                    <button
+                      onClick={addIngredientToEdit}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors text-sm font-medium"
+                    >
+                      + Add
+                    </button>
+                  </div>
+
+                  {editingItem.ingredients.length > 0 ? (
+                    <div className="space-y-3 max-h-60 overflow-y-auto">
+                      {editingItem.ingredients.map((ingredient, index) => (
+                        <div key={index} className="bg-white border border-gray-200 rounded-2xl p-4">
+                          <div className="grid grid-cols-12 gap-3 items-center">
+                            <div className="col-span-5">
+                              <select
+                                value={ingredient.inventoryItemId}
+                                onChange={(e) => updateIngredientInEdit(index, 'inventoryItemId', e.target.value)}
+                                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              >
+                                <option value="">Select ingredient</option>
+                                {inventoryItems.map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="col-span-2">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={ingredient.quantity}
+                                onChange={(e) => updateIngredientInEdit(index, 'quantity', parseFloat(e.target.value) || 0)}
+                                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                                placeholder="Qty"
+                              />
+                            </div>
+                            <div className="col-span-2">
+                              <input
+                                type="text"
+                                value={ingredient.unit}
+                                readOnly
+                                className="w-full px-3 py-2 text-sm bg-gray-100 border border-gray-200 rounded-xl text-gray-600 text-center"
+                              />
+                            </div>
+                            <div className="col-span-2">
+                              <input
+                                type="text"
+                                value={`₱${ingredient.cost.toFixed(2)}`}
+                                readOnly
+                                className="w-full px-3 py-2 text-sm bg-gray-100 border border-gray-200 rounded-xl text-gray-600 text-center"
+                              />
+                            </div>
+                            <div className="col-span-1">
+                              <button
+                                onClick={() => removeIngredientFromEdit(index)}
+                                className="w-8 h-8 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl flex items-center justify-center transition-colors"
+                                title="Remove ingredient"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 px-4">
+                      <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                      </div>
+                      <p className="text-gray-600 font-medium">No ingredients yet</p>
+                      <p className="text-sm text-gray-400 mt-1">Add ingredients to calculate costs automatically</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Action Footer */}
+            <div className="px-8 py-6 bg-gray-50 border-t border-gray-100">
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setEditingItem(null)}
+                  className="px-6 py-3 text-gray-700 bg-white border border-gray-300 rounded-2xl hover:bg-gray-50 transition-colors font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpdateMenuItem}
+                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl transition-colors font-medium shadow-lg"
+                >
+                  Save Changes
+                </button>
+              </div>
             </div>
           </div>
         </div>

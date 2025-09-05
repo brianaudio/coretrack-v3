@@ -37,6 +37,7 @@ export interface PurchaseOrderItem {
   quantity: number;
   unit: string;
   unitPrice: number;
+  shippingFee?: number; // Shipping fee for this specific item
   total: number;
   quantityReceived?: number; // For tracking partial deliveries
 }
@@ -48,6 +49,7 @@ export interface PurchaseOrder {
   supplierName: string;
   items: PurchaseOrderItem[];
   subtotal: number;
+  shippingFee?: number; // Added shipping fee field
   tax: number;
   total: number;
   status: 'draft' | 'pending' | 'approved' | 'ordered' | 'partially_delivered' | 'delivered' | 'cancelled';
@@ -80,6 +82,7 @@ export interface CreatePurchaseOrder {
   supplierName: string;
   items: PurchaseOrderItem[];
   subtotal: number;
+  shippingFee?: number; // Added shipping fee field
   tax: number;
   total: number;
   expectedDelivery: Date;
@@ -414,15 +417,15 @@ export const deliverPurchaseOrderAtomicLegacy = async (
         continue;
       }
 
-      // Calculate new stock and cost
+      // Calculate new stock and cost (shipping distribution happens in transaction)
       const newStock = matchingItem.currentStock + deliveryItem.quantityReceived;
       let newCostPerUnit = matchingItem.costPerUnit || 0;
-
+      
       if (deliveryItem.unitPrice && deliveryItem.unitPrice > 0) {
         if (!matchingItem.costPerUnit || matchingItem.costPerUnit === 0) {
           newCostPerUnit = deliveryItem.unitPrice;
         } else {
-          // Weighted average cost
+          // Basic weighted average (final calculation with shipping happens in transaction)
           const existingValue = matchingItem.currentStock * matchingItem.costPerUnit;
           const newValue = deliveryItem.quantityReceived * deliveryItem.unitPrice;
           const totalQuantity = matchingItem.currentStock + deliveryItem.quantityReceived;
@@ -504,18 +507,44 @@ export const deliverPurchaseOrderAtomicLegacy = async (
         const currentStock = currentData.currentStock || 0;
         const newStock = currentStock + update.deliveryItem.quantityReceived;
 
-        // Recalculate cost with current stock data
+        // Recalculate cost with current stock data INCLUDING SHIPPING DISTRIBUTION
         let newCostPerUnit = currentData.costPerUnit || 0;
+        
+        // Calculate unit price including distributed shipping cost
+        let effectiveUnitPrice = update.deliveryItem.unitPrice;
         if (update.deliveryItem.unitPrice && update.deliveryItem.unitPrice > 0) {
+          // If order has shipping fee, calculate distributed shipping per unit
+          const orderShippingFee = orderData.shippingFee || 0;
+          if (orderShippingFee > 0) {
+            // Distribute shipping proportionally based on item value
+            const orderSubtotal = orderData.items.reduce((sum: number, item: any) => sum + (item.quantity * item.unitPrice), 0);
+            if (orderSubtotal > 0) {
+              const itemTotal = update.deliveryItem.quantityReceived * update.deliveryItem.unitPrice;
+              const distributedShipping = (itemTotal / orderSubtotal) * orderShippingFee;
+              const shippingPerUnit = distributedShipping / update.deliveryItem.quantityReceived;
+              effectiveUnitPrice = update.deliveryItem.unitPrice + shippingPerUnit;
+              
+              console.log(`📦 Shipping Distribution for ${update.deliveryItem.itemName}:`);
+              console.log(`   - Base Unit Price: $${update.deliveryItem.unitPrice.toFixed(4)}`);
+              console.log(`   - Distributed Shipping: $${distributedShipping.toFixed(2)} ($${shippingPerUnit.toFixed(4)}/unit)`);
+              console.log(`   - Effective Unit Price: $${effectiveUnitPrice.toFixed(4)}`);
+            }
+          }
+          
+          // Calculate weighted average with effective unit price (including shipping)
           if (!currentData.costPerUnit || currentData.costPerUnit === 0) {
-            newCostPerUnit = update.deliveryItem.unitPrice;
+            newCostPerUnit = effectiveUnitPrice;
           } else {
             const existingValue = currentStock * currentData.costPerUnit;
-            const newValue = update.deliveryItem.quantityReceived * update.deliveryItem.unitPrice;
+            const newValue = update.deliveryItem.quantityReceived * effectiveUnitPrice;
             const totalQuantity = currentStock + update.deliveryItem.quantityReceived;
             
             if (totalQuantity > 0) {
               newCostPerUnit = (existingValue + newValue) / totalQuantity;
+              console.log(`📊 Weighted Average Calculation for ${update.inventoryItem.name}:`);
+              console.log(`   - Existing: ${currentStock} units @ $${currentData.costPerUnit.toFixed(4)} = $${existingValue.toFixed(2)}`);
+              console.log(`   - New: ${update.deliveryItem.quantityReceived} units @ $${effectiveUnitPrice.toFixed(4)} = $${newValue.toFixed(2)}`);
+              console.log(`   - Weighted Average: $${newCostPerUnit.toFixed(4)} per unit`);
             }
           }
         }

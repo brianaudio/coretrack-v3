@@ -121,17 +121,43 @@ export const deliverPurchaseOrderQuotaOptimized = async (
       const previousCostPerUnit = matchingItem.costPerUnit || 0;
       
       let newCostPerUnit = previousCostPerUnit;
+      
+      // Calculate unit price including distributed shipping cost
+      let effectiveUnitPrice = deliveryItem.unitPrice;
       if (deliveryItem.unitPrice && deliveryItem.unitPrice > 0) {
+        // If order has shipping fee, calculate distributed shipping per unit
+        const orderShippingFee = orderData.shippingFee || 0;
+        if (orderShippingFee > 0) {
+          // Distribute shipping proportionally based on item value
+          const orderSubtotal = orderData.items.reduce((sum: number, item: any) => sum + (item.quantity * item.unitPrice), 0);
+          if (orderSubtotal > 0) {
+            const itemTotal = deliveryItem.quantityReceived * deliveryItem.unitPrice;
+            const distributedShipping = (itemTotal / orderSubtotal) * orderShippingFee;
+            const shippingPerUnit = distributedShipping / deliveryItem.quantityReceived;
+            effectiveUnitPrice = deliveryItem.unitPrice + shippingPerUnit;
+            
+            console.log(`📦 Shipping Distribution for ${deliveryItem.itemName}:`);
+            console.log(`   - Base Unit Price: $${deliveryItem.unitPrice.toFixed(4)}`);
+            console.log(`   - Distributed Shipping: $${distributedShipping.toFixed(2)} ($${shippingPerUnit.toFixed(4)}/unit)`);
+            console.log(`   - Effective Unit Price: $${effectiveUnitPrice.toFixed(4)}`);
+          }
+        }
+        
+        // Calculate weighted average with effective unit price (including shipping)
         if (previousCostPerUnit === 0) {
-          newCostPerUnit = deliveryItem.unitPrice;
+          newCostPerUnit = effectiveUnitPrice;
         } else {
-          // Weighted average
+          // Weighted average using effective unit price
           const existingValue = currentStock * previousCostPerUnit;
-          const newValue = deliveryItem.quantityReceived * deliveryItem.unitPrice;
+          const newValue = deliveryItem.quantityReceived * effectiveUnitPrice;
           const totalQuantity = currentStock + deliveryItem.quantityReceived;
           
           if (totalQuantity > 0) {
             newCostPerUnit = (existingValue + newValue) / totalQuantity;
+            console.log(`📊 Weighted Average Calculation for ${matchingItem.name}:`);
+            console.log(`   - Existing: ${currentStock} units @ $${previousCostPerUnit.toFixed(4)} = $${existingValue.toFixed(2)}`);
+            console.log(`   - New: ${deliveryItem.quantityReceived} units @ $${effectiveUnitPrice.toFixed(4)} = $${newValue.toFixed(2)}`);
+            console.log(`   - Weighted Average: $${newCostPerUnit.toFixed(4)} per unit`);
           }
         }
       }

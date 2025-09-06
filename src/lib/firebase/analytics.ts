@@ -358,7 +358,288 @@ export const getCategoryPerformance = async (tenantId: string, days: number = 30
   }
 };
 
-// Temporary placeholder for PaymentAnalytics until implementation
+// Enhanced Order Analytics Interfaces
+export interface OrderVolumeData {
+  date: string;
+  orders: number;
+  revenue: number;
+  avgOrderValue: number;
+  period: 'hourly' | 'daily' | 'weekly' | 'monthly';
+}
+
+export interface PeakHoursData {
+  hour: number;
+  orders: number;
+  revenue: number;
+  avgOrderValue: number;
+  dayOfWeek?: string;
+}
+
+export interface PaymentMethodAnalytics {
+  method: string;
+  amount: number;
+  transactions: number;
+  percentage: number;
+  avgOrderValue: number;
+}
+
+export interface OrderTrend {
+  period: string;
+  orders: number;
+  revenue: number;
+  growth: number; // percentage change
+}
+
+export interface ComprehensiveOrderAnalytics {
+  volumeTrends: OrderVolumeData[];
+  peakHours: PeakHoursData[];
+  paymentMethods: PaymentMethodAnalytics[];
+  quarterlyTrends: OrderTrend[];
+  summary: {
+    totalOrders: number;
+    totalRevenue: number;
+    avgOrderValue: number;
+    peakHour: number;
+    mostUsedPaymentMethod: string;
+    growthRate: number;
+  };
+}
+
+// Enhanced Order Analytics Functions
+export const getOrderVolumeAnalytics = async (
+  tenantId: string,
+  locationId: string,
+  startDate: Date,
+  endDate: Date,
+  period: 'hourly' | 'daily' | 'weekly' | 'monthly' = 'daily'
+): Promise<OrderVolumeData[]> => {
+  try {
+    const orders = await getOrdersByDateRange(tenantId, startDate, endDate, locationId);
+    
+    if (orders.length === 0) return [];
+
+    const volumeMap = new Map<string, { orders: number; revenue: number; }>();
+
+    orders.forEach(order => {
+      if (!order.createdAt) return;
+      
+      const orderDate = order.createdAt.toDate();
+      let key: string;
+
+      switch (period) {
+        case 'hourly':
+          key = `${orderDate.toISOString().split('T')[0]} ${orderDate.getHours()}:00`;
+          break;
+        case 'weekly':
+          const weekStart = new Date(orderDate);
+          weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+          key = weekStart.toISOString().split('T')[0];
+          break;
+        case 'monthly':
+          key = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}`;
+          break;
+        default: // daily
+          key = orderDate.toISOString().split('T')[0];
+      }
+
+      if (!volumeMap.has(key)) {
+        volumeMap.set(key, { orders: 0, revenue: 0 });
+      }
+
+      const data = volumeMap.get(key)!;
+      data.orders += 1;
+      data.revenue += order.total || 0;
+    });
+
+    return Array.from(volumeMap.entries())
+      .map(([date, data]) => ({
+        date,
+        orders: data.orders,
+        revenue: data.revenue,
+        avgOrderValue: data.orders > 0 ? data.revenue / data.orders : 0,
+        period
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+  } catch (error) {
+    console.error('Error fetching order volume analytics:', error);
+    return [];
+  }
+};
+
+export const getPeakHoursAnalytics = async (
+  tenantId: string,
+  locationId: string,
+  startDate: Date,
+  endDate: Date
+): Promise<PeakHoursData[]> => {
+  try {
+    const orders = await getOrdersByDateRange(tenantId, startDate, endDate, locationId);
+    
+    if (orders.length === 0) return [];
+
+    const hourlyData = new Map<number, { orders: number; revenue: number; }>();
+
+    // Initialize all hours
+    for (let hour = 0; hour < 24; hour++) {
+      hourlyData.set(hour, { orders: 0, revenue: 0 });
+    }
+
+    orders.forEach(order => {
+      if (!order.createdAt) return;
+      
+      const hour = order.createdAt.toDate().getHours();
+      const data = hourlyData.get(hour)!;
+      data.orders += 1;
+      data.revenue += order.total || 0;
+    });
+
+    return Array.from(hourlyData.entries())
+      .map(([hour, data]) => ({
+        hour,
+        orders: data.orders,
+        revenue: data.revenue,
+        avgOrderValue: data.orders > 0 ? data.revenue / data.orders : 0
+      }))
+      .sort((a, b) => b.orders - a.orders); // Sort by order count descending
+
+  } catch (error) {
+    console.error('Error fetching peak hours analytics:', error);
+    return [];
+  }
+};
+
+export const getPaymentMethodAnalytics = async (
+  tenantId: string,
+  locationId: string,
+  startDate: Date,
+  endDate: Date
+): Promise<PaymentMethodAnalytics[]> => {
+  try {
+    const orders = await getOrdersByDateRange(tenantId, startDate, endDate, locationId);
+    
+    if (orders.length === 0) return [];
+
+    const paymentData = new Map<string, { amount: number; transactions: number; }>();
+    let totalAmount = 0;
+
+    orders.forEach(order => {
+      const method = order.paymentMethod || 'Cash';
+      const amount = order.total || 0;
+      
+      if (!paymentData.has(method)) {
+        paymentData.set(method, { amount: 0, transactions: 0 });
+      }
+      
+      const data = paymentData.get(method)!;
+      data.amount += amount;
+      data.transactions += 1;
+      totalAmount += amount;
+    });
+
+    return Array.from(paymentData.entries())
+      .map(([method, data]) => ({
+        method,
+        amount: data.amount,
+        transactions: data.transactions,
+        percentage: totalAmount > 0 ? (data.amount / totalAmount) * 100 : 0,
+        avgOrderValue: data.transactions > 0 ? data.amount / data.transactions : 0
+      }))
+      .sort((a, b) => b.amount - a.amount);
+
+  } catch (error) {
+    console.error('Error fetching payment method analytics:', error);
+    return [];
+  }
+};
+
+export const getComprehensiveOrderAnalytics = async (
+  tenantId: string,
+  locationId: string,
+  startDate: Date,
+  endDate: Date
+): Promise<ComprehensiveOrderAnalytics> => {
+  try {
+    const [volumeTrends, peakHours, paymentMethods] = await Promise.all([
+      getOrderVolumeAnalytics(tenantId, locationId, startDate, endDate, 'daily'),
+      getPeakHoursAnalytics(tenantId, locationId, startDate, endDate),
+      getPaymentMethodAnalytics(tenantId, locationId, startDate, endDate)
+    ]);
+
+    // Calculate quarterly trends (last 4 quarters)
+    const quarterlyTrends: OrderTrend[] = [];
+    const now = new Date();
+    
+    for (let i = 3; i >= 0; i--) {
+      const quarterEnd = new Date(now.getFullYear(), now.getMonth() - (i * 3), 0);
+      const quarterStart = new Date(quarterEnd.getFullYear(), quarterEnd.getMonth() - 2, 1);
+      
+      const quarterOrders = await getOrdersByDateRange(tenantId, quarterStart, quarterEnd, locationId);
+      const revenue = quarterOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+      
+      quarterlyTrends.push({
+        period: `Q${Math.floor((quarterEnd.getMonth()) / 3) + 1} ${quarterEnd.getFullYear()}`,
+        orders: quarterOrders.length,
+        revenue,
+        growth: 0 // Calculate growth later
+      });
+    }
+
+    // Calculate growth rates
+    quarterlyTrends.forEach((trend, index) => {
+      if (index > 0) {
+        const previousRevenue = quarterlyTrends[index - 1].revenue;
+        trend.growth = previousRevenue > 0 
+          ? ((trend.revenue - previousRevenue) / previousRevenue) * 100 
+          : 0;
+      }
+    });
+
+    // Calculate summary
+    const totalOrders = volumeTrends.reduce((sum, day) => sum + day.orders, 0);
+    const totalRevenue = volumeTrends.reduce((sum, day) => sum + day.revenue, 0);
+    const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+    const peakHour = peakHours.length > 0 ? peakHours[0].hour : 12;
+    const mostUsedPaymentMethod = paymentMethods.length > 0 ? paymentMethods[0].method : 'Cash';
+    const growthRate = quarterlyTrends.length > 1 
+      ? quarterlyTrends[quarterlyTrends.length - 1].growth 
+      : 0;
+
+    return {
+      volumeTrends,
+      peakHours,
+      paymentMethods,
+      quarterlyTrends,
+      summary: {
+        totalOrders,
+        totalRevenue,
+        avgOrderValue,
+        peakHour,
+        mostUsedPaymentMethod,
+        growthRate
+      }
+    };
+
+  } catch (error) {
+    console.error('Error fetching comprehensive order analytics:', error);
+    return {
+      volumeTrends: [],
+      peakHours: [],
+      paymentMethods: [],
+      quarterlyTrends: [],
+      summary: {
+        totalOrders: 0,
+        totalRevenue: 0,
+        avgOrderValue: 0,
+        peakHour: 12,
+        mostUsedPaymentMethod: 'Cash',
+        growthRate: 0
+      }
+    };
+  }
+};
+
+// Legacy PaymentAnalytics interface for backward compatibility
 export interface PaymentAnalytics {
   method: string;
   amount: number;
@@ -372,6 +653,11 @@ export const getPaymentAnalytics = async (
   startDate: Date,
   endDate: Date
 ): Promise<PaymentAnalytics[]> => {
-  // Temporary implementation - return empty array until proper implementation
-  return [];
+  const enhanced = await getPaymentMethodAnalytics(tenantId, locationId, startDate, endDate);
+  return enhanced.map(item => ({
+    method: item.method,
+    amount: item.amount,
+    transactions: item.transactions,
+    percentage: item.percentage
+  }));
 };

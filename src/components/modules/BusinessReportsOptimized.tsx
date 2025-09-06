@@ -10,10 +10,18 @@ import {
   getSalesChartData, 
   getTopSellingItems,
   getPaymentAnalytics,
+  getOrderVolumeAnalytics,
+  getPeakHoursAnalytics,
+  getPaymentMethodAnalytics,
+  getComprehensiveOrderAnalytics,
   type DashboardStats,
   type SalesData,
   type TopSellingItem,
-  type PaymentAnalytics
+  type PaymentAnalytics,
+  type OrderVolumeData,
+  type PeakHoursData,
+  type PaymentMethodAnalytics,
+  type ComprehensiveOrderAnalytics
 } from '../../lib/firebase/analytics'
 import {
   getInventoryAnalytics,
@@ -39,6 +47,11 @@ interface ReportData {
   paymentAnalytics: PaymentAnalytics[]
   expenses: Expense[]
   purchaseOrders: PurchaseOrder[]
+  // Enhanced Order Analytics
+  orderVolumeData: OrderVolumeData[]
+  peakHoursData: PeakHoursData[]
+  paymentMethodAnalytics: PaymentMethodAnalytics[]
+  comprehensiveOrderAnalytics: ComprehensiveOrderAnalytics | null
   shiftRevenue?: number
   shiftOrders?: number
   dateRange: string
@@ -89,7 +102,7 @@ export default function BusinessReports() {
     }
   }, [])
 
-  // Report Categories - 6 Core Reports Only
+  // Report Categories - Enhanced with Order Analytics
   const reportCategories = [
     {
       title: 'Financial Reports',
@@ -99,6 +112,16 @@ export default function BusinessReports() {
         { id: 'daily_sales', name: 'Sales Report', desc: 'Revenue and orders', icon: '📊' },
         { id: 'profit_loss', name: 'Profit & Loss', desc: 'Revenue vs expenses', icon: '💰' },
         { id: 'payment_methods', name: 'Payment Analysis', desc: 'Payment breakdown', icon: '💳' }
+      ]
+    },
+    {
+      title: 'Order Analytics',
+      icon: '📋',
+      reports: [
+        { id: 'order_volume_trends', name: 'Order Volume Trends', desc: 'Volume analysis by period', icon: '📈' },
+        { id: 'peak_hours_analysis', name: 'Peak Hours Analysis', desc: 'Hourly breakdown & patterns', icon: '⏰' },
+        { id: 'payment_method_insights', name: 'Payment Method Insights', desc: 'Transaction preferences', icon: '💳' },
+        { id: 'order_comprehensive', name: 'Comprehensive Order Report', desc: 'Complete order analytics', icon: '📊' }
       ]
     },
     {
@@ -201,8 +224,22 @@ export default function BusinessReports() {
     setLoadingState({ isLoading: true, progress: 10, stage: 'Fetching sales data...' })
 
     try {
-      // Get shift-aware sales data (same as MainDashboard)
-      const [dashboardStats, salesData, topItems, inventoryAnalytics, paymentAnalytics, expensesData, purchaseOrdersData, currentShiftOrders] = await Promise.all([
+      // Get shift-aware sales data (same as MainDashboard) + Enhanced Order Analytics
+      const [
+        dashboardStats, 
+        salesData, 
+        topItems, 
+        inventoryAnalytics, 
+        paymentAnalytics, 
+        expensesData, 
+        purchaseOrdersData, 
+        currentShiftOrders,
+        // Enhanced Order Analytics
+        orderVolumeData,
+        peakHoursData,
+        paymentMethodAnalytics,
+        comprehensiveOrderAnalytics
+      ] = await Promise.all([
         getDashboardStats(profile.tenantId, locationId),
         getSalesChartData(profile.tenantId, days, locationId),
         getTopSellingItems(profile.tenantId, days, 10, locationId),
@@ -211,7 +248,12 @@ export default function BusinessReports() {
         getExpensesByDateRange(profile.tenantId, startDate, endDate),
         getPurchaseOrders(profile.tenantId, locationId),
         // Get current shift orders directly (same as MainDashboard)
-        getCurrentShiftOrders(profile.tenantId, locationId, currentShift)
+        getCurrentShiftOrders(profile.tenantId, locationId, currentShift),
+        // Enhanced Order Analytics
+        getOrderVolumeAnalytics(profile.tenantId, locationId, startDate, endDate, 'daily'),
+        getPeakHoursAnalytics(profile.tenantId, locationId, startDate, endDate),
+        getPaymentMethodAnalytics(profile.tenantId, locationId, startDate, endDate),
+        getComprehensiveOrderAnalytics(profile.tenantId, locationId, startDate, endDate)
       ])
 
       // Calculate shift-aware sales totals
@@ -292,6 +334,11 @@ export default function BusinessReports() {
         paymentAnalytics: filteredPaymentAnalytics,
         expenses: expensesData,
         purchaseOrders: purchaseOrdersData,
+        // Enhanced Order Analytics
+        orderVolumeData,
+        peakHoursData,
+        paymentMethodAnalytics,
+        comprehensiveOrderAnalytics,
         shiftRevenue,
         shiftOrders,
         dateRange: dateRange === 'custom' 
@@ -407,6 +454,19 @@ export default function BusinessReports() {
           break
         case 'menu_performance':
           addMenuPerformanceContent(pdf, data, contentStartY)
+          break
+        // Enhanced Order Analytics Reports
+        case 'order_volume_trends':
+          addOrderVolumeTrendsContent(pdf, data, contentStartY)
+          break
+        case 'peak_hours_analysis':
+          addPeakHoursAnalysisContent(pdf, data, contentStartY)
+          break
+        case 'payment_method_insights':
+          addPaymentMethodInsightsContent(pdf, data, contentStartY)
+          break
+        case 'order_comprehensive':
+          addComprehensiveOrderReportContent(pdf, data, contentStartY)
           break
         default:
           throw new Error(`Unknown report type: ${reportType}`)
@@ -1365,6 +1425,240 @@ export default function BusinessReports() {
     return yPos + 20
   }
 
+  // Enhanced Order Analytics PDF Content Functions
+  const addOrderVolumeTrendsContent = (pdf: jsPDF, data: ReportData, yStart: number) => {
+    let yPos = yStart
+    
+    yPos = addSectionTitle(pdf, 'Order Volume Analysis', yPos)
+    
+    if (data.orderVolumeData.length === 0) {
+      const suggestions = [
+        'Verify orders exist within the selected date range',
+        'Check POS system connectivity and data sync',
+        'Review order processing workflow'
+      ]
+      yPos = addNoDataState(pdf, 'No Order Volume Data', 
+        'No order volume data found for the selected period', suggestions, yPos)
+      addProfessionalFooter(pdf)
+      return yPos
+    }
+
+    const totalOrders = data.orderVolumeData.reduce((sum, day) => sum + day.orders, 0)
+    const totalRevenue = data.orderVolumeData.reduce((sum, day) => sum + day.revenue, 0)
+    const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0
+    const bestDay = data.orderVolumeData.reduce((best, day) => day.orders > best.orders ? day : best, data.orderVolumeData[0])
+    const worstDay = data.orderVolumeData.reduce((worst, day) => day.orders < worst.orders ? day : worst, data.orderVolumeData[0])
+
+    // Key Volume Metrics
+    const volumeMetrics = [
+      { label: 'Total Orders', value: totalOrders.toLocaleString() },
+      { label: 'Total Revenue', value: `₱${totalRevenue.toLocaleString()}` },
+      { label: 'Avg Order Value', value: `₱${avgOrderValue.toFixed(2)}` },
+      { label: 'Peak Day Orders', value: `${bestDay.orders} orders (${bestDay.date})` },
+      { label: 'Lowest Day Orders', value: `${worstDay.orders} orders (${worstDay.date})` }
+    ]
+
+    yPos = addSimpleMetrics(pdf, volumeMetrics, yPos)
+    yPos += 15
+
+    // Volume Trends Analysis
+    yPos = addSectionTitle(pdf, 'Daily Volume Breakdown', yPos)
+    
+    data.orderVolumeData.slice(0, 10).forEach((day) => {
+      pdf.text(`${day.date}: ${day.orders} orders, ₱${day.revenue.toLocaleString()} revenue`, 25, yPos)
+      yPos += 12
+      
+      if (yPos > 260) {
+        pdf.addPage()
+        yPos = addSimpleHeader(pdf, 'Order Volume Trends (continued)')
+      }
+    })
+
+    addProfessionalFooter(pdf)
+    return yPos + 20
+  }
+
+  const addPeakHoursAnalysisContent = (pdf: jsPDF, data: ReportData, yStart: number) => {
+    let yPos = yStart
+    
+    yPos = addSectionTitle(pdf, 'Peak Hours Performance Analysis', yPos)
+    
+    if (data.peakHoursData.length === 0) {
+      const suggestions = [
+        'Ensure orders have proper timestamps',
+        'Verify order processing during different hours',
+        'Check for system timezone configuration'
+      ]
+      yPos = addNoDataState(pdf, 'No Peak Hours Data', 
+        'No hourly order data found for analysis', suggestions, yPos)
+      addProfessionalFooter(pdf)
+      return yPos
+    }
+
+    const totalHourlyOrders = data.peakHoursData.reduce((sum, hour) => sum + hour.orders, 0)
+    const totalHourlyRevenue = data.peakHoursData.reduce((sum, hour) => sum + hour.revenue, 0)
+    const peakHour = data.peakHoursData[0] // Already sorted by orders desc
+    const quietHour = data.peakHoursData[data.peakHoursData.length - 1]
+
+    // Peak Hours Metrics
+    const peakMetrics = [
+      { label: 'Peak Hour', value: `${peakHour.hour}:00 (${peakHour.orders} orders)` },
+      { label: 'Peak Hour Revenue', value: `₱${peakHour.revenue.toLocaleString()}` },
+      { label: 'Quietest Hour', value: `${quietHour.hour}:00 (${quietHour.orders} orders)` },
+      { label: 'Active Hours', value: `${data.peakHoursData.filter(h => h.orders > 0).length}/24` },
+      { label: 'Avg Hourly Orders', value: `${(totalHourlyOrders / 24).toFixed(1)}` }
+    ]
+
+    yPos = addSimpleMetrics(pdf, peakMetrics, yPos)
+    yPos += 15
+
+    // Top 10 Peak Hours
+    yPos = addSectionTitle(pdf, 'Top 10 Busiest Hours', yPos)
+    
+    data.peakHoursData.slice(0, 10).forEach((hour, index) => {
+      const timeFormat = hour.hour === 0 ? '12:00 AM' : 
+                        hour.hour < 12 ? `${hour.hour}:00 AM` :
+                        hour.hour === 12 ? '12:00 PM' : `${hour.hour - 12}:00 PM`
+      
+      pdf.text(`${index + 1}. ${timeFormat}: ${hour.orders} orders, ₱${hour.revenue.toLocaleString()}`, 25, yPos)
+      yPos += 12
+      
+      if (yPos > 260) {
+        pdf.addPage()
+        yPos = addSimpleHeader(pdf, 'Peak Hours Analysis (continued)')
+      }
+    })
+
+    addProfessionalFooter(pdf)
+    return yPos + 20
+  }
+
+  const addPaymentMethodInsightsContent = (pdf: jsPDF, data: ReportData, yStart: number) => {
+    let yPos = yStart
+    
+    yPos = addSectionTitle(pdf, 'Payment Method Analysis', yPos)
+    
+    if (data.paymentMethodAnalytics.length === 0) {
+      const suggestions = [
+        'Verify payment method data is being recorded',
+        'Check POS system payment tracking',
+        'Review order completion workflow'
+      ]
+      yPos = addNoDataState(pdf, 'No Payment Data', 
+        'No payment method data found for analysis', suggestions, yPos)
+      addProfessionalFooter(pdf)
+      return yPos
+    }
+
+    const totalAmount = data.paymentMethodAnalytics.reduce((sum, method) => sum + method.amount, 0)
+    const totalTransactions = data.paymentMethodAnalytics.reduce((sum, method) => sum + method.transactions, 0)
+    const topMethod = data.paymentMethodAnalytics[0] // Already sorted by amount desc
+
+    // Payment Insights Metrics
+    const paymentMetrics = [
+      { label: 'Total Transaction Value', value: `₱${totalAmount.toLocaleString()}` },
+      { label: 'Total Transactions', value: totalTransactions.toLocaleString() },
+      { label: 'Most Used Method', value: `${topMethod.method} (${topMethod.percentage.toFixed(1)}%)` },
+      { label: 'Payment Methods Used', value: data.paymentMethodAnalytics.length.toString() },
+      { label: 'Avg Transaction Value', value: `₱${(totalAmount / totalTransactions).toFixed(2)}` }
+    ]
+
+    yPos = addSimpleMetrics(pdf, paymentMetrics, yPos)
+    yPos += 15
+
+    // Payment Method Breakdown
+    yPos = addSectionTitle(pdf, 'Payment Method Breakdown', yPos)
+    
+    data.paymentMethodAnalytics.forEach((method) => {
+      pdf.text(`${method.method}:`, 25, yPos)
+      pdf.text(`  Amount: ₱${method.amount.toLocaleString()} (${method.percentage.toFixed(1)}%)`, 25, yPos + 8)
+      pdf.text(`  Transactions: ${method.transactions} | Avg: ₱${method.avgOrderValue.toFixed(2)}`, 25, yPos + 16)
+      yPos += 30
+      
+      if (yPos > 260) {
+        pdf.addPage()
+        yPos = addSimpleHeader(pdf, 'Payment Method Analysis (continued)')
+      }
+    })
+
+    addProfessionalFooter(pdf)
+    return yPos + 20
+  }
+
+  const addComprehensiveOrderReportContent = (pdf: jsPDF, data: ReportData, yStart: number) => {
+    let yPos = yStart
+    
+    yPos = addSectionTitle(pdf, 'Comprehensive Order Analytics', yPos)
+    
+    if (!data.comprehensiveOrderAnalytics) {
+      const suggestions = [
+        'Verify comprehensive order data is available',
+        'Check all analytics data sources',
+        'Review order processing pipeline'
+      ]
+      yPos = addNoDataState(pdf, 'No Comprehensive Data', 
+        'Comprehensive order analytics data unavailable', suggestions, yPos)
+      addProfessionalFooter(pdf)
+      return yPos
+    }
+
+    const analytics = data.comprehensiveOrderAnalytics.summary
+
+    // Executive Summary Metrics
+    const summaryMetrics = [
+      { label: 'Total Orders', value: analytics.totalOrders.toLocaleString() },
+      { label: 'Total Revenue', value: `₱${analytics.totalRevenue.toLocaleString()}` },
+      { label: 'Average Order Value', value: `₱${analytics.avgOrderValue.toFixed(2)}` },
+      { label: 'Peak Operating Hour', value: `${analytics.peakHour}:00` },
+      { label: 'Preferred Payment', value: analytics.mostUsedPaymentMethod },
+      { label: 'Growth Rate', value: `${analytics.growthRate.toFixed(1)}%` }
+    ]
+
+    yPos = addSimpleMetrics(pdf, summaryMetrics, yPos)
+    yPos += 15
+
+    // Quarterly Trends
+    if (data.comprehensiveOrderAnalytics.quarterlyTrends.length > 0) {
+      yPos = addSectionTitle(pdf, 'Quarterly Performance Trends', yPos)
+      
+      data.comprehensiveOrderAnalytics.quarterlyTrends.forEach((quarter) => {
+        const growthText = quarter.growth > 0 ? `+${quarter.growth.toFixed(1)}%` : `${quarter.growth.toFixed(1)}%`
+        pdf.text(`${quarter.period}: ${quarter.orders} orders, ₱${quarter.revenue.toLocaleString()} (${growthText})`, 25, yPos)
+        yPos += 12
+        
+        if (yPos > 260) {
+          pdf.addPage()
+          yPos = addSimpleHeader(pdf, 'Comprehensive Order Report (continued)')
+        }
+      })
+      yPos += 15
+    }
+
+    // Key Insights
+    yPos = addSectionTitle(pdf, 'Strategic Insights', yPos)
+    
+    const insights = [
+      `Peak performance occurs at ${analytics.peakHour}:00 - optimize staffing during this time`,
+      `${analytics.mostUsedPaymentMethod} is the preferred payment method (${analytics.totalOrders} orders)`,
+      `Average order value of ₱${analytics.avgOrderValue.toFixed(2)} indicates customer spending patterns`,
+      `Growth rate of ${analytics.growthRate.toFixed(1)}% shows business trajectory`,
+      'Consider promotional campaigns during low-volume hours for increased revenue'
+    ]
+
+    insights.forEach((insight) => {
+      if (yPos > 260) {
+        pdf.addPage()
+        yPos = addSimpleHeader(pdf, 'Comprehensive Order Report (continued)')
+      }
+      
+      pdf.text(`• ${insight}`, 25, yPos)
+      yPos += 15
+    })
+
+    addProfessionalFooter(pdf)
+    return yPos + 20
+  }
+
   const getReportTitle = (reportType: string): string => {
     const titles: Record<string, string> = {
       daily_sales: 'Daily Sales Summary Report',
@@ -1372,7 +1666,12 @@ export default function BusinessReports() {
       payment_methods: 'Payment Methods Analysis Report',
       inventory_summary: 'Inventory Summary Report',
       menu_performance: 'Menu Performance Report',
-      executive_summary: 'Executive Summary Report'
+      executive_summary: 'Executive Summary Report',
+      // Enhanced Order Analytics
+      order_volume_trends: 'Order Volume Trends Analysis',
+      peak_hours_analysis: 'Peak Hours Performance Report',
+      payment_method_insights: 'Payment Method Insights Report',
+      order_comprehensive: 'Comprehensive Order Analytics Report'
     }
     return titles[reportType] || 'Business Report'
   }

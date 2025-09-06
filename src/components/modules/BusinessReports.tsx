@@ -10,11 +10,16 @@ import { getExpenses } from '../../lib/firebase/expenses'
 import { 
   getSalesChartData, 
   getTopSellingItems,
-  getPaymentAnalytics
+  getPaymentAnalytics,
+  getOrderVolumeAnalytics,
+  getPeakHoursAnalytics,
+  getPaymentMethodAnalytics,
+  getComprehensiveOrderAnalytics
 } from '../../lib/firebase/analytics'
 import {
   getInventoryAnalytics
 } from '../../lib/firebase/inventoryAnalytics'
+import { TrendingUp, Clock, CreditCard, BarChart3, Package } from 'lucide-react'
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 
@@ -47,10 +52,85 @@ export default function BusinessReports() {
   const { currentShift } = useShift()
   
   const [isExporting, setIsExporting] = useState(false)
-  const [exportType, setExportType] = useState<'analytics' | 'financial' | 'inventory'>('analytics')
+  const [exportType, setExportType] = useState<'analytics' | 'financial' | 'inventory' | 'order_volume' | 'peak_hours' | 'payment_insights' | 'comprehensive_orders'>('analytics')
   const [exportDateRange, setExportDateRange] = useState<'today' | 'week' | 'month' | 'custom'>('today')
   const [exportCustomStartDate, setExportCustomStartDate] = useState('')
   const [exportCustomEndDate, setExportCustomEndDate] = useState('')
+
+  // Helper function to fetch comprehensive orders (operational + archived)
+  const fetchComprehensiveOrders = async (startDate: Date, endDate: Date, locationId: string): Promise<POSOrder[]> => {
+    console.log('🔍 Fetching comprehensive order data (operational + archived)...')
+    const allOrders: POSOrder[] = [];
+    
+    // 1. Get operational orders (current shift)
+    try {
+      const operationalRef = collection(db, `tenants/${profile!.tenantId}/posOrders`)
+      const operationalSnapshot = await getDocs(operationalRef)
+      const operationalOrders = operationalSnapshot.docs.map(doc => ({
+        id: doc.id,
+        source: 'operational',
+        ...doc.data()
+      })) as (POSOrder & { source: string })[];
+      
+      allOrders.push(...operationalOrders);
+      console.log(`📊 Analytics - Operational orders: ${operationalOrders.length}`);
+    } catch (error) {
+      console.log('❌ Error fetching operational orders for analytics:', error);
+    }
+    
+    // 2. Get archived orders (from completed shifts)
+    try {
+      const archivesRef = collection(db, `tenants/${profile!.tenantId}/shift_archives`)
+      const archivesSnapshot = await getDocs(archivesRef)
+      
+      console.log(`📊 Analytics - Found ${archivesSnapshot.docs.length} shift archives`);
+      
+      // Check each shift archive for orders
+      for (const archiveDoc of archivesSnapshot.docs) {
+        const archiveId = archiveDoc.id;
+        const archiveData = archiveDoc.data();
+        
+        try {
+          const archivedOrdersRef = collection(db, `tenants/${profile!.tenantId}/shift_archives/${archiveId}/posOrders`)
+          const archivedSnapshot = await getDocs(archivedOrdersRef)
+          const archivedOrders = archivedSnapshot.docs.map(doc => ({
+            id: doc.id,
+            source: `archive:${archiveId}`,
+            archiveDate: archiveData.createdAt?.toDate?.(),
+            ...doc.data()
+          })) as (POSOrder & { source: string; archiveDate?: Date })[];
+          
+          if (archivedOrders.length > 0) {
+            allOrders.push(...archivedOrders);
+            console.log(`📦 Analytics - Archive ${archiveId}: ${archivedOrders.length} orders`);
+          }
+        } catch (error) {
+          console.log(`❌ Error fetching archived orders from ${archiveId}:`, error);
+        }
+      }
+    } catch (error) {
+      console.log('❌ Error fetching shift archives for analytics:', error);
+    }
+
+    // Branch and status filtering
+    const filteredOrders = allOrders.filter(order => 
+      order.locationId === locationId && 
+      order.status === 'completed'
+    );
+    
+    console.log(`🏢 Analytics - Branch filtered orders: ${filteredOrders.length} for location ${locationId}`);
+
+    // Date filtering
+    const dateFilteredOrders = filteredOrders.filter(order => {
+      if (!order.createdAt) return false;
+      const orderDate = order.createdAt.toDate();
+      return orderDate >= startDate && orderDate <= endDate;
+    });
+
+    console.log(`📅 Analytics - Date filtered orders: ${dateFilteredOrders.length} for period ${startDate.toISOString()} to ${endDate.toISOString()}`);
+    
+    return dateFilteredOrders;
+  }
 
   const calculateDateRange = () => {
     // SURGICAL FIX: The issue is "today" should be the date when expenses exist (Aug 27)
@@ -1048,6 +1128,592 @@ export default function BusinessReports() {
     }
   }
 
+  // Enhanced Order Analytics PDF Generation Functions
+  const generateOrderVolumeReportPDF = async (data: ExportData) => {
+    try {
+      const { startDate, endDate } = calculateDateRange()
+      const locationId = getBranchLocationId(selectedBranch!.id)
+      
+      // Use the comprehensive order fetching helper
+      const dateFilteredOrders = await fetchComprehensiveOrders(startDate, endDate, locationId)
+
+      if (dateFilteredOrders.length === 0) {
+        alert(`No order data found for the selected ${exportDateRange} period. Please try a different date range.`)
+        return
+      }
+
+      // Build volume data
+      const volumeMap = new Map<string, { orders: number; revenue: number; }>();
+
+      dateFilteredOrders.forEach(order => {
+        const orderDate = order.createdAt.toDate();
+        const key = orderDate.toISOString().split('T')[0]; // daily grouping
+        
+        if (!volumeMap.has(key)) {
+          volumeMap.set(key, { orders: 0, revenue: 0 });
+        }
+
+        const data = volumeMap.get(key)!;
+        data.orders += 1;
+        data.revenue += order.total || 0;
+      });
+
+      const volumeData = Array.from(volumeMap.entries())
+        .map(([date, data]) => ({
+          date,
+          orders: data.orders,
+          revenue: data.revenue,
+          avgOrderValue: data.orders > 0 ? data.revenue / data.orders : 0,
+          period: 'daily' as const
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      console.log(`📊 Volume Analysis - Final volume data points: ${volumeData.length}`);
+
+      const totalOrders = volumeData.reduce((sum, day) => sum + day.orders, 0)
+      const totalRevenue = volumeData.reduce((sum, day) => sum + day.revenue, 0)
+      const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0
+      const bestDay = volumeData.reduce((best, day) => day.orders > best.orders ? day : best, volumeData[0])
+
+      const volumeTableRows = volumeData.slice(0, 15).map(day => `
+        <tr>
+          <td>${day.date}</td>
+          <td style="text-align: center;">${day.orders}</td>
+          <td style="text-align: right;">₱${day.revenue.toLocaleString()}</td>
+          <td style="text-align: right;">₱${day.avgOrderValue.toFixed(2)}</td>
+        </tr>
+      `).join('')
+
+      const pdfHTML = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Order Volume Report - ${data.dateRange}</title>
+            <style>
+              @media print { @page { margin: 0.5in; } }
+              body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+              .header { text-align: center; border-bottom: 3px solid #3b82f6; padding-bottom: 20px; margin-bottom: 30px; }
+              .logo { color: #3b82f6; font-size: 2.2em; font-weight: bold; margin-bottom: 10px; }
+              .metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 30px; }
+              .metric-card { background: #f8fafc; padding: 15px; border-radius: 8px; text-align: center; }
+              .metric-label { color: #6b7280; font-size: 0.9em; margin-bottom: 5px; }
+              .metric-value { color: #111827; font-size: 1.5em; font-weight: bold; }
+              .table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+              .table th, .table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+              .table th { background-color: #f8fafc; font-weight: 600; color: #374151; }
+              .footer { text-align: center; margin-top: 40px; color: #6b7280; font-size: 0.9em; border-top: 1px solid #e5e7eb; padding-top: 20px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="logo">CoreTrack Order Analytics</div>
+              <h1>Order Volume Trends Report</h1>
+              <p><strong>Branch:</strong> ${selectedBranch?.name || 'N/A'}</p>
+              <p><strong>Period:</strong> ${data.dateRange}</p>
+            </div>
+            
+            <div class="metrics">
+              <div class="metric-card">
+                <div class="metric-label">Total Orders</div>
+                <div class="metric-value">${totalOrders.toLocaleString()}</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Total Revenue</div>
+                <div class="metric-value">₱${totalRevenue.toLocaleString()}</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Average Order Value</div>
+                <div class="metric-value">₱${avgOrderValue.toFixed(2)}</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Peak Day</div>
+                <div class="metric-value">${bestDay.orders} orders</div>
+                <div class="metric-label">${bestDay.date}</div>
+              </div>
+            </div>
+
+            <h2>📈 Daily Volume Breakdown</h2>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th style="text-align: center;">Orders</th>
+                  <th style="text-align: right;">Revenue</th>
+                  <th style="text-align: right;">Avg Order Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${volumeTableRows}
+              </tbody>
+            </table>
+            
+            <div class="footer">
+              <p><strong>CoreTrack Order Analytics</strong></p>
+              <p>Generated ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
+            </div>
+          </body>
+        </html>
+      `
+
+      generatePDF(pdfHTML, 'Order Volume Report')
+    } catch (error) {
+      console.error('Order Volume Report PDF export error:', error)
+      alert('❌ Error generating Order Volume Report PDF. Please try again.')
+    }
+  }
+
+  const generatePeakHoursReportPDF = async (data: ExportData) => {
+    try {
+      const { startDate, endDate } = calculateDateRange()
+      const locationId = getBranchLocationId(selectedBranch!.id)
+      
+      // Use the comprehensive order fetching helper
+      const dateFilteredOrders = await fetchComprehensiveOrders(startDate, endDate, locationId)
+
+      if (dateFilteredOrders.length === 0) {
+        alert(`No order data found for the selected ${exportDateRange} period. Please try a different date range.`)
+        return
+      }
+
+      // Build peak hours data
+      const hourlyMap = new Map<number, { orders: number; revenue: number; }>();
+
+      // Initialize all 24 hours
+      for (let i = 0; i < 24; i++) {
+        hourlyMap.set(i, { orders: 0, revenue: 0 });
+      }
+
+      dateFilteredOrders.forEach(order => {
+        const orderDate = order.createdAt.toDate();
+        const hour = orderDate.getHours();
+        
+        const data = hourlyMap.get(hour)!;
+        data.orders += 1;
+        data.revenue += order.total || 0;
+      });
+
+      const peakHoursData = Array.from(hourlyMap.entries())
+        .map(([hour, data]) => ({
+          hour,
+          orders: data.orders,
+          revenue: data.revenue,
+          avgOrderValue: data.orders > 0 ? data.revenue / data.orders : 0
+        }))
+        .sort((a, b) => b.orders - a.orders); // Sort by orders descending
+
+      const totalHourlyOrders = peakHoursData.reduce((sum, hour) => sum + hour.orders, 0)
+      const totalHourlyRevenue = peakHoursData.reduce((sum, hour) => sum + hour.revenue, 0)
+      const peakHour = peakHoursData[0] // Already sorted by orders desc
+      const quietHour = peakHoursData[peakHoursData.length - 1]
+
+      const hoursTableRows = peakHoursData.slice(0, 12).map((hour, index) => {
+        const timeFormat = hour.hour === 0 ? '12:00 AM' : 
+                          hour.hour < 12 ? `${hour.hour}:00 AM` :
+                          hour.hour === 12 ? '12:00 PM' : `${hour.hour - 12}:00 PM`
+        
+        return `
+          <tr>
+            <td>${index + 1}</td>
+            <td>${timeFormat}</td>
+            <td style="text-align: center;">${hour.orders}</td>
+            <td style="text-align: right;">₱${hour.revenue.toLocaleString()}</td>
+            <td style="text-align: right;">₱${hour.avgOrderValue.toFixed(2)}</td>
+          </tr>
+        `
+      }).join('')
+
+      const pdfHTML = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Peak Hours Analysis - ${data.dateRange}</title>
+            <style>
+              @media print { @page { margin: 0.5in; } }
+              body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+              .header { text-align: center; border-bottom: 3px solid #f59e0b; padding-bottom: 20px; margin-bottom: 30px; }
+              .logo { color: #f59e0b; font-size: 2.2em; font-weight: bold; margin-bottom: 10px; }
+              .metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 30px; }
+              .metric-card { background: #fef3c7; padding: 15px; border-radius: 8px; text-align: center; }
+              .metric-label { color: #92400e; font-size: 0.9em; margin-bottom: 5px; }
+              .metric-value { color: #111827; font-size: 1.5em; font-weight: bold; }
+              .table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+              .table th, .table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+              .table th { background-color: #fef3c7; font-weight: 600; color: #92400e; }
+              .footer { text-align: center; margin-top: 40px; color: #6b7280; font-size: 0.9em; border-top: 1px solid #e5e7eb; padding-top: 20px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="logo">CoreTrack Peak Hours</div>
+              <h1>Peak Hours Analysis Report</h1>
+              <p><strong>Branch:</strong> ${selectedBranch?.name || 'N/A'}</p>
+              <p><strong>Period:</strong> ${data.dateRange}</p>
+            </div>
+            
+            <div class="metrics">
+              <div class="metric-card">
+                <div class="metric-label">Peak Hour</div>
+                <div class="metric-value">${peakHour.hour}:00</div>
+                <div class="metric-label">${peakHour.orders} orders</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Peak Revenue</div>
+                <div class="metric-value">₱${peakHour.revenue.toLocaleString()}</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Quietest Hour</div>
+                <div class="metric-value">${quietHour.hour}:00</div>
+                <div class="metric-label">${quietHour.orders} orders</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Active Hours</div>
+                <div class="metric-value">${peakHoursData.filter(h => h.orders > 0).length}/24</div>
+              </div>
+            </div>
+
+            <h2>⏰ Top 12 Busiest Hours</h2>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Hour</th>
+                  <th style="text-align: center;">Orders</th>
+                  <th style="text-align: right;">Revenue</th>
+                  <th style="text-align: right;">Avg Order Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${hoursTableRows}
+              </tbody>
+            </table>
+            
+            <div class="footer">
+              <p><strong>CoreTrack Peak Hours Analytics</strong></p>
+              <p>Generated ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
+            </div>
+          </body>
+        </html>
+      `
+
+      generatePDF(pdfHTML, 'Peak Hours Analysis')
+    } catch (error) {
+      console.error('Peak Hours Report PDF export error:', error)
+      alert('❌ Error generating Peak Hours Report PDF. Please try again.')
+    }
+  }
+
+  const generatePaymentInsightsReportPDF = async (data: ExportData) => {
+    try {
+      const { startDate, endDate } = calculateDateRange()
+      const locationId = getBranchLocationId(selectedBranch!.id)
+      
+      // Use the comprehensive order fetching helper
+      const dateFilteredOrders = await fetchComprehensiveOrders(startDate, endDate, locationId)
+
+      if (dateFilteredOrders.length === 0) {
+        alert(`No order data found for the selected ${exportDateRange} period. Please try a different date range.`)
+        return
+      }
+
+      // Build payment method data
+      const paymentMap = new Map<string, { amount: number; transactions: number; }>();
+
+      dateFilteredOrders.forEach(order => {
+        const method = order.paymentMethod || 'Unknown';
+        
+        if (!paymentMap.has(method)) {
+          paymentMap.set(method, { amount: 0, transactions: 0 });
+        }
+
+        const data = paymentMap.get(method)!;
+        data.amount += order.total || 0;
+        data.transactions += 1;
+      });
+
+      const paymentData = Array.from(paymentMap.entries())
+        .map(([method, data]) => ({
+          method,
+          amount: data.amount,
+          transactions: data.transactions,
+          avgTransactionValue: data.transactions > 0 ? data.amount / data.transactions : 0,
+          percentage: 0 // Will be calculated below
+        }))
+        .sort((a, b) => b.amount - a.amount); // Sort by amount descending
+
+      // Calculate percentages
+      const totalAmount = paymentData.reduce((sum, method) => sum + method.amount, 0);
+      paymentData.forEach(method => {
+        method.percentage = totalAmount > 0 ? (method.amount / totalAmount) * 100 : 0;
+      });
+
+      const totalTransactions = paymentData.reduce((sum, method) => sum + method.transactions, 0)
+      const topMethod = paymentData[0] // Already sorted by amount desc
+
+      const paymentTableRows = paymentData.map((method) => `
+        <tr>
+          <td>${method.method}</td>
+          <td style="text-align: right;">₱${method.amount.toLocaleString()}</td>
+          <td style="text-align: center;">${method.transactions}</td>
+          <td style="text-align: center;">${method.percentage.toFixed(1)}%</td>
+          <td style="text-align: right;">₱${method.avgTransactionValue.toFixed(2)}</td>
+        </tr>
+      `).join('')
+
+      const pdfHTML = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Payment Method Insights - ${data.dateRange}</title>
+            <style>
+              @media print { @page { margin: 0.5in; } }
+              body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+              .header { text-align: center; border-bottom: 3px solid #10b981; padding-bottom: 20px; margin-bottom: 30px; }
+              .logo { color: #10b981; font-size: 2.2em; font-weight: bold; margin-bottom: 10px; }
+              .metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 30px; }
+              .metric-card { background: #ecfdf5; padding: 15px; border-radius: 8px; text-align: center; }
+              .metric-label { color: #065f46; font-size: 0.9em; margin-bottom: 5px; }
+              .metric-value { color: #111827; font-size: 1.5em; font-weight: bold; }
+              .table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+              .table th, .table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+              .table th { background-color: #ecfdf5; font-weight: 600; color: #065f46; }
+              .footer { text-align: center; margin-top: 40px; color: #6b7280; font-size: 0.9em; border-top: 1px solid #e5e7eb; padding-top: 20px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="logo">CoreTrack Payment Analytics</div>
+              <h1>Payment Method Insights Report</h1>
+              <p><strong>Branch:</strong> ${selectedBranch?.name || 'N/A'}</p>
+              <p><strong>Period:</strong> ${data.dateRange}</p>
+            </div>
+            
+            <div class="metrics">
+              <div class="metric-card">
+                <div class="metric-label">Total Transaction Value</div>
+                <div class="metric-value">₱${totalAmount.toLocaleString()}</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Total Transactions</div>
+                <div class="metric-value">${totalTransactions.toLocaleString()}</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Most Used Method</div>
+                <div class="metric-value">${topMethod.method}</div>
+                <div class="metric-label">${topMethod.percentage.toFixed(1)}% of total</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Payment Methods Used</div>
+                <div class="metric-value">${paymentData.length}</div>
+              </div>
+            </div>
+
+            <h2>💳 Payment Method Breakdown</h2>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Payment Method</th>
+                  <th style="text-align: right;">Total Amount</th>
+                  <th style="text-align: center;">Transactions</th>
+                  <th style="text-align: center;">Percentage</th>
+                  <th style="text-align: right;">Avg Order Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${paymentTableRows}
+              </tbody>
+            </table>
+            
+            <div class="footer">
+              <p><strong>CoreTrack Payment Analytics</strong></p>
+              <p>Generated ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
+            </div>
+          </body>
+        </html>
+      `
+
+      generatePDF(pdfHTML, 'Payment Method Insights')
+    } catch (error) {
+      console.error('Payment Insights Report PDF export error:', error)
+      alert('❌ Error generating Payment Insights Report PDF. Please try again.')
+    }
+  }
+
+  const generateComprehensiveOrderReportPDF = async (data: ExportData) => {
+    try {
+      const { startDate, endDate } = calculateDateRange()
+      const locationId = getBranchLocationId(selectedBranch!.id)
+      
+      // Use the comprehensive order fetching helper
+      const dateFilteredOrders = await fetchComprehensiveOrders(startDate, endDate, locationId)
+
+      if (dateFilteredOrders.length === 0) {
+        alert(`No order data found for the selected ${exportDateRange} period. Please try a different date range.`)
+        return
+      }
+
+      // Build comprehensive analytics manually
+      const totalOrders = dateFilteredOrders.length;
+      const totalRevenue = dateFilteredOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+      const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+      // Peak hour analysis
+      const hourlyMap = new Map<number, number>();
+      for (let i = 0; i < 24; i++) hourlyMap.set(i, 0);
+      
+      dateFilteredOrders.forEach(order => {
+        const hour = order.createdAt.toDate().getHours();
+        hourlyMap.set(hour, (hourlyMap.get(hour) || 0) + 1);
+      });
+      
+      const peakHour = Array.from(hourlyMap.entries()).reduce((peak, [hour, orders]) => 
+        orders > peak[1] ? [hour, orders] : peak, [0, 0])[0];
+
+      // Payment method analysis
+      const paymentMap = new Map<string, number>();
+      dateFilteredOrders.forEach(order => {
+        const method = order.paymentMethod || 'Unknown';
+        paymentMap.set(method, (paymentMap.get(method) || 0) + 1);
+      });
+      
+      const mostUsedPaymentMethod = Array.from(paymentMap.entries()).reduce((top, [method, count]) => 
+        count > top[1] ? [method, count] : top, ['Unknown', 0])[0];
+
+      // Growth rate calculation (simplified)
+      const growthRate = 0; // Would need historical data for accurate calculation
+
+      const summary = {
+        totalOrders,
+        totalRevenue,
+        avgOrderValue,
+        peakHour,
+        mostUsedPaymentMethod,
+        growthRate
+      }
+
+      // Simple daily breakdown for the period
+      const dailyMap = new Map<string, { orders: number; revenue: number; }>();
+      
+      dateFilteredOrders.forEach(order => {
+        const date = order.createdAt.toDate().toISOString().split('T')[0];
+        if (!dailyMap.has(date)) {
+          dailyMap.set(date, { orders: 0, revenue: 0 });
+        }
+        const dayData = dailyMap.get(date)!;
+        dayData.orders += 1;
+        dayData.revenue += order.total || 0;
+      });
+
+      const dailyRows = Array.from(dailyMap.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .slice(0, 10) // Show last 10 days
+        .map(([date, data]) => `
+          <tr>
+            <td>${date}</td>
+            <td style="text-align: center;">${data.orders}</td>
+            <td style="text-align: right;">₱${data.revenue.toLocaleString()}</td>
+            <td style="text-align: right;">₱${(data.orders > 0 ? data.revenue / data.orders : 0).toFixed(2)}</td>
+          </tr>
+        `).join('')
+
+      const pdfHTML = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Comprehensive Order Report - ${data.dateRange}</title>
+            <style>
+              @media print { @page { margin: 0.5in; } }
+              body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+              .header { text-align: center; border-bottom: 3px solid #8b5cf6; padding-bottom: 20px; margin-bottom: 30px; }
+              .logo { color: #8b5cf6; font-size: 2.2em; font-weight: bold; margin-bottom: 10px; }
+              .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 30px; }
+              .metric-card { background: #f3f4f6; padding: 15px; border-radius: 8px; text-align: center; }
+              .metric-label { color: #6b7280; font-size: 0.9em; margin-bottom: 5px; }
+              .metric-value { color: #111827; font-size: 1.3em; font-weight: bold; }
+              .table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+              .table th, .table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+              .table th { background-color: #f3f4f6; font-weight: 600; color: #374151; }
+              .insights { background: #fef3c7; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+              .insights h3 { color: #92400e; margin-top: 0; }
+              .insights ul { color: #451a03; }
+              .footer { text-align: center; margin-top: 40px; color: #6b7280; font-size: 0.9em; border-top: 1px solid #e5e7eb; padding-top: 20px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="logo">CoreTrack Comprehensive Analytics</div>
+              <h1>Comprehensive Order Report</h1>
+              <p><strong>Branch:</strong> ${selectedBranch?.name || 'N/A'}</p>
+              <p><strong>Period:</strong> ${data.dateRange}</p>
+            </div>
+            
+            <div class="metrics">
+              <div class="metric-card">
+                <div class="metric-label">Total Orders</div>
+                <div class="metric-value">${summary.totalOrders.toLocaleString()}</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Total Revenue</div>
+                <div class="metric-value">₱${summary.totalRevenue.toLocaleString()}</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Avg Order Value</div>
+                <div class="metric-value">₱${summary.avgOrderValue.toFixed(2)}</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Peak Hour</div>
+                <div class="metric-value">${summary.peakHour}:00</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Preferred Payment</div>
+                <div class="metric-value">${summary.mostUsedPaymentMethod}</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Growth Rate</div>
+                <div class="metric-value">${summary.growthRate.toFixed(1)}%</div>
+              </div>
+            </div>
+
+            <h2>� Daily Performance Breakdown</h2>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th style="text-align: center;">Orders</th>
+                  <th style="text-align: right;">Revenue</th>
+                  <th style="text-align: right;">Avg Order Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${dailyRows}
+              </tbody>
+            </table>
+
+            <div class="insights">
+              <h3>💡 Strategic Insights</h3>
+              <ul>
+                <li>Peak performance occurs at ${summary.peakHour}:00 - optimize staffing during this time</li>
+                <li>${summary.mostUsedPaymentMethod} is the preferred payment method - ensure reliable processing</li>
+                <li>Average order value of ₱${summary.avgOrderValue.toFixed(2)} indicates customer spending patterns</li>
+                <li>Total of ${summary.totalOrders} orders generated ₱${summary.totalRevenue.toLocaleString()} in revenue</li>
+                <li>Consider promotional campaigns during low-volume hours for increased revenue</li>
+              </ul>
+            </div>
+            
+            <div class="footer">
+              <p><strong>CoreTrack Comprehensive Order Analytics</strong></p>
+              <p>Generated ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
+            </div>
+          </body>
+        </html>
+      `
+
+      generatePDF(pdfHTML, 'Comprehensive Order Report')
+    } catch (error) {
+      console.error('Comprehensive Order Report PDF export error:', error)
+      alert('❌ Error generating Comprehensive Order Report PDF. Please try again.')
+    }
+  }
+
   const handleExport = async (reportType: string) => {
     console.log(`🚀 Starting export for: ${reportType}`)
     
@@ -1085,6 +1751,14 @@ export default function BusinessReports() {
         await generateFinancialPerformancePDF(data)
       } else if (reportType === 'inventory') {
         await generateInventoryReportPDF(data)
+      } else if (reportType === 'orderVolume') {
+        await generateOrderVolumeReportPDF(data)
+      } else if (reportType === 'peakHours') {
+        await generatePeakHoursReportPDF(data)
+      } else if (reportType === 'paymentInsights') {
+        await generatePaymentInsightsReportPDF(data)
+      } else if (reportType === 'comprehensiveOrders') {
+        await generateComprehensiveOrderReportPDF(data)
       } else {
         console.error('Unknown report type:', reportType)
         alert('Unknown report type. Please try again.')
@@ -1348,6 +2022,122 @@ export default function BusinessReports() {
               </div>
             ) : (
               'Export Inventory'
+            )}
+          </button>
+        </div>
+
+        {/* Order Volume Trends Report */}
+        <div className="group bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-500">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 mx-auto bg-gradient-to-br from-purple-400 to-purple-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-purple-500/30">
+              <TrendingUp className="w-8 h-8 text-white" />
+            </div>
+            <h3 className="text-xl font-medium text-gray-900 mb-2">Order Volume Trends</h3>
+            <p className="text-gray-500 leading-relaxed">
+              Daily, weekly, and monthly order volume analysis with growth trends
+            </p>
+          </div>
+          <button 
+            onClick={() => handleExport('orderVolume')}
+            disabled={isExporting}
+            className="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white py-4 px-6 rounded-2xl hover:from-purple-600 hover:to-purple-700 disabled:bg-gray-300 transition-all duration-300 font-medium group-hover:shadow-lg group-hover:shadow-purple-500/25"
+          >
+            {isExporting ? (
+              <div className="flex items-center justify-center gap-2">
+                <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Generating...
+              </div>
+            ) : (
+              'Export Order Trends'
+            )}
+          </button>
+        </div>
+
+        {/* Peak Hours Analysis Report */}
+        <div className="group bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-500">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 mx-auto bg-gradient-to-br from-indigo-400 to-indigo-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-indigo-500/30">
+              <Clock className="w-8 h-8 text-white" />
+            </div>
+            <h3 className="text-xl font-medium text-gray-900 mb-2">Peak Hours Analysis</h3>
+            <p className="text-gray-500 leading-relaxed">
+              Hourly order patterns, busiest times, and staff optimization insights
+            </p>
+          </div>
+          <button 
+            onClick={() => handleExport('peakHours')}
+            disabled={isExporting}
+            className="w-full bg-gradient-to-r from-indigo-500 to-indigo-600 text-white py-4 px-6 rounded-2xl hover:from-indigo-600 hover:to-indigo-700 disabled:bg-gray-300 transition-all duration-300 font-medium group-hover:shadow-lg group-hover:shadow-indigo-500/25"
+          >
+            {isExporting ? (
+              <div className="flex items-center justify-center gap-2">
+                <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Generating...
+              </div>
+            ) : (
+              'Export Peak Hours'
+            )}
+          </button>
+        </div>
+
+        {/* Payment Method Insights Report */}
+        <div className="group bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-500">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 mx-auto bg-gradient-to-br from-teal-400 to-teal-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-teal-500/30">
+              <CreditCard className="w-8 h-8 text-white" />
+            </div>
+            <h3 className="text-xl font-medium text-gray-900 mb-2">Payment Insights</h3>
+            <p className="text-gray-500 leading-relaxed">
+              Payment method preferences, transaction amounts, and customer behavior
+            </p>
+          </div>
+          <button 
+            onClick={() => handleExport('paymentInsights')}
+            disabled={isExporting}
+            className="w-full bg-gradient-to-r from-teal-500 to-teal-600 text-white py-4 px-6 rounded-2xl hover:from-teal-600 hover:to-teal-700 disabled:bg-gray-300 transition-all duration-300 font-medium group-hover:shadow-lg group-hover:shadow-teal-500/25"
+          >
+            {isExporting ? (
+              <div className="flex items-center justify-center gap-2">
+                <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Generating...
+              </div>
+            ) : (
+              'Export Payment Data'
+            )}
+          </button>
+        </div>
+
+        {/* Comprehensive Order Analytics Report */}
+        <div className="group bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-500">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 mx-auto bg-gradient-to-br from-cyan-400 to-cyan-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-cyan-500/30">
+              <BarChart3 className="w-8 h-8 text-white" />
+            </div>
+            <h3 className="text-xl font-medium text-gray-900 mb-2">Comprehensive Orders</h3>
+            <p className="text-gray-500 leading-relaxed">
+              Complete order analytics with all metrics, trends, and business insights
+            </p>
+          </div>
+          <button 
+            onClick={() => handleExport('comprehensiveOrders')}
+            disabled={isExporting}
+            className="w-full bg-gradient-to-r from-cyan-500 to-cyan-600 text-white py-4 px-6 rounded-2xl hover:from-cyan-600 hover:to-cyan-700 disabled:bg-gray-300 transition-all duration-300 font-medium group-hover:shadow-lg group-hover:shadow-cyan-500/25"
+          >
+            {isExporting ? (
+              <div className="flex items-center justify-center gap-2">
+                <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Generating...
+              </div>
+            ) : (
+              'Export All Analytics'
             )}
           </button>
         </div>

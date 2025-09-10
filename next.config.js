@@ -2,7 +2,7 @@ const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
   skipWaiting: true,
-  disable: false,
+  disable: process.env.NODE_ENV === 'development',
   runtimeCaching: [
     // Cache Firebase data and API calls
     {
@@ -61,10 +61,10 @@ const withPWA = require('next-pwa')({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true, // Re-enabled with duplicate key fixes in place
+  reactStrictMode: true,
   eslint: {
     ignoreDuringBuilds: true, // Temporarily disable ESLint during builds
   },
 }
 
-module.exports = withPWA(nextConfig);
+module.exports = nextConfig;

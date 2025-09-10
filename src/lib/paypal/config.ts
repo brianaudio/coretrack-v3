@@ -1,5 +1,5 @@
 // PayPal Configuration for Philippine Payment Processing
-// No DTI/BIR required, supports recurring subscriptions
+// No DTI/BIR required, supports recurring subscriptions + Credit Cards
 
 interface PayPalConfig {
   clientId: string;
@@ -18,6 +18,35 @@ interface PayPalConfig {
   annualDiscount: number;
   currency: string;
   country: string;
+  
+  // Advanced Credit Card Processing Configuration
+  sdkOptions: {
+    'client-id': string;
+    currency: string;
+    intent: string;
+    'enable-funding': string;
+    'disable-funding': string;
+    components: string;
+  };
+  
+  // Credit Card Field Styling for Trust
+  cardFieldStyles: {
+    input: {
+      'font-size': string;
+      'font-family': string;
+      'color': string;
+      'padding': string;
+    };
+    '.valid': {
+      'color': string;
+    };
+    '.invalid': {
+      'color': string;
+    };
+    '::placeholder': {
+      'color': string;
+    };
+  };
 }
 
 const paypalConfig: PayPalConfig = {
@@ -76,7 +105,36 @@ const paypalConfig: PayPalConfig = {
     }
   },
 
-  annualDiscount: 0.2 // 20% discount for annual billing
+  annualDiscount: 0.2, // 20% discount for annual billing
+  
+  // PayPal SDK Configuration for Credit Card Processing
+  sdkOptions: {
+    'client-id': process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '',
+    currency: 'PHP',
+    intent: 'subscription',
+    'enable-funding': 'card,venmo,paylater',
+    'disable-funding': '',
+    components: 'buttons,hosted-fields,payment-fields'
+  },
+  
+  // Professional Credit Card Field Styling for Maximum Trust
+  cardFieldStyles: {
+    input: {
+      'font-size': '16px',
+      'font-family': 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      'color': '#374151',
+      'padding': '12px 16px'
+    },
+    '.valid': {
+      'color': '#059669'
+    },
+    '.invalid': {
+      'color': '#DC2626'
+    },
+    '::placeholder': {
+      'color': '#9CA3AF'
+    }
+  }
 };
 
 export default paypalConfig;

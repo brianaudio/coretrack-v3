@@ -48,13 +48,83 @@ export interface BusinessProfile {
   description: string
 }
 
+export interface NotificationSettings {
+  emailNotifications: boolean
+  pushNotifications: boolean
+  lowStockAlerts: boolean
+  expirationAlerts: boolean
+  reorderSuggestions: boolean
+  dailyReports: boolean
+  weeklyReports: boolean
+  criticalAlertsOnly: boolean
+  emailAddress: string
+  alertThresholds: {
+    lowStock: number
+    expiration: number
+    criticalStock: number
+  }
+  reportSchedule: {
+    dailyTime: string
+    weeklyDay: number
+    weeklyTime: string
+  }
+}
+
+export interface SecuritySettings {
+  twoFactorEnabled: boolean
+  sessionTimeout: number
+  requirePasswordChange: boolean
+  allowedIpAddresses: string[]
+  auditLogEnabled: boolean
+  dataRetentionDays: number
+}
+
+export interface IntegrationSettings {
+  quickbooks: {
+    enabled: boolean
+    apiKey: string
+    syncInventory: boolean
+    syncSales: boolean
+  }
+  zapier: {
+    enabled: boolean
+    webhookUrl: string
+  }
+  email: {
+    provider: string
+    apiKey: string
+    senderEmail: string
+  }
+}
+
+export interface AdvancedSettings {
+  apiAccess: boolean
+  webhooksEnabled: boolean
+  dataExportFormat: string
+  backupFrequency: string
+  debugMode: boolean
+  customCss: string
+}
+
 export interface SettingsContextType {
   paymentSettings: PaymentSettings
   businessProfile: BusinessProfile
+  notificationSettings: NotificationSettings
+  securitySettings: SecuritySettings
+  integrationSettings: IntegrationSettings
+  advancedSettings: AdvancedSettings
   updatePaymentSettings: (settings: Partial<PaymentSettings>) => void
   updateBusinessProfile: (profile: Partial<BusinessProfile>) => void
+  updateNotificationSettings: (settings: Partial<NotificationSettings>) => void
+  updateSecuritySettings: (settings: Partial<SecuritySettings>) => void
+  updateIntegrationSettings: (settings: Partial<IntegrationSettings>) => void
+  updateAdvancedSettings: (settings: Partial<AdvancedSettings>) => void
   savePaymentSettings: () => Promise<void>
   saveBusinessProfile: () => Promise<void>
+  saveNotificationSettings: () => Promise<void>
+  saveSecuritySettings: () => Promise<void>
+  saveIntegrationSettings: () => Promise<void>
+  saveAdvancedSettings: () => Promise<void>
   loading: boolean
   error: string | null
 }
@@ -107,6 +177,64 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     phone: '',
     taxId: '',
     description: ''
+  })
+
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
+    emailNotifications: true,
+    pushNotifications: true,
+    lowStockAlerts: true,
+    expirationAlerts: true,
+    reorderSuggestions: true,
+    dailyReports: false,
+    weeklyReports: true,
+    criticalAlertsOnly: false,
+    emailAddress: '',
+    alertThresholds: {
+      lowStock: 3,
+      expiration: 7,
+      criticalStock: 20
+    },
+    reportSchedule: {
+      dailyTime: '09:00',
+      weeklyDay: 1,
+      weeklyTime: '09:00'
+    }
+  })
+
+  const [securitySettings, setSecuritySettings] = useState<SecuritySettings>({
+    twoFactorEnabled: false,
+    sessionTimeout: 30,
+    requirePasswordChange: false,
+    allowedIpAddresses: [],
+    auditLogEnabled: true,
+    dataRetentionDays: 365
+  })
+
+  const [integrationSettings, setIntegrationSettings] = useState<IntegrationSettings>({
+    quickbooks: {
+      enabled: false,
+      apiKey: '',
+      syncInventory: false,
+      syncSales: false
+    },
+    zapier: {
+      enabled: false,
+      webhookUrl: ''
+    },
+    email: {
+      provider: 'sendgrid',
+      apiKey: '',
+      senderEmail: ''
+    }
+  })
+
+  const [advancedSettings, setAdvancedSettings] = useState<AdvancedSettings>({
+    apiAccess: false,
+    webhooksEnabled: false,
+    dataExportFormat: 'json',
+    backupFrequency: 'weekly',
+    debugMode: false,
+    customCss: ''
   })
 
   // Load settings from Firebase
@@ -175,6 +303,22 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setBusinessProfile(prev => ({ ...prev, ...profile }))
   }
 
+  const updateNotificationSettings = (settings: Partial<NotificationSettings>) => {
+    setNotificationSettings(prev => ({ ...prev, ...settings }))
+  }
+
+  const updateSecuritySettings = (settings: Partial<SecuritySettings>) => {
+    setSecuritySettings(prev => ({ ...prev, ...settings }))
+  }
+
+  const updateIntegrationSettings = (settings: Partial<IntegrationSettings>) => {
+    setIntegrationSettings(prev => ({ ...prev, ...settings }))
+  }
+
+  const updateAdvancedSettings = (settings: Partial<AdvancedSettings>) => {
+    setAdvancedSettings(prev => ({ ...prev, ...settings }))
+  }
+
   // Save functions
   const savePaymentSettings = async () => {
     if (!tenant?.id) {
@@ -223,13 +367,101 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const saveNotificationSettings = async () => {
+    if (!tenant?.id) {
+      throw new Error('No tenant information found')
+    }
+
+    try {
+      setError(null)
+      const tenantRef = doc(db, 'tenants', tenant.id)
+      await updateDoc(tenantRef, {
+        'settings.notifications': notificationSettings,
+        updatedAt: new Date()
+      })
+    } catch (err) {
+      console.error('Error saving notification settings:', err)
+      setError('Failed to save notification settings')
+      throw err
+    }
+  }
+
+  const saveSecuritySettings = async () => {
+    if (!tenant?.id) {
+      throw new Error('No tenant information found')
+    }
+
+    try {
+      setError(null)
+      const tenantRef = doc(db, 'tenants', tenant.id)
+      await updateDoc(tenantRef, {
+        'settings.security': securitySettings,
+        updatedAt: new Date()
+      })
+    } catch (err) {
+      console.error('Error saving security settings:', err)
+      setError('Failed to save security settings')
+      throw err
+    }
+  }
+
+  const saveIntegrationSettings = async () => {
+    if (!tenant?.id) {
+      throw new Error('No tenant information found')
+    }
+
+    try {
+      setError(null)
+      const tenantRef = doc(db, 'tenants', tenant.id)
+      await updateDoc(tenantRef, {
+        'settings.integrations': integrationSettings,
+        updatedAt: new Date()
+      })
+    } catch (err) {
+      console.error('Error saving integration settings:', err)
+      setError('Failed to save integration settings')
+      throw err
+    }
+  }
+
+  const saveAdvancedSettings = async () => {
+    if (!tenant?.id) {
+      throw new Error('No tenant information found')
+    }
+
+    try {
+      setError(null)
+      const tenantRef = doc(db, 'tenants', tenant.id)
+      await updateDoc(tenantRef, {
+        'settings.advanced': advancedSettings,
+        updatedAt: new Date()
+      })
+    } catch (err) {
+      console.error('Error saving advanced settings:', err)
+      setError('Failed to save advanced settings')
+      throw err
+    }
+  }
+
   const value: SettingsContextType = {
     paymentSettings,
     businessProfile,
+    notificationSettings,
+    securitySettings,
+    integrationSettings,
+    advancedSettings,
     updatePaymentSettings,
     updateBusinessProfile,
+    updateNotificationSettings,
+    updateSecuritySettings,
+    updateIntegrationSettings,
+    updateAdvancedSettings,
     savePaymentSettings,
     saveBusinessProfile,
+    saveNotificationSettings,
+    saveSecuritySettings,
+    saveIntegrationSettings,
+    saveAdvancedSettings,
     loading,
     error
   }

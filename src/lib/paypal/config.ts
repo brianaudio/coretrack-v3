@@ -5,6 +5,7 @@ interface PayPalConfig {
   clientId: string;
   clientSecret: string;
   isConfigured: () => boolean;
+  isLive: () => boolean;
   environment: 'sandbox' | 'live';
   baseUrl: string;
   subscriptionPlans: {
@@ -18,6 +19,19 @@ interface PayPalConfig {
   annualDiscount: number;
   currency: string;
   country: string;
+  
+  // PayPal.me fallback configuration
+  paypalMe: {
+    username: string;
+    fallbackUrl: string;
+    enabled: boolean;
+  };
+
+  // Webhook configuration for automatic subscription management
+  webhook: {
+    url: string;
+    events: string[];
+  };
   
   // Advanced Credit Card Processing Configuration
   sdkOptions: {
@@ -52,15 +66,40 @@ interface PayPalConfig {
 const paypalConfig: PayPalConfig = {
   clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || '',
   clientSecret: process.env.PAYPAL_CLIENT_SECRET || '',
-  environment: process.env.NODE_ENV === 'production' ? 'live' : 'sandbox',
-  baseUrl: process.env.NODE_ENV === 'production' 
+  environment: process.env.NEXT_PUBLIC_PAYPAL_ENVIRONMENT === 'live' ? 'live' : 'sandbox',
+  baseUrl: process.env.NEXT_PUBLIC_PAYPAL_ENVIRONMENT === 'live' 
     ? 'https://api.paypal.com' 
     : 'https://api.sandbox.paypal.com',
   currency: 'PHP',
   country: 'PH',
   
+  // PayPal.me fallback configuration
+  paypalMe: {
+    username: process.env.NEXT_PUBLIC_PAYPAL_ME_USERNAME || 'CoreTrackPH',
+    fallbackUrl: 'https://paypal.me/CoreTrackPH',
+    enabled: process.env.NEXT_PUBLIC_ENABLE_PAYPAL_ME === 'true'
+  },
+
+  // Webhook configuration
+  webhook: {
+    url: process.env.NEXT_PUBLIC_APP_URL 
+      ? `${process.env.NEXT_PUBLIC_APP_URL}/api/paypal/webhook`
+      : 'https://coretrack.vercel.app/api/paypal/webhook',
+    events: [
+      'BILLING.SUBSCRIPTION.ACTIVATED',
+      'BILLING.SUBSCRIPTION.CANCELLED',
+      'BILLING.SUBSCRIPTION.SUSPENDED',
+      'BILLING.SUBSCRIPTION.PAYMENT.FAILED',
+      'PAYMENT.SALE.COMPLETED'
+    ]
+  },
+  
   isConfigured(): boolean {
     return !!(this.clientId && this.clientId.length > 0);
+  },
+
+  isLive(): boolean {
+    return this.environment === 'live';
   },
 
   subscriptionPlans: {

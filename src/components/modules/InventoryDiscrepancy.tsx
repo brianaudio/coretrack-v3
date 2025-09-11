@@ -1030,7 +1030,14 @@ export default function InventoryDiscrepancy() {
               </svg>
             </div>
             <div>
-              <h1 className="text-4xl font-light text-gray-900 tracking-tight mb-2">Discrepancy Monitoring</h1>
+              <div className="flex items-center gap-3 mb-2">
+                <h1 className="text-4xl font-light text-gray-900 tracking-tight">Discrepancy Monitoring</h1>
+                {selectedBranch && (
+                  <span className="text-sm bg-red-100 text-red-800 px-3 py-1.5 rounded-lg font-medium shadow-sm">
+                    {selectedBranch.name}
+                  </span>
+                )}
+              </div>
               <p className="text-lg text-gray-500 font-light leading-relaxed max-w-2xl">
                 Track inventory levels and catch discrepancies early with intelligent monitoring and comprehensive audit trails.
               </p>
@@ -1040,25 +1047,39 @@ export default function InventoryDiscrepancy() {
           <div className="flex items-center gap-4">
             <div className="text-right space-y-2">
               <div className="text-sm text-gray-500 font-light">System Status</div>
-              <div className="text-2xl font-light tracking-tight text-red-900">
-                🔍 Monitoring Active
+              <div className="flex items-center gap-2 justify-end">
+                <div className="w-3 h-3 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/40 animate-pulse"></div>
+                <div className="text-xl font-light tracking-tight text-gray-900">
+                  Monitoring Active
+                </div>
+              </div>
+              <div className="text-xs text-gray-400 font-light">
+                Updated {new Date().toLocaleTimeString()}
               </div>
             </div>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-3 bg-red-600/10 border border-red-200 text-red-700 rounded-xl hover:bg-red-600/20 transition-all duration-300 font-medium backdrop-blur-sm"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto p-6 space-y-6">
 
-        {/* Modern Status Card */}
+        {/* Enhanced Today's Status Card */}
         <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-6">
           <div className="flex items-center justify-between">
             <div className="space-y-4">
               <h2 className="text-xl font-light text-gray-900 tracking-wide">Today&apos;s Status</h2>
               <div className="flex items-center gap-3">
-                <div className={`w-4 h-4 rounded-full shadow-sm ${
-                  todayStatus.status === 'success' ? 'bg-emerald-500 shadow-emerald-500/30' :
-                  todayStatus.status === 'warning' ? 'bg-amber-500 shadow-amber-500/30' : 'bg-gray-400'
+                <div className={`w-4 h-4 rounded-full shadow-lg ${
+                  todayStatus.status === 'success' ? 'bg-emerald-500 shadow-emerald-500/30 animate-pulse' :
+                  todayStatus.status === 'warning' ? 'bg-amber-500 shadow-amber-500/30 animate-pulse' : 'bg-gray-400'
                 }`}></div>
                 <div className="space-y-1">
                   <span className={`font-medium text-base ${
@@ -1071,17 +1092,17 @@ export default function InventoryDiscrepancy() {
                 </div>
               </div>
               
-              {/* New Feature Callout */}
-              <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl">
+              {/* Enhanced Feature Callout */}
+              <div className="mt-4 p-4 bg-gradient-to-r from-red-50 to-pink-50 border border-red-200/50 rounded-2xl backdrop-blur-sm">
                 <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="w-7 h-7 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-blue-900">🚀 Enhanced Features</p>
-                    <p className="text-xs text-blue-700 mt-1 leading-relaxed">
+                    <p className="text-sm font-medium text-red-900 mb-1">🚀 Enhanced Features</p>
+                    <p className="text-xs text-red-700 leading-relaxed">
                       • <strong>Apply to Inventory:</strong> Automatically sync audit results to your inventory system<br/>
                       • <strong>Professional Reports:</strong> Download beautiful HTML reports with detailed findings
                     </p>
@@ -1092,6 +1113,11 @@ export default function InventoryDiscrepancy() {
             <div className="text-right space-y-2">
               <div className="text-3xl font-light text-gray-900">{todayChecks}</div>
               <div className="text-sm text-gray-500 font-light">Checks today</div>
+              {selectedBranch && (
+                <div className="text-xs text-gray-400 font-light mt-1">
+                  {selectedBranch.name}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1169,8 +1195,11 @@ export default function InventoryDiscrepancy() {
           <div className="p-6">
             {loading ? (
               <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="mt-2 text-gray-600">Loading...</p>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto"></div>
+                <p className="mt-2 text-gray-600">Loading discrepancy data...</p>
+                {selectedBranch && (
+                  <p className="text-sm text-gray-500 mt-1">For {selectedBranch.name}</p>
+                )}
               </div>
             ) : auditHistory.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
@@ -1179,6 +1208,9 @@ export default function InventoryDiscrepancy() {
                 </svg>
                 <p>No inventory checks yet</p>
                 <p className="text-sm">Start with a quick check to get started</p>
+                {selectedBranch && (
+                  <p className="text-xs text-gray-400 mt-2">For {selectedBranch.name}</p>
+                )}
               </div>
             ) : (
               <div className="space-y-4">

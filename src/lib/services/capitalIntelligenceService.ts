@@ -92,7 +92,9 @@ export class CapitalIntelligenceService {
     
     // Strategy 1: Filter by branchId
     try {
-      const query1 = query(ref, where('branchId', '==', this.branchId))
+      const baseQueries = [where('branchId', '==', this.branchId)]
+      const allQueries = additionalQueries ? [...baseQueries, ...additionalQueries] : baseQueries
+      const query1 = query(ref, ...allQueries)
       const result1 = await getDocs(query1)
       if (result1.docs.length > 0) {
         return result1.docs.map(doc => ({ id: doc.id, ...doc.data() } as T))
@@ -103,7 +105,9 @@ export class CapitalIntelligenceService {
 
     // Strategy 2: Filter by locationId
     try {
-      const query2 = query(ref, where('locationId', '==', this.branchId))
+      const baseQueries = [where('locationId', '==', this.branchId)]
+      const allQueries = additionalQueries ? [...baseQueries, ...additionalQueries] : baseQueries
+      const query2 = query(ref, ...allQueries)
       const result2 = await getDocs(query2)
       if (result2.docs.length > 0) {
         return result2.docs.map(doc => ({ id: doc.id, ...doc.data() } as T))
@@ -115,7 +119,9 @@ export class CapitalIntelligenceService {
     // Strategy 3: Filter by locationId with prefix
     try {
       const locationIdWithPrefix = `location_${this.branchId}`
-      const query3 = query(ref, where('locationId', '==', locationIdWithPrefix))
+      const baseQueries = [where('locationId', '==', locationIdWithPrefix)]
+      const allQueries = additionalQueries ? [...baseQueries, ...additionalQueries] : baseQueries
+      const query3 = query(ref, ...allQueries)
       const result3 = await getDocs(query3)
       if (result3.docs.length > 0) {
         return result3.docs.map(doc => ({ id: doc.id, ...doc.data() } as T))
@@ -157,60 +163,59 @@ export class CapitalIntelligenceService {
   /**
    * Get recent POS sales data from posOrders collection (primary source for actual sales transactions)
    * Falls back to orders collection if no POS data found for backward compatibility
+   * INCLUDES PROPER BRANCH FILTERING
    */
   async getRecentSalesData(days: number = 30): Promise<SalesOrder[]> {
-    // Check both possible POS collections where sales might be stored
-    const posOrdersRef = collection(db, `tenants/${this.tenantId}/posOrders`)
-    const ordersRef = collection(db, `tenants/${this.tenantId}/orders`)
-    
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - days)
     
     let allSales: SalesOrder[] = []
     
     try {
-      // First try posOrders collection (primary POS sales source)
-      const posQuery = query(posOrdersRef, orderBy('createdAt', 'desc'), limit(100))
-      const posResult = await getDocs(posQuery)
+      // First try posOrders collection with branch filtering (primary POS sales source)
+      // This uses getFilteredData which applies smart branch filtering strategies
+      const posOrdersSales = await this.getFilteredData<SalesOrder>('posOrders', [
+        orderBy('createdAt', 'desc'),
+        limit(100)
+      ])
       
-      const posOrdersSales = posResult.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as SalesOrder))
-        .filter(order => {
+      const filteredPosOrdersSales = posOrdersSales.filter(order => {
+        try {
+          const orderDate = order.createdAt?.toDate?.() || 
+                           (order.createdAt ? new Date(order.createdAt) : new Date())
+          // Filter for completed POS sales within date range
+          return orderDate >= thirtyDaysAgo && 
+                 (order.status === 'completed' || order.status === 'paid')
+        } catch (error) {
+          return false
+        }
+      })
+      
+      allSales = [...allSales, ...filteredPosOrdersSales]
+      
+      // If no POS sales found, fallback to orders collection with branch filtering
+      // This also uses getFilteredData which applies smart branch filtering strategies
+      if (allSales.length === 0) {
+        const ordersSales = await this.getFilteredData<SalesOrder>('orders', [
+          orderBy('createdAt', 'desc'),
+          limit(100)
+        ])
+        
+        const filteredOrdersSales = ordersSales.filter(order => {
           try {
             const orderDate = order.createdAt?.toDate?.() || 
                              (order.createdAt ? new Date(order.createdAt) : new Date())
-            // Filter for completed POS sales within date range
-            return orderDate >= thirtyDaysAgo && 
-                   (order.status === 'completed' || order.status === 'paid')
+            return orderDate >= thirtyDaysAgo && order.status === 'completed'
           } catch (error) {
             return false
           }
         })
-      
-      allSales = [...allSales, ...posOrdersSales]
-      
-      // If no POS sales found, fallback to orders collection
-      if (allSales.length === 0) {
-        const ordersQuery = query(ordersRef, orderBy('createdAt', 'desc'), limit(100))
-        const ordersResult = await getDocs(ordersQuery)
         
-        const ordersSales = ordersResult.docs
-          .map(doc => ({ id: doc.id, ...doc.data() } as SalesOrder))
-          .filter(order => {
-            try {
-              const orderDate = order.createdAt?.toDate?.() || 
-                               (order.createdAt ? new Date(order.createdAt) : new Date())
-              return orderDate >= thirtyDaysAgo && order.status === 'completed'
-            } catch (error) {
-              return false
-            }
-          })
-        
-        allSales = [...allSales, ...ordersSales]
+        allSales = [...allSales, ...filteredOrdersSales]
       }
       
     } catch (error) {
-      console.error('Error fetching POS sales data:', error)
+      console.error('Error fetching branch-specific POS sales data:', error)
     }
     
     // Remove duplicates and sort by date

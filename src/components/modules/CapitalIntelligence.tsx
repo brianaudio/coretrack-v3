@@ -2,10 +2,12 @@
 
 import { useState } from 'react'
 import { useCapitalIntelligence } from '../../lib/hooks/useCapitalIntelligence'
+import { useBranch } from '../../lib/context/BranchContext'
 
 // Capital Intelligence Dashboard Component
 export default function CapitalIntelligence() {
   const [activeTab, setActiveTab] = useState('overview')
+  const { selectedBranch } = useBranch()
   const [alertThresholds, setAlertThresholds] = useState({
     highICR: 75,
     slowRecovery: 30,
@@ -74,17 +76,20 @@ export default function CapitalIntelligence() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
         <div className="max-w-7xl mx-auto p-6">
-          <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
-            <div className="text-red-600 mb-4">
-              <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.96-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-red-200/50 shadow-xl p-12 text-center">
+            <div className="text-red-600 mb-6">
+              <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.96-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold text-red-900 mb-2">Failed to Load Data</h3>
-            <p className="text-red-700 mb-4">{error}</p>
+            <h3 className="text-2xl font-light text-red-900 mb-4 tracking-tight">Failed to Load Data</h3>
+            <p className="text-red-700 mb-6 font-light">{error}</p>
+            {selectedBranch && (
+              <p className="text-sm text-red-600/70 mb-6 font-light">Branch: {selectedBranch.name}</p>
+            )}
             <button
               onClick={refresh}
-              className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg transition-colors"
+              className="bg-red-600/10 border border-red-200 hover:bg-red-600/20 text-red-700 px-8 py-4 rounded-2xl transition-all duration-300 font-medium backdrop-blur-sm"
             >
               Try Again
             </button>
@@ -95,61 +100,96 @@ export default function CapitalIntelligence() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
-      <div className="max-w-7xl mx-auto p-6">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                <span className="text-white text-lg">💰</span>
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Capital Intelligence</h1>
-                <p className="text-gray-600">Smart business financial insights</p>
-              </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white space-y-6">
+      {/* Enhanced Glassmorphism Header - Discrepancy Monitoring Style */}
+      <div className="bg-gradient-to-br from-gray-50 to-white backdrop-blur-lg border border-white/20 rounded-3xl p-8 shadow-2xl shadow-gray-500/10">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          <div className="flex items-center space-x-6">
+            <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-purple-700 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/25">
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
             </div>
-            <div className="flex items-center gap-3">
-              {lastUpdated && (
-                <span className="text-xs text-gray-500">
-                  Updated {lastUpdated.toLocaleTimeString()}
-                </span>
-              )}
-              <button
-                onClick={refresh}
-                disabled={loading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Refreshing...' : 'Refresh'}
-              </button>
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <h1 className="text-4xl font-light text-gray-900 tracking-tight">Capital Intelligence</h1>
+                {selectedBranch && (
+                  <span className="text-sm bg-blue-100 text-blue-800 px-3 py-1.5 rounded-lg font-medium shadow-sm">
+                    {selectedBranch.name}
+                  </span>
+                )}
+              </div>
+              <p className="text-lg text-gray-500 font-light leading-relaxed max-w-2xl">
+                Smart business financial insights with real-time analytics and capital efficiency monitoring.
+              </p>
             </div>
           </div>
+          
+          <div className="flex items-center gap-4">
+            <div className="text-right space-y-2">
+              <div className="text-sm text-gray-500 font-light">System Status</div>
+              <div className="flex items-center gap-2 justify-end">
+                <div className="w-3 h-3 rounded-full bg-blue-500 shadow-lg shadow-blue-500/40 animate-pulse"></div>
+                <div className="text-xl font-light tracking-tight text-gray-900">
+                  Analytics Active
+                </div>
+              </div>
+              {lastUpdated && (
+                <div className="text-xs text-gray-400 font-light">
+                  Updated {lastUpdated.toLocaleTimeString()}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={refresh}
+              disabled={loading}
+              className="px-4 py-3 bg-blue-600/10 border border-blue-200 text-blue-700 rounded-xl hover:bg-blue-600/20 transition-all duration-300 font-medium backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
 
-          {/* Tab Navigation */}
-          <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
+      <div className="max-w-7xl mx-auto p-6 space-y-6">
+
+        {/* Enhanced Tab Navigation */}
+        <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-6 mb-6">
+          <div className="flex space-x-2 bg-gray-50/50 backdrop-blur-sm p-2 rounded-2xl">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-md text-sm font-medium transition-colors ${
+                className={`flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-xl text-sm font-medium transition-all duration-300 ${
                   activeTab === tab.id
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-white text-blue-600 shadow-lg shadow-blue-500/10 backdrop-blur-lg'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
                 }`}
               >
-                <span>{tab.icon}</span>
+                <span className="text-lg">{tab.icon}</span>
                 {tab.label}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Loading State */}
+        {/* Enhanced Loading State */}
         {loading && !capitalData && (
-          <div className="flex items-center justify-center py-20">
+          <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-12">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-600">Loading capital intelligence data...</p>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-6"></div>
+              <p className="text-lg text-gray-600 font-light">Loading capital intelligence data...</p>
+              {selectedBranch && (
+                <p className="text-sm text-gray-500 mt-2 font-light">For {selectedBranch.name}</p>
+              )}
             </div>
           </div>
         )}
@@ -157,21 +197,23 @@ export default function CapitalIntelligence() {
         {/* Overview Tab */}
         {activeTab === 'overview' && capitalData && (
           <div className="space-y-6">
-            {/* Quick Status Cards */}
+            {/* Enhanced Status Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {/* Stock Health */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-3">
+              <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-500">
+                <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-medium text-gray-600">Stock Health</h3>
-                  <span className="text-2xl">{stockHealth.emoji}</span>
+                  <div className="w-12 h-12 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center">
+                    <span className="text-2xl">{stockHealth.emoji}</span>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <p className={`text-lg font-semibold text-${stockHealth.color}-600`}>
+                <div className="space-y-3">
+                  <p className={`text-lg font-light tracking-tight text-${stockHealth.color}-600`}>
                     {stockHealth.status}
                   </p>
-                  <p className="text-xs text-gray-500">{stockHealth.message}</p>
+                  <p className="text-xs text-gray-500 font-light leading-relaxed">{stockHealth.message}</p>
                   {isFinite(capitalData.capitalRecoveryTime) && capitalData.capitalRecoveryTime < 999 && (
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-gray-400 font-light">
                       {Math.round(capitalData.capitalRecoveryTime)} days to sell current stock
                     </p>
                   )}
@@ -179,19 +221,21 @@ export default function CapitalIntelligence() {
               </div>
 
               {/* Spending Efficiency */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-3">
+              <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-500">
+                <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-medium text-gray-600">Efficiency</h3>
-                  <span className="text-2xl">📈</span>
+                  <div className="w-12 h-12 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center">
+                    <span className="text-2xl">📈</span>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <p className={`text-lg font-semibold text-${spendingEfficiency.color}-600`}>
+                <div className="space-y-3">
+                  <p className={`text-lg font-light tracking-tight text-${spendingEfficiency.color}-600`}>
                     {spendingEfficiency.status}
                   </p>
-                  <p className="text-xs text-gray-500">{spendingEfficiency.message}</p>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
+                  <p className="text-xs text-gray-500 font-light leading-relaxed">{spendingEfficiency.message}</p>
+                  <div className="w-full bg-gray-200/70 rounded-full h-2 backdrop-blur-sm">
                     <div 
-                      className={`bg-${spendingEfficiency.color}-500 h-2 rounded-full transition-all`}
+                      className={`bg-${spendingEfficiency.color}-500 h-2 rounded-full transition-all shadow-sm`}
                       style={{ 
                         width: `${getEfficiencyScore(
                           capitalData.currentICR, 
@@ -205,16 +249,20 @@ export default function CapitalIntelligence() {
               </div>
 
               {/* ICR (Inventory to Capital Ratio) */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-3">
+              <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-500">
+                <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-medium text-gray-600">ICR</h3>
-                  <span className="text-2xl">⚖️</span>
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-2xl flex items-center justify-center">
+                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <p className={`text-2xl font-bold ${getICRColor(capitalData.currentICR * 100)}`}>
+                <div className="space-y-3">
+                  <p className={`text-2xl font-light tracking-tight ${getICRColor(capitalData.currentICR * 100)}`}>
                     {Math.round(capitalData.currentICR * 100)}%
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-500 font-light">
                     {capitalData.currentICR <= 0.4 ? 'Optimal' : 
                      capitalData.currentICR <= 0.6 ? 'Good' : 'High'}
                   </p>
@@ -222,52 +270,56 @@ export default function CapitalIntelligence() {
               </div>
 
               {/* Money Flow */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-3">
+              <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-500">
+                <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-medium text-gray-600">Money Flow</h3>
-                  <span className="text-2xl">
-                    {capitalData.moneyFlowAnalysis.isGood ? '✅' : '⚠️'}
-                  </span>
+                  <div className="w-12 h-12 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center">
+                    <span className="text-xl">
+                      {capitalData.moneyFlowAnalysis.isGood ? '✅' : '⚠️'}
+                    </span>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <p className={`text-sm font-semibold ${
+                <div className="space-y-3">
+                  <p className={`text-sm font-medium tracking-tight ${
                     capitalData.moneyFlowAnalysis.isGood ? 'text-green-600' : 'text-yellow-600'
                   }`}>
                     {capitalData.moneyFlowAnalysis.type.replace('_', ' ').toUpperCase()}
                   </p>
-                  <p className="text-xs text-gray-500 line-clamp-2">
+                  <p className="text-xs text-gray-500 font-light leading-relaxed line-clamp-2">
                     {capitalData.moneyFlowAnalysis.message}
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Detailed Metrics */}
+            {/* Enhanced Detailed Metrics */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Financial Overview */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <span className="text-blue-600">💰</span>
+              <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8">
+                <div className="flex items-center gap-4 mb-8">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-2xl flex items-center justify-center">
+                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                    </svg>
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900">Financial Overview</h3>
+                  <h3 className="text-xl font-light text-gray-900 tracking-tight">Financial Overview</h3>
                 </div>
                 
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center py-3 border-b border-gray-100">
-                    <span className="text-gray-600">Capital Deployed (Purchases)</span>
-                    <span className="font-semibold">₱{capitalData.totalCapitalDeployed.toLocaleString()}</span>
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center py-4 border-b border-gray-100/50">
+                    <span className="text-gray-600 font-light">Capital Deployed (Purchases)</span>
+                    <span className="font-medium text-gray-900">₱{capitalData.totalCapitalDeployed.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between items-center py-3 border-b border-gray-100">
-                    <span className="text-gray-600">Current Inventory Value</span>
-                    <span className="font-semibold">₱{capitalData.totalInventoryValue.toLocaleString()}</span>
+                  <div className="flex justify-between items-center py-4 border-b border-gray-100/50">
+                    <span className="text-gray-600 font-light">Current Inventory Value</span>
+                    <span className="font-medium text-gray-900">₱{capitalData.totalInventoryValue.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between items-center py-3 border-b border-gray-100">
-                    <span className="text-gray-600">Recent Sales Revenue (30 days)</span>
-                    <span className="font-semibold">₱{capitalData.totalRecentSales.toLocaleString()}</span>
+                  <div className="flex justify-between items-center py-4 border-b border-gray-100/50">
+                    <span className="text-gray-600 font-light">Recent Sales Revenue (30 days)</span>
+                    <span className="font-medium text-gray-900">₱{capitalData.totalRecentSales.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between items-center py-3">
-                    <span className="text-gray-600">Daily Sales Velocity</span>
+                  <div className="flex justify-between items-center py-4">
+                    <span className="text-gray-600 font-light">Daily Sales Velocity</span>
                     <span className="font-semibold">₱{Math.round(capitalData.purchaseToSalesVelocity).toLocaleString()}</span>
                   </div>
                 </div>
@@ -307,24 +359,26 @@ export default function CapitalIntelligence() {
               </div>
             </div>
 
-            {/* Recent Sales & Recommendations */}
+            {/* Enhanced Recent Sales & Recommendations */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Recent Sales */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                    <span className="text-green-600">�</span>
+              <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8">
+                <div className="flex items-center gap-4 mb-8">
+                  <div className="w-12 h-12 bg-gradient-to-br from-green-100 to-green-200 rounded-2xl flex items-center justify-center">
+                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                    </svg>
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900">Recent Sales</h3>
+                  <h3 className="text-xl font-light text-gray-900 tracking-tight">Recent Sales</h3>
                 </div>
                 
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {capitalData.recentSales.length > 0 ? (
                     capitalData.recentSales.map((sale, index) => (
-                      <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                      <div key={index} className="flex justify-between items-center p-4 bg-white/50 backdrop-blur-sm rounded-2xl border border-white/30 hover:bg-white/70 transition-all duration-300">
                         <div>
                           <p className="font-medium text-gray-900">{sale.customer}</p>
-                          <p className="text-sm text-gray-500">
+                          <p className="text-sm text-gray-500 font-light">
                             {sale.date.toLocaleDateString()} • {sale.items} item{sale.items !== 1 ? 's' : ''} • {sale.status}
                           </p>
                         </div>
@@ -375,11 +429,11 @@ export default function CapitalIntelligence() {
           </div>
         )}
 
-        {/* Tips Tab */}
+        {/* Enhanced Tips Tab */}
         {activeTab === 'tips' && (
           <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Understanding Capital Intelligence</h3>
+            <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-8">
+              <h3 className="text-2xl font-light text-gray-900 mb-8 tracking-tight">Understanding Capital Intelligence</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">

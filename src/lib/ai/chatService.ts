@@ -198,6 +198,27 @@ class ChatService {
     this.knowledgeBase = new Map([
       // INVENTORY MANAGEMENT - Professional & Comprehensive
       ['add inventory', '📦 **Adding Inventory Items - Professional Guide:**\n\n1. Navigate to **Inventory Center** from the sidebar\n2. Click **"Add Item"** button (top-right)\n3. **Essential Information:**\n   - Item Name & Description\n   - Category (for organization)\n   - Unit of Measure (pcs, kg, liters)\n   - Cost Price & Selling Price\n   - Current Stock Quantity\n   - Minimum Stock Threshold\n\n**💡 Pro Tips:**\n- Use consistent naming conventions\n- Set realistic reorder points to avoid stockouts\n- Add supplier information for easy reordering\n- Upload clear product images for POS identification'],
+      
+      // POS SYSTEM
+      ['pos order', '🛒 **Processing POS Orders - Step by Step:**\n\n1. **Start New Order:**\n   - Navigate to POS from sidebar\n   - Click "New Order" or tap items directly\n\n2. **Add Items:**\n   - Search by name or scan barcode\n   - Adjust quantities as needed\n   - Apply discounts if required\n\n3. **Payment Processing:**\n   - Select payment method (Cash, Card, Digital)\n   - Enter amount received\n   - Generate receipt automatically\n\n**🎯 Best Practices:**\n- Always verify order details before payment\n- Use quick-add buttons for frequent items\n- Enable receipt printing/email for customers'],
+      
+      // CAPITAL INTELLIGENCE
+      ['analytics', '📊 **Capital Intelligence Dashboard:**\n\n**Key Metrics Available:**\n- Daily/Weekly/Monthly sales velocity\n- Inventory turnover rates\n- Profit margin analysis\n- Cash flow insights\n- Top-performing products\n\n**How to Read Your Analytics:**\n- Green indicators = Good performance\n- Yellow = Needs attention\n- Red = Requires immediate action\n\n**💰 Money Flow Analysis:**\nTracks how efficiently your capital moves through inventory to sales. Higher velocity = better cash flow.'],
+      
+      // TEAM MANAGEMENT
+      ['team management', '👥 **Team Member Management:**\n\n1. **Adding Staff:**\n   - Go to Settings → Team\n   - Click "Add Member"\n   - Set role (Manager, Cashier, Staff)\n   - Define permissions\n\n2. **Role Permissions:**\n   - **Manager:** Full access to all features\n   - **Cashier:** POS + basic inventory viewing\n   - **Staff:** Limited inventory access\n\n3. **Performance Tracking:**\n   - View individual sales performance\n   - Monitor login times and activity\n   - Track POS transactions by user'],
+      
+      // BILLING & SUBSCRIPTION
+      ['billing', '💳 **Subscription & Billing:**\n\n**Available Plans:**\n- **Starter (₱89/month):** Solo coffee shops, up to 100 products\n- **Professional (₱199/month):** Growing teams, advanced analytics\n- **Enterprise (₱349/month):** Multiple locations, full features\n\n**Payment Methods:**\n- PayPal (primary) - No BIR/DTI required\n- PayPal.me (backup option)\n- All major credit cards supported\n\n**Manage Subscription:**\n- Upgrade/downgrade anytime\n- Cancel through PayPal dashboard\n- 7-day grace period for failed payments'],
+      
+      // TROUBLESHOOTING
+      ['sync issues', '🔄 **Data Sync Troubleshooting:**\n\n**Common Issues & Solutions:**\n1. **Inventory not updating:** Refresh page, check internet connection\n2. **POS orders missing:** Verify user permissions, check sync status\n3. **Analytics delayed:** Data updates every 5 minutes\n\n**Force Sync:**\n- Click refresh icon in top bar\n- Log out and back in\n- Check browser developer console for errors'],
+      
+      // CORETRACK FEATURES
+      ['features', '🚀 **CoreTrack Feature Overview:**\n\n**📦 Inventory Center:**\n- Real-time stock tracking\n- Automatic reorder alerts\n- Supplier management\n- Cost analysis\n\n**🛒 Point of Sale:**\n- iPad-optimized interface\n- Quick payment processing\n- Receipt generation\n- Sales reporting\n\n**📊 Capital Intelligence:**\n- Advanced business analytics\n- Money flow tracking\n- Performance insights\n- Trend forecasting\n\n**⚙️ Business Management:**\n- Team member controls\n- Multi-location support\n- Security settings'],
+      
+      // GETTING STARTED
+      ['getting started', '🎯 **Getting Started with CoreTrack:**\n\n**Quick Setup (15 minutes):**\n1. **Add Your First Products** (5 min)\n   - Go to Inventory → Add Item\n   - Start with 5-10 main products\n\n2. **Set Up POS** (5 min)\n   - Navigate to POS system\n   - Test with sample transactions\n   - Configure payment methods\n\n3. **Add Team Members** (5 min)\n   - Settings → Team → Add Member\n   - Assign appropriate roles\n\n**🎓 Next Steps:**\n- Explore Capital Intelligence for insights\n- Set up supplier information\n- Customize receipt templates'],
 
       ['low stock', '⚠️ **Low Stock Management Strategy:**\n\n**Immediate Actions:**\n1. Go to **Inventory Center** → Filter by "Low Stock"\n2. Review items with red warning indicators\n3. Check sales velocity to prioritize reorders\n4. Contact suppliers for urgent restocking\n\n**Prevention Strategy:**\n- Set appropriate minimum stock thresholds\n- Monitor sales patterns for seasonal adjustments\n- Establish reliable supplier relationships\n- Consider automated reorder points\n\n**💰 Business Impact:** Preventing stockouts can increase revenue by 15-25% by avoiding lost sales.'],
 

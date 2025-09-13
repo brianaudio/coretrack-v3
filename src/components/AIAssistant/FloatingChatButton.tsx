@@ -38,16 +38,26 @@ export default function FloatingChatButton({
 
   return (
     <>
-      {/* Floating Chat Button - iPad Optimized */}
+      {/* Floating Chat Button - Enhanced Glassmorphism Design */}
       <div className={`relative ${className}`} style={{ zIndex: 9999 }}>
         <button
           onClick={toggleChat}
-          className="group relative w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-full shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300 flex items-center justify-center border-2 border-white"
+          className="group relative w-16 h-16 bg-gradient-to-br from-blue-500/90 to-purple-600/90 hover:from-blue-600/95 hover:to-purple-700/95 text-white rounded-2xl shadow-2xl hover:shadow-blue-500/25 transform hover:scale-105 transition-all duration-300 flex items-center justify-center backdrop-blur-xl border border-white/20"
           aria-label="Open CoreTrack AI Assistant"
           style={{ zIndex: 9999, position: 'relative' }}
         >
-          {/* Debug indicator */}
-          <div className="absolute -top-1 -left-1 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+          {/* Glassmorphism Inner Glow */}
+          <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent rounded-2xl" />
+          
+          {/* AI Status Indicator */}
+          <div className="absolute -top-1 -left-1 w-3 h-3 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full animate-pulse shadow-lg" />
+          
+          {/* New Message Notification */}
+          {hasNewMessage && (
+            <div className="absolute -top-2 -right-2 w-5 h-5 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-full flex items-center justify-center text-xs font-bold animate-bounce shadow-lg">
+              <div className="w-2 h-2 bg-white rounded-full animate-ping" />
+            </div>
+          )}
           {/* AI Assistant Icon */}
           <div className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
             {isOpen ? (

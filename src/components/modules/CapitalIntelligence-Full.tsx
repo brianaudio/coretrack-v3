@@ -263,7 +263,7 @@ export default function CapitalIntelligence() {
         {activeTab === 'overview' && capitalData && (
           <div className="space-y-6">
             {/* Enhanced Status Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {/* Stock Health */}
               <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-500">
                 <div className="flex items-center justify-between mb-4">
@@ -333,6 +333,28 @@ export default function CapitalIntelligence() {
                   </p>
                 </div>
               </div>
+
+              {/* Money Flow */}
+              <div className="bg-white/70 backdrop-blur-lg rounded-3xl border border-white/20 shadow-xl p-6 hover:shadow-2xl hover:scale-[1.02] transition-all duration-500">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-gray-600">Money Flow</h3>
+                  <div className="w-12 h-12 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center">
+                    <span className="text-xl">
+                      {capitalData.moneyFlowAnalysis.isGood ? '✅' : '⚠️'}
+                    </span>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <p className={`text-sm font-medium tracking-tight ${
+                    capitalData.moneyFlowAnalysis.isGood ? 'text-green-600' : 'text-yellow-600'
+                  }`}>
+                    {capitalData.moneyFlowAnalysis.type.replace('_', ' ').toUpperCase()}
+                  </p>
+                  <p className="text-xs text-gray-500 font-light leading-relaxed line-clamp-2">
+                    {capitalData.moneyFlowAnalysis.message}
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Enhanced Detailed Metrics */}
@@ -353,9 +375,13 @@ export default function CapitalIntelligence() {
                     <span className="text-gray-600 font-light">Capital Deployed (Purchases)</span>
                     <span className="font-medium text-gray-900">₱{capitalData.totalCapitalDeployed.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between items-center py-4">
+                  <div className="flex justify-between items-center py-4 border-b border-gray-100/50">
                     <span className="text-gray-600 font-light">Current Inventory Value</span>
                     <span className="font-medium text-gray-900">₱{capitalData.totalInventoryValue.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-4">
+                    <span className="text-gray-600 font-light">Daily Sales Velocity</span>
+                    <span className="font-semibold">₱{Math.round(capitalData.purchaseToSalesVelocity).toLocaleString()}</span>
                   </div>
                 </div>
               </div>

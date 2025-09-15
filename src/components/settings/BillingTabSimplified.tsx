@@ -29,7 +29,7 @@ export default function BillingTab() {
   // Handle direct PayPal subscription
   const handleDirectPayPalSubscription = async (planId: string, paypalPlanId: string) => {
     if (!paypalPlanId) {
-      showError('PayPal plan configuration missing for ' + planId)
+      showError('PayPal plan configuration missing for ' + planId, 'Configuration Error')
       return
     }
 
@@ -58,7 +58,7 @@ export default function BillingTab() {
       }
     } catch (error: any) {
       console.error('Subscription error:', error)
-      showError('Failed to start subscription: ' + error.message)
+      showError('Failed to start subscription: ' + error.message, 'Subscription Error')
     } finally {
       setLoading(false)
     }
@@ -70,7 +70,7 @@ export default function BillingTab() {
       // Open PayPal subscription management
       window.open('https://www.paypal.com/myaccount/autopay/', '_blank')
     } else {
-      showError('No PayPal subscription found')
+      showError('No PayPal subscription found', 'Subscription Error')
     }
   }
 
@@ -101,7 +101,8 @@ export default function BillingTab() {
           const paypalPlanId = paypalConfig.subscriptionPlans[plan.id as keyof typeof paypalConfig.subscriptionPlans]
           if (!paypalPlanId) return
 
-          paypal.Buttons({
+          if (paypal?.Buttons) {
+            paypal.Buttons({
             style: {
               layout: 'vertical',
               color: plan.id === 'professional' ? 'blue' : 'black',
@@ -124,21 +125,22 @@ export default function BillingTab() {
             },
             onApprove: async (data: any) => {
               try {
-                showSuccess('Subscription activated successfully!')
+                showSuccess('Subscription activated successfully!', 'Welcome to CoreTrack Pro')
                 // Refresh the page to show updated subscription status
                 window.location.reload()
               } catch (error) {
-                showError('Failed to complete subscription')
+                showError('Failed to complete subscription', 'Subscription Error')
               }
             },
             onError: (err: any) => {
               console.error('PayPal error:', err)
-              showError('PayPal subscription failed')
+              showError('PayPal subscription failed', 'Payment Error')
             },
             onCancel: () => {
-              showError('Subscription cancelled')
+              showError('Subscription cancelled', 'Payment Cancelled')
             }
           }).render(`#${containerId}`)
+          }
         })
       } catch (error) {
         console.error('PayPal initialization error:', error)
@@ -234,7 +236,8 @@ export default function BillingTab() {
         <div className="grid md:grid-cols-3 gap-6">
           {SUBSCRIPTION_PLANS.map((plan) => {
             const isCurrentPlan = subscription?.planId === plan.id
-            const paypalPlanId = paypalConfig.subscriptionPlans[plan.id as keyof typeof paypalConfig.subscriptionPlans]
+            const paypalPlan = paypalConfig.subscriptionPlans[plan.id as keyof typeof paypalConfig.subscriptionPlans]
+            const paypalPlanId = paypalPlan?.paypalPlanId
             
             return (
               <div 
@@ -334,7 +337,7 @@ export default function BillingTab() {
                     
                     {/* Backup Manual Button */}
                     <button
-                      onClick={() => handleDirectPayPalSubscription(plan.id, paypalPlanId)}
+                      onClick={() => handleDirectPayPalSubscription(plan.id, paypalPlanId || '')}
                       disabled={loading}
                       className={`w-full py-3 px-4 rounded-lg transition-colors font-semibold disabled:opacity-50 ${
                         plan.id === 'professional' 

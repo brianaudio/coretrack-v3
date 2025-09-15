@@ -472,6 +472,30 @@ How can I assist you in optimizing your business operations today?`
     return null
   }
 
+  private generateConversationalFallback(message: string, contextualData: string | null, context: ChatContext): string {
+    const lowerMessage = message.toLowerCase()
+    
+    // Add contextual data if available
+    let response = contextualData ? `${contextualData}\n\n` : ''
+    
+    // Smart contextual responses with personality (from our earlier conversational AI updates)
+    if (lowerMessage.includes('inventory') || lowerMessage.includes('stock')) {
+      response += `Inventory questions - I love these! 📦 What's going on with your stock? Need help adding new items, checking what's running low, or maybe setting up those handy alerts so you never run out of your bestsellers?`
+    } else if (lowerMessage.includes('pos') || lowerMessage.includes('order') || lowerMessage.includes('payment')) {
+      response += `POS stuff - awesome! 💰 Are you trying to ring up an order, sort out a payment issue, or maybe customize your menu? I'm here to make your checkout process smooth as butter!`
+    } else if (lowerMessage.includes('team') || lowerMessage.includes('staff') || lowerMessage.includes('employee')) {
+      response += `Team management - one of my favorite topics! 👥 Building a great team is so important. Are you looking to add someone new, adjust who can do what, or just figure out the different roles? Let's get your crew sorted!`
+    } else if (lowerMessage.includes('report') || lowerMessage.includes('analytics') || lowerMessage.includes('sales')) {
+      response += `Ooh, data time! 📊 I get excited about analytics because they tell such cool stories about your business. What insights are you curious about? Sales trends, inventory performance, or maybe your financial picture?`
+    } else if (lowerMessage.includes('how') || lowerMessage.includes('help') || lowerMessage.includes('?')) {
+      response += `I'm totally here for you! 🙋‍♀️ What's on your mind? Whether it's inventory mysteries, POS puzzles, team stuff, or just wanting to understand your numbers better - let's figure it out together!`
+    } else {
+      response += `Hey there! 👋 I'm your CoreTrack AI assistant, and I'm genuinely excited to help you succeed! Whether you want to chat about inventory, streamline your orders, build your team, or dive into your business analytics - I'm your girl! What's happening in your business world today?`
+    }
+    
+    return response
+  }
+
   async sendMessage(message: string, context: ChatContext): Promise<string> {
     try {
       // Initialize data service for real CoreTrack data
@@ -480,55 +504,10 @@ How can I assist you in optimizing your business operations today?`
       // Get relevant business data based on user's question
       const contextualData = await dataService.getContextualData(message)
       
-      // First, check knowledge base for quick responses
-      const quickResponse = this.findKnowledgeBaseMatch(message)
-      if (quickResponse && Math.random() > 0.5) { // 50% chance to use quick response to save API quota
-        // Enhance quick response with real data if available
-        if (contextualData) {
-          return `${contextualData}\n\n---\n\n${quickResponse}`
-        }
-        return quickResponse
-      }
-
-      // Check if API key is configured
+      // Check if API key is configured - ALWAYS try AI first for natural conversation
       if (!this.geminiApiKey || this.geminiApiKey === 'your_gemini_api_key_here') {
-        console.log('🔑 No Gemini API key configured, using knowledge base fallback with real data')
-        
-        // Enhanced fallback with real data
-        const fallbackResponse = this.findKnowledgeBaseMatch(message)
-        if (fallbackResponse) {
-          if (contextualData) {
-            return `${contextualData}\n\n---\n\n${fallbackResponse}`
-          }
-          return fallbackResponse
-        }
-
-        // Smart fallback based on message content with real data
-        if (message.toLowerCase().includes('inventory')) {
-          const inventoryData = await dataService.getInventorySummary()
-          return `${inventoryData}\n\n---\n\n📦 **Inventory Help**\n\nTo manage inventory in CoreTrack:\n\n1. **Add Items**: Go to Inventory Center → Click "Add Item"\n2. **Track Stock**: View current stock levels and get low-stock alerts\n3. **Reports**: Generate inventory reports for insights\n\n💡 *Need more help? Contact support@coretrack.ph*`
-        }
-        
-        if (message.toLowerCase().includes('pos') || message.toLowerCase().includes('order') || message.toLowerCase().includes('sales')) {
-          const salesData = await dataService.getSalesSummary()
-          return `${salesData}\n\n---\n\n💳 **POS & Orders Help**\n\n1. **Process Orders**: Select items → Add to cart → Choose payment\n2. **Payment Methods**: Cash, Card, GCash supported\n3. **Refunds**: Go to Transaction History → Select order → Refund\n\n✨ *The system automatically updates inventory after each sale!*`
-        }
-        
-        if (message.toLowerCase().includes('financial') || message.toLowerCase().includes('expenses') || message.toLowerCase().includes('profit') || message.toLowerCase().includes('money')) {
-          const financialData = await dataService.getFinancialSummary()
-          return `${financialData}\n\n---\n\n💰 **Financial Management Help**\n\n1. **Track Expenses**: Go to Expenses → Add New Expense\n2. **View Reports**: Check Financial Reports for profit/loss analysis\n3. **Budget Planning**: Set expense categories and monthly budgets\n4. **Cash Flow**: Monitor revenue vs expenses trends\n\n📈 *Keep track of your finances to ensure sustainable growth*`
-        }
-        
-        if (message.toLowerCase().includes('team')) {
-          const teamData = await dataService.getTeamSummary()
-          return `${teamData}\n\n---\n\n👥 **Team Management Help**\n\n1. **Add Members**: Team Management → Add Team Member\n2. **Roles**: Staff (basic), Manager (full access), Owner (complete)\n3. **Permissions**: Customize access levels per role\n\n🔐 *New members receive login credentials via email*`
-        }
-        
-        if (message.toLowerCase().includes('overview') || message.toLowerCase().includes('summary')) {
-          return await dataService.getBusinessOverview()
-        }
-        
-        return `👋 **Welcome to CoreTrack!**\n\nI'm here to help! Try asking about:\n\n📦 **Inventory**: "How to add inventory items?"\n💳 **Orders**: "How to process payments?"\n👥 **Team**: "How to add team members?"\n📊 **Reports**: "How to generate reports?"\n\n💡 *For full AI responses, add your Gemini API key to .env.local*`
+        console.log('🔑 No Gemini API key configured, using enhanced fallback')
+        return this.generateConversationalFallback(message, contextualData, context)
       }
 
       // Check rate limit before making AI request
@@ -557,22 +536,41 @@ How can I assist you in optimizing your business operations today?`
         return `⏱️ **AI Response Limit Reached**\n\nTo ensure quality service, AI responses are temporarily limited. Please wait ${waitTimeSeconds} seconds.\n\nIn the meantime:\n📦 Use the search function for inventory\n💳 Check the POS system for orders\n📊 View reports for analytics\n📞 Contact support@coretrack.ph for urgent help`
       }
 
-      // Create enhanced prompt with real data
-      const enhancedPrompt = this.getContextualPrompt(message, context, contextualData)
-      const response = await this.callGeminiAPI(enhancedPrompt, tenantId, subscriptionPlan)
+      // ALWAYS use Gemini Pro for natural conversation - only fallback on errors
+      try {
+        const enhancedPrompt = this.getContextualPrompt(message, context, contextualData)
+        const response = await this.callGeminiAPI(enhancedPrompt, tenantId, subscriptionPlan)
 
-      // Store conversation for learning (in production, save to database)
-      this.conversationHistory.push({
-        user: message,
-        ai: response
-      })
+        // Store conversation for learning (in production, save to database)
+        this.conversationHistory.push({
+          user: message,
+          ai: response
+        })
 
-      // Keep only recent conversations in memory
-      if (this.conversationHistory.length > 10) {
-        this.conversationHistory = this.conversationHistory.slice(-10)
+        // Keep only recent conversations in memory
+        if (this.conversationHistory.length > 10) {
+          this.conversationHistory = this.conversationHistory.slice(-10)
+        }
+
+        return response
+      } catch (aiError) {
+        console.warn('🔄 Gemini API error, using enhanced fallback:', aiError)
+        
+        const fallbackResponse = this.findKnowledgeBaseMatch(message)
+        if (fallbackResponse) {
+          if (contextualData) {
+            return `${contextualData}\n\n---\n\n${fallbackResponse}\n\n⚠️ *AI temporarily unavailable, showing cached response*`
+          }
+          return `${fallbackResponse}\n\n⚠️ *AI temporarily unavailable, showing cached response*`
+        }
+        
+        if (contextualData) {
+          return `${contextualData}\n\n---\n\n⚠️ **AI Temporarily Unavailable**\n\nI've provided your latest business data above. Please try again in a few minutes for full AI assistance.`
+        }
+        
+        return `⚠️ **AI Temporarily Unavailable**\n\nDon't worry! You can still:\n📦 Manage inventory in the Inventory Center\n💳 Process orders in the POS system\n📊 Check reports and analytics\n📞 Contact support@coretrack.ph for immediate help`
       }
 
-      return response
     } catch (error: any) {
       console.error('Chat service error:', error)
       

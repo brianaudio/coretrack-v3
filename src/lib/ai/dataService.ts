@@ -10,6 +10,7 @@ interface UserContext {
   businessType?: string
   tenantId?: string
   subscriptionPlan?: string
+  branchId?: string
 }
 
 interface InventoryItem {
@@ -47,21 +48,24 @@ export class AIDataService {
   private tenantId: string
   private subscriptionPlan: string
   private userRole: string
+  private branchId: string
 
   constructor(userContext: UserContext) {
-    // Use the actual tenantId from your auth context
-    this.tenantId = userContext.tenantId || 'gJPRV0nFGiULXAW9nciyGad686z2' // Your actual tenant ID
-    this.subscriptionPlan = 'enterprise' // Force Enterprise for now to fix the issue
+    // Get the actual tenant and location data from the current context
+    this.tenantId = userContext.tenantId || 'default'
+    this.subscriptionPlan = userContext.subscriptionPlan || 'enterprise'
     this.userRole = userContext.userRole || 'staff'
+    this.branchId = userContext.branchId || ''
     
     // Debug logging
     console.log('🤖 AI Data Service Initialized:', {
-      providedTenantId: userContext.tenantId || 'NOT_PROVIDED',
+      providedTenantId: userContext.tenantId,
       finalTenantId: this.tenantId,
       subscriptionPlan: this.subscriptionPlan,
       userRole: this.userRole,
+      branchId: this.branchId,
       userContext: userContext,
-      USING_REAL_TENANT: true
+      USING_DYNAMIC_CONTEXT: true
     })
   }
 
@@ -191,241 +195,163 @@ export class AIDataService {
     }
   }
 
-  // Get sales summary for AI context - Using multiple fallback approaches
+  // Get sales summary for AI context - Using same approach as Dashboard
   async getSalesSummary(): Promise<string> {
     if (!this.tenantId || !this.hasAccess('sales_basic')) {
       return "I don't have access to your sales data. Please upgrade your plan for sales insights."
     }
 
     try {
+      console.log('💰 AI accessing sales data like Dashboard...')
+      
+      // Use the same approach as MainDashboard - access the orders collection directly
+      // This matches how your dashboard successfully gets sales data
+      const ordersRef = collection(db, `tenants/${this.tenantId}/orders`)
+      
       let orders: any[] = []
-      let queryMethod = 'unknown'
-
-      // Method 1: Try location-based approach (what analytics uses)
+      
       try {
-        const selectedBranch = 'main-location-gJPRV0nFGiULXAW9nciyGad686z2'
-        const ordersRef1 = collection(db, 'tenants', this.tenantId, 'locations', `location_${selectedBranch}`, 'posOrders')
+        // Get recent orders using the same pattern as your dashboard
+        const ordersQuery = query(
+          ordersRef,
+          orderBy('createdAt', 'desc'),
+          limit(50)
+        )
+        const ordersSnapshot = await getDocs(ordersQuery)
+        orders = ordersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
         
-        console.log('🔍 Method 1: Location-based query')
-        const snapshot1 = await getDocs(query(ordersRef1, orderBy('completedAt', 'desc'), limit(10)))
-        if (snapshot1.size > 0) {
-          snapshot1.forEach(doc => orders.push({ id: doc.id, ...doc.data() }))
-          queryMethod = 'location-based'
-          console.log('✅ Method 1 SUCCESS:', orders.length, 'orders found')
+        console.log('💰 AI Sales Query Results:', {
+          totalOrders: orders.length,
+          tenantId: this.tenantId,
+          branchId: this.branchId,
+          sampleOrder: orders[0]
+        })
+        
+        // If we have a branch ID, filter orders for this branch (like dashboard does)
+        if (this.branchId && orders.length > 0) {
+          // FIX: Ensure we're using the correct locationId format
+          const locationId = this.branchId.startsWith('location_') ? this.branchId : `location_${this.branchId}`
+          
+          const branchFilteredOrders = orders.filter(order => 
+            order.locationId === locationId
+          )
+          
+          console.log(`🔍 Branch filtering debug:`, {
+            originalBranchId: this.branchId,
+            formattedLocationId: locationId,
+            totalOrders: orders.length,
+            filteredOrders: branchFilteredOrders.length,
+            sampleOrderLocationIds: orders.slice(0, 3).map(o => o.locationId)
+          })
+          
+          if (branchFilteredOrders.length > 0) {
+            orders = branchFilteredOrders
+            console.log(`✅ Filtered to ${orders.length} orders for branch ${locationId}`)
+          } else {
+            console.log(`⚠️ No orders found for branch ${locationId}, using all orders`)
+          }
         }
+        
       } catch (error) {
-        console.log('❌ Method 1 failed:', error instanceof Error ? error.message : 'Unknown error')
+        console.error('❌ Error querying sales data:', error)
+        return "I'm having trouble accessing your sales data right now. Please try again in a moment."
       }
 
-      // Method 2: Try direct posOrders collection
       if (orders.length === 0) {
-        try {
-          const ordersRef2 = collection(db, 'tenants', this.tenantId, 'posOrders')
-          console.log('🔍 Method 2: Direct posOrders query')
-          const snapshot2 = await getDocs(query(ordersRef2, orderBy('completedAt', 'desc'), limit(10)))
-          if (snapshot2.size > 0) {
-            snapshot2.forEach(doc => orders.push({ id: doc.id, ...doc.data() }))
-            queryMethod = 'direct-posOrders'
-            console.log('✅ Method 2 SUCCESS:', orders.length, 'orders found')
-          }
-        } catch (error) {
-          console.log('❌ Method 2 failed:', error instanceof Error ? error.message : 'Unknown error')
-        }
+        return "You don't have any sales yet. Once you start making sales through the POS, I'll be able to provide insights!"
       }
 
-      // Method 3: Try without date filtering (get any recent orders)
-      if (orders.length === 0) {
-        try {
-          const ordersRef3 = collection(db, 'tenants', this.tenantId, 'posOrders')
-          console.log('🔍 Method 3: Any recent orders query')
-          const snapshot3 = await getDocs(query(ordersRef3, limit(5)))
-          if (snapshot3.size > 0) {
-            snapshot3.forEach(doc => orders.push({ id: doc.id, ...doc.data() }))
-            queryMethod = 'recent-orders'
-            console.log('✅ Method 3 SUCCESS:', orders.length, 'orders found')
-          }
-        } catch (error) {
-          console.log('❌ Method 3 failed:', error instanceof Error ? error.message : 'Unknown error')
-        }
-      }
-
-      console.log('📊 Final Query Results:', {
-        totalOrdersFound: orders.length,
-        queryMethod: queryMethod,
-        sampleOrder: orders[0]
-      })
-
-      // If still no orders, try different date parsing
+      // Calculate today's sales (using same logic as dashboard)
       const today = new Date()
       today.setHours(0, 0, 0, 0)
       
-      console.log('Today date for comparison:', {
-        todayString: today.toISOString(),
-        todayLocal: today.toDateString(),
-        todayTime: today.getTime()
-      })
-      
-      let todayOrders = []
-      if (orders.length > 0) {
-        console.log('Analyzing order dates for today filter...')
-        
-        todayOrders = orders.filter((order, index) => {
-          // Check all possible date fields that might exist
-          const dateFields = ['completedAt', 'createdAt', 'timestamp', 'date', 'orderDate']
-          let dateField = null
-          let dateValue = null
-          
-          for (const field of dateFields) {
-            if (order[field]) {
-              dateField = field
-              dateValue = order[field]
-              break
-            }
-          }
-          
-          if (!dateValue) {
-            console.log(`Order ${index + 1} (${order.id}): No date field found`, {
-              availableFields: Object.keys(order),
-              orderData: order
-            })
-            return false
-          }
-          
+      const todayOrders = orders.filter(order => {
+        if (!order.createdAt) return false
+        try {
           let orderDate
-          try {
-            // Try different date formats
-            if (dateValue.toDate) {
-              orderDate = dateValue.toDate()
-            } else if (dateValue.seconds) {
-              orderDate = new Date(dateValue.seconds * 1000)
-            } else if (typeof dateValue === 'string') {
-              orderDate = new Date(dateValue)
-            } else if (typeof dateValue === 'number') {
-              orderDate = new Date(dateValue)
-            } else {
-              orderDate = new Date(dateValue)
-            }
-            
-            const isToday = orderDate >= today
-            const hoursAgo = (Date.now() - orderDate.getTime()) / (1000 * 60 * 60)
-            
-            console.log(`Order ${index + 1} (${order.id}):`, {
-              dateField: dateField,
-              dateValue: dateValue,
-              parsedDate: orderDate.toISOString(),
-              localDate: orderDate.toDateString(),
-              hoursAgo: hoursAgo.toFixed(1),
-              isToday: isToday,
-              total: order.total || 0,
-              allFields: Object.keys(order)
-            })
-            
-            return isToday
-          } catch (error) {
-            console.log(`Date parsing failed for order ${index + 1} (${order.id}):`, error)
-            return false
+          if (order.createdAt.toDate) {
+            orderDate = order.createdAt.toDate()
+          } else if (order.createdAt.seconds) {
+            orderDate = new Date(order.createdAt.seconds * 1000)
+          } else {
+            orderDate = new Date(order.createdAt)
           }
-        })
-        
-        // Also try a more lenient "last 24 hours" approach
-        const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000)
-        const recentOrders = orders.filter(order => {
-          const dateFields = ['completedAt', 'createdAt', 'timestamp', 'date', 'orderDate']
-          let dateValue = null
-          
-          for (const field of dateFields) {
-            if (order[field]) {
-              dateValue = order[field]
-              break
-            }
-          }
-          
-          if (!dateValue) return false
-          
-          try {
-            let orderDate
-            if (dateValue.toDate) {
-              orderDate = dateValue.toDate()
-            } else if (dateValue.seconds) {
-              orderDate = new Date(dateValue.seconds * 1000)
-            } else if (typeof dateValue === 'number') {
-              orderDate = new Date(dateValue)
-            } else {
-              orderDate = new Date(dateValue)
-            }
-            return orderDate >= last24Hours
-          } catch {
-            return false
-          }
-        })
-        
-        console.log('Date filtering results:', {
-          totalOrders: orders.length,
-          todayOrders: todayOrders.length,
-          last24HoursOrders: recentOrders.length
-        })
-        
-        // If no orders today but orders in last 24 hours, use those
-        if (todayOrders.length === 0 && recentOrders.length > 0) {
-          console.log('No orders today, but found orders in last 24 hours. Using recent orders.')
-          todayOrders = recentOrders
+          return orderDate >= today && (order.status === 'completed' || order.status === 'paid')
+        } catch {
+          return false
         }
-      }
-      
-      const totalSales = orders.reduce((sum, order) => sum + (order.total || 0), 0)
+      })
+
+      const completedOrders = orders.filter(order => 
+        order.status === 'completed' || order.status === 'paid'
+      )
+
+      const totalSales = completedOrders.reduce((sum, order) => sum + (order.total || 0), 0)
       const todaySales = todayOrders.reduce((sum, order) => sum + (order.total || 0), 0)
 
-      console.log('💰 Final Sales Summary:', {
-        queryMethod,
-        totalSales,
-        todaySales,
-        todayOrdersCount: todayOrders.length,
-        totalOrdersCount: orders.length,
-        allOrderDates: orders.map(o => ({
-          id: o.id,
-          completedAt: o.completedAt,
-          total: o.total
-        }))
+      // Get top selling items from recent orders
+      const itemCounts: { [key: string]: number } = {}
+      completedOrders.slice(0, 20).forEach(order => {
+        if (order.items && Array.isArray(order.items)) {
+          order.items.forEach((item: any) => {
+            const itemName = item.name || item.itemName || 'Unknown Item'
+            itemCounts[itemName] = (itemCounts[itemName] || 0) + (item.quantity || 1)
+          })
+        }
       })
 
-      const daysBack = this.hasAccess('sales_advanced') ? 30 : 7
-      let summary = `💰 **Your Sales Overview (Last ${daysBack} days):**\n`
-      summary += `• Total Sales: ₱${totalSales.toLocaleString()}\n`
-      summary += `• Today's Sales: ₱${todaySales.toLocaleString()}\n`
-      summary += `• Total Orders: ${orders.length}\n`
-      summary += `• Today's Orders: ${todayOrders.length}\n`
-      summary += `• Data Source: ${queryMethod}\n`
+      const topItems = Object.entries(itemCounts)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 3)
+        .map(([name, count]) => `${name} (${count} sold)`)
+
+      let summary = `� **Sales Summary:**\n`
+      summary += `💰 Today's Sales: ₱${todaySales.toLocaleString()}\n`
+      summary += `📈 Total Sales: ₱${totalSales.toLocaleString()}\n`
+      summary += `📋 Total Orders: ${completedOrders.length}\n`
+      summary += `🕒 Today's Orders: ${todayOrders.length}\n`
+
+      if (topItems.length > 0) {
+        summary += `\n🏆 **Top Selling Items:**\n`
+        topItems.forEach(item => summary += `• ${item}\n`)
+      }
 
       if (this.hasAccess('sales_advanced')) {
-        // Calculate average order value
-        const avgOrderValue = orders.length > 0 ? totalSales / orders.length : 0
-        summary += `• Average Order: ₱${avgOrderValue.toFixed(2)}\n`
-
-        // Find top selling items
-        const itemSales: Record<string, number> = {}
-        orders.forEach(order => {
-          if (order.items) {
-            order.items.forEach((item: any) => {
-              itemSales[item.name] = (itemSales[item.name] || 0) + (item.quantity || 1)
-            })
-          }
-        })
-
-        const topItems = Object.entries(itemSales)
-          .sort(([,a], [,b]) => b - a)
-          .slice(0, 3)
-
-        if (topItems.length > 0) {
-          summary += `• 🏆 Top Sellers:\n`
-          topItems.forEach(([name, quantity], index) => {
-            summary += `  ${index + 1}. ${name} (${quantity} sold)\n`
+        const avgOrderValue = completedOrders.length > 0 ? totalSales / completedOrders.length : 0
+        summary += `\n📊 **Advanced Analytics:**\n`
+        summary += `💳 Average Order Value: ₱${avgOrderValue.toFixed(2)}\n`
+        
+        if (todayOrders.length > 0 && completedOrders.length > 1) {
+          const yesterdayStart = new Date(today)
+          yesterdayStart.setDate(yesterdayStart.getDate() - 1)
+          const yesterdayEnd = new Date(today)
+          
+          const yesterdayOrders = orders.filter(order => {
+            if (!order.createdAt) return false
+            try {
+              let orderDate
+              if (order.createdAt.toDate) {
+                orderDate = order.createdAt.toDate()
+              } else {
+                orderDate = new Date(order.createdAt)
+              }
+              return orderDate >= yesterdayStart && orderDate < yesterdayEnd && order.status === 'completed'
+            } catch {
+              return false
+            }
           })
+          
+          const yesterdaySales = yesterdayOrders.reduce((sum, order) => sum + (order.total || 0), 0)
+          const growth = yesterdaySales > 0 ? ((todaySales - yesterdaySales) / yesterdaySales * 100) : 0
+          const growthEmoji = growth > 0 ? '📈' : growth < 0 ? '📉' : '➡️'
+          summary += `${growthEmoji} Daily Growth: ${growth > 0 ? '+' : ''}${growth.toFixed(1)}%\n`
         }
       }
 
       return summary
+
     } catch (error) {
-      console.error('Error fetching sales data (all methods failed):', error)
+      console.error('Error fetching sales data:', error)
       return "I'm having trouble accessing your sales data right now. Please try again later."
     }
   }
@@ -448,16 +374,19 @@ export class AIDataService {
     // For Enterprise users, always provide financial data
 
     try {
-      // Use same location-based approach as analytics
-      const selectedBranch = 'main-location-gJPRV0nFGiULXAW9nciyGad686z2'
+      // Use same data sources as working dashboard and sales summary
       const expensesRef = collection(db, 'tenants', this.tenantId, 'expenses')
-      const salesRef = collection(db, 'tenants', this.tenantId, 'locations', `location_${selectedBranch}`, 'posOrders')
+      const ordersRef = collection(db, 'tenants', this.tenantId, 'orders') // Use same orders collection as sales summary
       
-      console.log('💰 Financial Query Debug (Analytics Method):', {
+      // Use posOrders collection like the dashboard does
+      const posOrdersRef = collection(db, `tenants/${this.tenantId}/posOrders`)
+      
+      console.log('💰 Financial Query Debug (POS Orders Fixed):', {
         tenantId: this.tenantId,
-        selectedBranch: selectedBranch,
+        branchId: this.branchId,
         expensesPath: `tenants/${this.tenantId}/expenses`,
-        salesPath: `tenants/${this.tenantId}/locations/location_${selectedBranch}/posOrders`
+        posOrdersPath: `tenants/${this.tenantId}/posOrders`,
+        METHOD: 'DASHBOARD_ALIGNED_POS_ORDERS'
       })
       
       const today = new Date()
@@ -470,16 +399,17 @@ export class AIDataService {
         orderBy('date', 'desc')
       )
       
-      // Query sales for current month using analytics method
-      const salesQuery = query(
-        salesRef,
-        orderBy('completedAt', 'desc'),
+      // Query POS orders (revenue) for current month - same as dashboard uses
+      const posOrdersQuery = query(
+        posOrdersRef,
+        where('locationId', '==', `location_${this.branchId}`),
+        orderBy('createdAt', 'desc'),
         limit(100)
       )
 
-      const [expensesSnapshot, salesSnapshot] = await Promise.all([
+      const [expensesSnapshot, posOrdersSnapshot] = await Promise.all([
         getDocs(expensesQuery),
-        getDocs(salesQuery)
+        getDocs(posOrdersQuery)
       ])
 
       // Process expenses
@@ -488,53 +418,78 @@ export class AIDataService {
         expenses.push({ id: doc.id, ...doc.data() })
       })
 
-      // Process sales for revenue (filter for current month)
-      const sales: any[] = []
-      salesSnapshot.forEach(doc => {
-        const data = doc.data()
-        if (data.completedAt) {
-          const orderDate = new Date(data.completedAt.toDate?.() || data.completedAt)
-          if (orderDate >= currentMonth) {
-            sales.push({ id: doc.id, ...data })
+      // Process POS orders for revenue (filter for current month and completed status)
+      const completedOrders: any[] = []
+      posOrdersSnapshot.forEach(doc => {
+        const data = doc.data() as any
+        
+        // Check if order is completed/paid (match dashboard filtering)
+        if (data.status === 'completed' || data.status === 'paid') {
+          let orderDate
+          try {
+            if (data.createdAt?.toDate) {
+              orderDate = data.createdAt.toDate()
+            } else if (data.createdAt?.seconds) {
+              orderDate = new Date(data.createdAt.seconds * 1000)
+            } else if (data.createdAt) {
+              orderDate = new Date(data.createdAt)
+            }
+            
+            // Only include orders from current month
+            if (orderDate && orderDate >= currentMonth) {
+              completedOrders.push({ id: doc.id, ...data })
+            }
+          } catch (error) {
+            console.log('⚠️ Error parsing order date:', error)
           }
         }
       })
 
-      console.log('📊 Financial Data Retrieved (Analytics Method):', {
+      console.log('📊 Financial Data Retrieved (POS Orders Fixed):', {
         expensesCount: expenses.length,
-        salesCount: sales.length,
+        posOrdersCount: completedOrders.length,
         currentMonth: currentMonth.toDateString(),
         sampleExpense: expenses[0],
-        sampleSale: sales[0]
+        samplePOSOrder: completedOrders[0]
       })
 
       const totalExpenses = expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0)
-      const totalRevenue = sales.reduce((sum, sale) => sum + (sale.total || 0), 0)
+      const totalRevenue = completedOrders.reduce((sum, order) => sum + (order.total || 0), 0)
       
-      // If no data, show empty state guidance
+      // If no data, show accurate empty state
       if (totalRevenue === 0 && totalExpenses === 0) {
         return `💰 **Your Financial Overview (This Month):**
 
-� *Getting Started: No financial data found for this month.*
+📊 *No financial activity recorded this month*
 
-• Revenue: ₱0 (Start recording sales to see revenue data)
-• Expenses: ₱0 (Add expenses to track your costs)
-• Expenses: ₱0 (No expenses recorded this month)  
+• Revenue: ₱0 (No completed sales this month)
+• Expenses: ₱0 (No expenses recorded this month)
 • Net Profit: ₱0
 • Profit Margin: 0%
 • ⚖️ Status: No activity recorded
 
-**To see real financial data:**
-1. Record some sales through the POS system
-2. Add expenses in the Expenses section
-3. Ask me for your financial overview again
+**To track your finances:**
+1. Complete sales through the POS system 
+2. Record business expenses in the Expenses section
+3. I'll calculate your profit/loss automatically
 
 **Your Enterprise plan includes:**
 ✅ Unlimited financial tracking
-✅ Advanced expense categorization
+✅ Advanced expense categorization  
 ✅ Profit/loss analysis
 ✅ Custom financial reports
 ✅ Real-time financial insights`
+      }
+      
+      // Show accurate financial status based on real data
+      if (totalRevenue > 0 || totalExpenses > 0) {
+        console.log('💰 AI Financial Calculation:', {
+          totalRevenue,
+          totalExpenses, 
+          netProfit: totalRevenue - totalExpenses,
+          profitMargin: totalRevenue > 0 ? ((totalRevenue - totalExpenses) / totalRevenue * 100) : 0,
+          status: totalRevenue - totalExpenses > 0 ? 'Profitable' : totalRevenue - totalExpenses < 0 ? 'Loss' : 'Break Even'
+        })
       }
       
       const netProfit = totalRevenue - totalExpenses
@@ -900,6 +855,103 @@ export class AIDataService {
     } catch (error) {
       console.error('Error in COGS analysis:', error)
       return "I'm having trouble accessing your financial data for COGS analysis right now. Please try again later."
+    }
+  }
+
+  // Get capital intelligence insights
+  async getCapitalIntelligenceInsights(): Promise<string> {
+    if (!this.hasAccess('financial_advanced')) {
+      return "🔒 Capital Intelligence insights are available with Premium and Enterprise plans. Upgrade to unlock advanced financial analytics and cash flow optimization features."
+    }
+
+    if (!this.tenantId || !this.branchId) {
+      return "I don't have access to your capital intelligence data. Please check your login status and branch selection."
+    }
+
+    try {
+      // Import the Capital Intelligence Service
+      const { CapitalIntelligenceService } = await import('../services/capitalIntelligenceService')
+      const service = new CapitalIntelligenceService(this.tenantId, this.branchId)
+      
+      // Get capital intelligence data
+      const data = await service.getCapitalIntelligence()
+      
+      console.log('💰 AI Capital Intelligence Debug:', {
+        currentICR: data.currentICR,
+        capitalRecoveryTime: data.capitalRecoveryTime,
+        totalInventoryValue: data.totalInventoryValue,
+        totalCapitalDeployed: data.totalCapitalDeployed,
+        totalRecentSales: data.totalRecentSales,
+        moneyFlowAnalysis: data.moneyFlowAnalysis
+      })
+
+      let insights = `💰 **Your Capital Intelligence Insights:**\n\n`
+      
+      // ICR Analysis
+      const icrPercentage = Math.round(data.currentICR * 100)
+      insights += `📊 **Inventory Capital Ratio (ICR): ${icrPercentage}%**\n`
+      if (icrPercentage <= 40) {
+        insights += `• ✅ Excellent! Optimal capital efficiency\n`
+        insights += `• Your money is working efficiently - not too much tied up in inventory\n`
+      } else if (icrPercentage <= 60) {
+        insights += `• 👍 Good capital deployment\n`
+        insights += `• Room for improvement in inventory turnover\n`
+      } else {
+        insights += `• ⚠️ High capital tied up in inventory\n`
+        insights += `• Consider promotional campaigns to move stock faster\n`
+      }
+      
+      // Capital Recovery Time
+      insights += `\n⏱️ **Capital Recovery Time: ${data.capitalRecoveryTime.toFixed(1)} days**\n`
+      if (data.capitalRecoveryTime <= 14) {
+        insights += `• 🔥 Excellent! Your money moves very fast\n`
+        insights += `• Quick inventory turnover means healthy cash flow\n`
+      } else if (data.capitalRecoveryTime <= 30) {
+        insights += `• 👍 Good recovery time\n`
+        insights += `• Your capital converts to cash within a month\n`
+      } else if (isFinite(data.capitalRecoveryTime)) {
+        insights += `• ⚠️ Slow capital recovery\n`
+        insights += `• Focus on faster-moving products to improve cash flow\n`
+      } else {
+        insights += `• ❓ Unable to calculate - need more sales data\n`
+      }
+      
+      // Sales Velocity
+      insights += `\n📈 **Daily Sales Velocity: ₱${Math.round(data.purchaseToSalesVelocity).toLocaleString()}**\n`
+      if (data.purchaseToSalesVelocity >= 2000) {
+        insights += `• 🚀 Strong daily sales performance\n`
+      } else if (data.purchaseToSalesVelocity >= 1000) {
+        insights += `• 👍 Decent daily sales\n`
+      } else {
+        insights += `• 📈 Consider marketing strategies to boost daily sales\n`
+      }
+      
+      // Money Flow Analysis
+      insights += `\n🔄 **Money Flow Analysis:**\n`
+      insights += `• ${data.moneyFlowAnalysis.message}\n`
+      data.moneyFlowAnalysis.details.forEach(detail => {
+        insights += `• ${detail}\n`
+      })
+      
+      // Capital Breakdown
+      insights += `\n💳 **Capital Breakdown:**\n`
+      insights += `• Money OUT (Purchases): ₱${data.totalCapitalDeployed.toLocaleString()}\n`
+      insights += `• Money TIED UP (Inventory): ₱${data.totalInventoryValue.toLocaleString()}\n`
+      insights += `• Money IN (Sales - 30 days): ₱${data.totalRecentSales.toLocaleString()}\n`
+      
+      // Key Recommendations
+      if (data.recommendations && data.recommendations.length > 0) {
+        insights += `\n💡 **Key Recommendations:**\n`
+        data.recommendations.slice(0, 3).forEach((rec, index) => {
+          insights += `• ${rec.title}: ${rec.message}\n`
+        })
+      }
+      
+      return insights
+
+    } catch (error) {
+      console.error('Error in capital intelligence insights:', error)
+      return "I'm having trouble accessing your capital intelligence data right now. Please try again later."
     }
   }
 
@@ -1302,6 +1354,14 @@ export class AIDataService {
     
     if (message.includes('cogs') || message.includes('cost of goods') || message.includes('profitability') || (message.includes('profit') && message.includes('analysis')) || message.includes('gross profit') || message.includes('net profit')) {
       return await this.getCOGSAnalysis()
+    }
+    
+    // Capital Intelligence queries
+    if (message.includes('capital') || message.includes('icr') || message.includes('capital intelligence') || 
+        message.includes('money flow') || message.includes('cash flow') || message.includes('capital recovery') ||
+        message.includes('inventory turnover') || message.includes('capital efficiency') || 
+        message.includes('capital deployment') || (message.includes('how') && message.includes('money') && message.includes('flow'))) {
+      return await this.getCapitalIntelligenceInsights()
     }
     
     if (message.includes('financial') || message.includes('expenses') || message.includes('profit') || message.includes('money') || message.includes('finance')) {

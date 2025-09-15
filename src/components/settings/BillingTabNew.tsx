@@ -82,37 +82,39 @@ export default function BillingTab() {
           const paypalPlanId = paypalConfig.subscriptionPlans[plan.id as keyof typeof paypalConfig.subscriptionPlans]
           if (!paypalPlanId) return
 
-          paypal?.Buttons({
-            style: {
-              layout: 'vertical',
-              color: plan.id === 'professional' ? 'blue' : 'black',
-              shape: 'rect',
-              label: 'subscribe',
-              height: 45
-            },
-            createSubscription: (data: any, actions: any) => {
-              return actions.subscription.create({
-                plan_id: paypalPlanId,
-                application_context: {
-                  brand_name: 'CoreTrack',
-                  locale: 'en-PH',
-                  shipping_preference: 'NO_SHIPPING',
-                  user_action: 'SUBSCRIBE_NOW'
-                }
-              })
-            },
-            onApprove: async (data: any) => {
-              showSuccess('Subscription activated successfully!', 'Welcome to CoreTrack Pro')
-              window.location.reload()
-            },
-            onError: (err: any) => {
-              console.error('PayPal error:', err)
-              showError('PayPal subscription failed', 'Please try again')
-            },
-            onCancel: () => {
-              showWarning('Subscription cancelled', 'You can try again anytime')
-            }
-          }).render(`#${containerId}`)
+          if (paypal?.Buttons) {
+            paypal.Buttons({
+              style: {
+                layout: 'vertical',
+                color: plan.id === 'professional' ? 'blue' : 'black',
+                shape: 'rect',
+                label: 'subscribe',
+                height: 45
+              },
+              createSubscription: (data: any, actions: any) => {
+                return actions.subscription.create({
+                  plan_id: paypalPlanId,
+                  application_context: {
+                    brand_name: 'CoreTrack',
+                    locale: 'en-PH',
+                    shipping_preference: 'NO_SHIPPING',
+                    user_action: 'SUBSCRIBE_NOW'
+                  }
+                })
+              },
+              onApprove: async (data: any) => {
+                showSuccess('Subscription activated successfully!', 'Welcome to CoreTrack Pro')
+                window.location.reload()
+              },
+              onError: (err: any) => {
+                console.error('PayPal error:', err)
+                showError('PayPal subscription failed', 'Please try again')
+              },
+              onCancel: () => {
+                showWarning('Subscription cancelled', 'You can try again anytime')
+              }
+            }).render(`#${containerId}`)
+          }
         })
       } catch (error) {
         console.error('PayPal initialization error:', error)

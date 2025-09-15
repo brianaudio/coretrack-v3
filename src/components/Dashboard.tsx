@@ -25,7 +25,6 @@ import { useSubscription } from '../lib/context/SubscriptionContext'
 import { hasModuleAccess, getAccessibleModules } from '../lib/rbac/subscriptionPermissions'
 import ConnectionStatus from './ui/ConnectionStatus'
 import FloatingCalculator from './ui/FloatingCalculator'
-import VisionFloatingButton from './VisionFloatingButton'
 import { ContextualHints } from './ui/ux-enhancements'
 import { BranchProvider } from '../lib/context/BranchContext'
 import { ShiftProvider, useShift } from '../lib/context/ShiftContext'
@@ -212,7 +211,6 @@ function DashboardInner({ onLogout }: DashboardProps) {
       
       <DevTools />
       <FloatingCalculator />
-      <VisionFloatingButton />
     </div>
   )
 }

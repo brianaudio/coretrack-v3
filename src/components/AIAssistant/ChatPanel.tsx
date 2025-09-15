@@ -2,8 +2,68 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { useAuth } from '@/lib/context/AuthContext'
+import { useBranch } from '@/lib/context/BranchContext'
 import { chatService } from '@/lib/ai/chatService'
 import VoiceInput from './VoiceInput'
+
+// File Attachment Component
+const FileAttachmentDisplay = ({ attachment }: { attachment: FileAttachment }) => {
+  const getFileIcon = (type: string) => {
+    if (type.startsWith('image/')) {
+      return (
+        <div className="relative">
+          <img 
+            src={attachment.url} 
+            alt={attachment.name}
+            className="w-12 h-12 object-cover rounded-lg"
+          />
+        </div>
+      )
+    }
+    
+    // Document icons based on file type
+    const iconClass = "w-8 h-8"
+    if (type.includes('pdf')) {
+      return <div className={`${iconClass} bg-red-100 text-red-600 rounded flex items-center justify-center text-xs font-bold`}>PDF</div>
+    }
+    if (type.includes('word') || type.includes('document')) {
+      return <div className={`${iconClass} bg-blue-100 text-blue-600 rounded flex items-center justify-center text-xs font-bold`}>DOC</div>
+    }
+    if (type.includes('excel') || type.includes('spreadsheet')) {
+      return <div className={`${iconClass} bg-green-100 text-green-600 rounded flex items-center justify-center text-xs font-bold`}>XLS</div>
+    }
+    if (type.includes('text')) {
+      return <div className={`${iconClass} bg-gray-100 text-gray-600 rounded flex items-center justify-center text-xs font-bold`}>TXT</div>
+    }
+    
+    // Default file icon
+    return (
+      <div className={`${iconClass} bg-gray-100 text-gray-600 rounded flex items-center justify-center`}>
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+        </svg>
+      </div>
+    )
+  }
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes'
+    const k = 1024
+    const sizes = ['Bytes', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  }
+
+  return (
+    <div className="flex items-center space-x-3 p-2 bg-gray-50/80 rounded-lg border border-gray-200/50 backdrop-blur-sm">
+      {getFileIcon(attachment.type)}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-gray-900 truncate">{attachment.name}</p>
+        <p className="text-xs text-gray-500">{formatFileSize(attachment.size)}</p>
+      </div>
+    </div>
+  )
+}
 
 // Enhanced message bubble with reactions and feedback
 const MessageBubble = ({ message, onReaction }: { message: any, onReaction?: (messageId: string, reaction: 'helpful' | 'not_helpful') => void }) => (
@@ -21,7 +81,19 @@ const MessageBubble = ({ message, onReaction }: { message: any, onReaction?: (me
         </div>
       ) : (
         <>
-          <div className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</div>
+          {/* File Attachments */}
+          {message.attachments && message.attachments.length > 0 && (
+            <div className="mb-3 space-y-2">
+              {message.attachments.map((attachment: FileAttachment) => (
+                <FileAttachmentDisplay key={attachment.id} attachment={attachment} />
+              ))}
+            </div>
+          )}
+          
+          {/* Message Content */}
+          {message.content && (
+            <div className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</div>
+          )}
           
           {/* AI Message Reactions */}
           {message.sender === 'ai' && !message.isTyping && onReaction && (
@@ -103,6 +175,16 @@ interface Message {
   sender: 'user' | 'ai'
   timestamp: Date
   isTyping?: boolean
+  attachments?: FileAttachment[]
+}
+
+interface FileAttachment {
+  id: string
+  name: string
+  type: string
+  size: number
+  url: string
+  base64?: string
 }
 
 interface ChatPanelProps {
@@ -119,12 +201,16 @@ interface ChatPanelProps {
 
 export default function ChatPanel({ isOpen, onClose, onNewMessage, userContext }: ChatPanelProps) {
   const { user, profile } = useAuth()
+  const { selectedBranch } = useBranch()
   const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
+  const [attachments, setAttachments] = useState<FileAttachment[]>([])
+  const [isDragging, setIsDragging] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Auto scroll to bottom when new messages arrive
   const scrollToBottom = () => {
@@ -151,17 +237,17 @@ export default function ChatPanel({ isOpen, onClose, onNewMessage, userContext }
     const currentPath = window.location.pathname;
     let contextualWelcome = '';
     
-    // Context-aware welcome messages
+    // Context-aware welcome messages with personality
     if (currentPath.includes('/inventory')) {
-      contextualWelcome = `I see you're in the Inventory section! 📦\n\nI can help you with:\n• Adding new inventory items\n• Managing stock levels\n• Setting up reorder points\n• Understanding inventory analytics\n• Bulk import/export\n\nWhat would you like to know about inventory management?`;
+      contextualWelcome = `Hey there! 👋 I see you're in the inventory section - one of my favorite places! I can help you add new items, figure out what's running low, set up those super helpful alerts, or explain your inventory reports. What's going on with your stock today?`;
     } else if (currentPath.includes('/pos')) {
-      contextualWelcome = `Welcome to the POS system! �\n\nI can guide you through:\n• Processing customer orders\n• Managing payment methods\n• Handling refunds and returns\n• Customizing your menu\n• Understanding sales reports\n\nHow can I help with your POS operations?`;
+      contextualWelcome = `Oooh, POS time! 💰 I love helping with sales stuff!\n\nI can totally help you with:\n• Getting those orders processed smoothly\n• Sorting out payments (all types!)\n• Handling those tricky refunds\n• Making your menu look amazing\n• Understanding what's selling best\n\nWhat's happening at the register today?`;
     } else if (currentPath.includes('/analytics') || currentPath.includes('/capital-intelligence')) {
-      contextualWelcome = `Great! You're exploring Analytics! 📊\n\nI can explain:\n• Capital Intelligence insights\n• Sales performance metrics\n• Inventory turnover analysis\n• Financial KPIs\n• Trend forecasting\n\nWhat analytics would you like me to explain?`;
+      contextualWelcome = `Analytics! 📊 This is where the magic happens! I get SO excited about data because it tells such cool stories about your business.\n\nI can break down:\n• Those Capital Intelligence insights (they're amazing!)\n• How your sales are trending\n• Which inventory items are your superstars\n• Your financial KPIs in plain English\n• What's coming next for your business\n\nWhat numbers are you curious about?`;
     } else if (currentPath.includes('/settings')) {
-      contextualWelcome = `You're in Settings! ⚙️\n\nI can help with:\n• Team member management\n• Business configuration\n• Billing and subscriptions\n• Security settings\n• System preferences\n\nWhat settings need assistance?`;
+      contextualWelcome = `Settings mode! ⚙️ Let's get your business running exactly how you want it!\n\nI can help you with:\n• Adding team members (building that dream team!)\n• Getting your business details just right\n• Sorting out billing stuff\n• Making sure everything's secure\n• Customizing your experience\n\nWhat would you like to set up or change?`;
     } else {
-      contextualWelcome = `Welcome to CoreTrack! 🚀\n\nI'm your AI business assistant, ready to help with:\n\n📦 **Inventory Management**\n• Stock tracking & reorder alerts\n• Supplier management\n\n🛒 **Point of Sale**\n• Order processing & payments\n• Menu customization\n\n📊 **Analytics & Intelligence**\n• Sales performance insights\n• Business KPIs & trends\n\n👥 **Team & Operations**\n• Staff management\n• Business settings\n\nWhat would you like to explore first, ${userContext?.userName || 'there'}?`;
+      contextualWelcome = `Hey ${userContext?.userName || 'there'}! 👋 Welcome to CoreTrack! I'm your AI business buddy and I'm genuinely excited to help you succeed!\n\n📦 **Inventory Magic**\nKeep track of everything, never run out of your bestsellers!\n\n� **POS Power**\nServe customers faster, process payments like a pro!\n\n📊 **Analytics Insights**\nTurn your data into "aha!" moments that grow your business!\n\n👥 **Team Building**\nGet your crew organized and working together smoothly!\n\nSo... what's on your mind today? What part of your business should we dive into first? ☕`;
     }
 
     const welcomeMessage: Message = {
@@ -173,20 +259,124 @@ export default function ChatPanel({ isOpen, onClose, onNewMessage, userContext }
     setMessages([welcomeMessage])
   }
 
+  // File handling functions
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (files) {
+      handleFiles(Array.from(files))
+    }
+  }
+
+  const handleFiles = async (files: File[]) => {
+    const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+    const ALLOWED_TYPES = [
+      // Images
+      'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+      // Documents
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      // Text files
+      'text/plain', 'text/csv',
+      // Other common business files
+      'application/json', 'application/xml'
+    ]
+
+    const validFiles = files.filter(file => {
+      if (file.size > MAX_FILE_SIZE) {
+        alert(`File "${file.name}" is too large. Maximum size is 10MB.`)
+        return false
+      }
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        alert(`File type "${file.type}" is not supported.`)
+        return false
+      }
+      return true
+    })
+
+    if (validFiles.length === 0) return
+
+    const newAttachments: FileAttachment[] = []
+
+    for (const file of validFiles) {
+      try {
+        const base64 = await fileToBase64(file)
+        const attachment: FileAttachment = {
+          id: `file-${Date.now()}-${Math.random()}`,
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          url: URL.createObjectURL(file),
+          base64
+        }
+        newAttachments.push(attachment)
+      } catch (error) {
+        console.error('Error processing file:', error)
+        alert(`Error processing file "${file.name}"`)
+      }
+    }
+
+    setAttachments(prev => [...prev, ...newAttachments])
+  }
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.readAsDataURL(file)
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = error => reject(error)
+    })
+  }
+
+  const removeAttachment = (attachmentId: string) => {
+    setAttachments(prev => {
+      const attachment = prev.find(a => a.id === attachmentId)
+      if (attachment?.url) {
+        URL.revokeObjectURL(attachment.url)
+      }
+      return prev.filter(a => a.id !== attachmentId)
+    })
+  }
+
+  // Drag and drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    const files = Array.from(e.dataTransfer.files)
+    handleFiles(files)
+  }
+
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || isLoading) return
+    if ((!inputValue.trim() && attachments.length === 0) || isLoading) return
 
     const userMessage: Message = {
       id: `user-${Date.now()}`,
       content: inputValue.trim(),
       sender: 'user',
-      timestamp: new Date()
+      timestamp: new Date(),
+      attachments: attachments.length > 0 ? [...attachments] : undefined
     }
 
     // Add user message and clear input
     setMessages(prev => [...prev, userMessage])
     const currentInput = inputValue.trim()
+    const currentAttachments = [...attachments]
     setInputValue('')
+    setAttachments([])
     setIsLoading(true)
 
     // Show typing indicator
@@ -206,10 +396,13 @@ export default function ChatPanel({ isOpen, onClose, onNewMessage, userContext }
         userRole: userContext?.userRole || profile?.role || 'staff',
         businessType: userContext?.businessType || 'general',
         currentPage,
-        tenantId: userContext?.tenantId || profile?.tenantId || ''
+        tenantId: userContext?.tenantId || profile?.tenantId || '',
+        branchId: selectedBranch?.id || profile?.primaryBranch || ''
       }
 
-      // Call AI service
+      console.log('🤖 AI Chat Context:', context) // Debug log to see what's being passed
+
+      // Call Enhanced AI service for much better responses
       const aiResponse = await chatService.sendMessage(currentInput, context)
       
       // Remove typing indicator and add AI response
@@ -403,9 +596,62 @@ export default function ChatPanel({ isOpen, onClose, onNewMessage, userContext }
           <QuickActions onActionClick={handleQuickAction} userRole={userContext?.userRole || profile?.role || 'staff'} />
         )}
 
-        {/* Enhanced Input Area */}
-        <div className="border-t border-white/20 bg-gradient-to-r from-white/80 to-white/60 backdrop-blur-xl p-4">
+        {/* Enhanced Input Area with File Upload */}
+        <div 
+          className={`border-t border-white/20 bg-gradient-to-r from-white/80 to-white/60 backdrop-blur-xl p-4 transition-all duration-200 ${
+            isDragging ? 'bg-blue-50/80 border-blue-300/50' : ''
+          }`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          {/* File Attachments Preview */}
+          {attachments.length > 0 && (
+            <div className="mb-3 space-y-2 max-h-32 overflow-y-auto">
+              {attachments.map((attachment) => (
+                <div key={attachment.id} className="flex items-center justify-between p-2 bg-white/70 rounded-lg border border-gray-200/50">
+                  <div className="flex items-center space-x-2 flex-1 min-w-0">
+                    <FileAttachmentDisplay attachment={attachment} />
+                  </div>
+                  <button
+                    onClick={() => removeAttachment(attachment.id)}
+                    className="ml-2 w-6 h-6 rounded-full bg-red-100 hover:bg-red-200 text-red-600 flex items-center justify-center transition-colors"
+                    title="Remove file"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Drag and Drop Overlay */}
+          {isDragging && (
+            <div className="absolute inset-0 bg-blue-50/90 border-2 border-dashed border-blue-300 rounded-lg flex items-center justify-center z-10">
+              <div className="text-center">
+                <svg className="w-12 h-12 text-blue-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                <p className="text-blue-700 font-medium">Drop files here to upload</p>
+                <p className="text-blue-600 text-sm">Images, PDFs, Documents supported</p>
+              </div>
+            </div>
+          )}
+
           <div className="flex space-x-3">
+            {/* File Upload Button */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="px-3 py-3 bg-white/80 hover:bg-white/90 border border-gray-200/50 rounded-2xl transition-all duration-200 flex items-center justify-center shadow-sm hover:shadow-md backdrop-blur-sm"
+              title="Upload files (Images, PDFs, Documents)"
+            >
+              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+              </svg>
+            </button>
+
             <div className="flex-1 relative">
               <input
                 ref={inputRef}
@@ -413,7 +659,7 @@ export default function ChatPanel({ isOpen, onClose, onNewMessage, userContext }
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Ask me anything about CoreTrack..."
+                placeholder={attachments.length > 0 ? "Tell me about these files! 😊" : "Hey! What's on your mind today? ☕"}
                 className="w-full px-4 py-3 pr-12 bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent text-sm placeholder-gray-500 shadow-sm"
                 disabled={isLoading}
               />
@@ -428,7 +674,7 @@ export default function ChatPanel({ isOpen, onClose, onNewMessage, userContext }
             </div>
             <button
               onClick={handleSendMessage}
-              disabled={!inputValue.trim() || isLoading}
+              disabled={(!inputValue.trim() && attachments.length === 0) || isLoading}
               className="px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-2xl hover:from-blue-600 hover:to-purple-700 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center min-w-[48px] shadow-lg hover:shadow-blue-500/25 backdrop-blur-sm border border-white/20"
             >
               {isLoading ? (
@@ -440,12 +686,22 @@ export default function ChatPanel({ isOpen, onClose, onNewMessage, userContext }
               )}
             </button>
           </div>
+
+          {/* Hidden File Input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.json,.xml"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
           
           {/* AI Status Footer */}
           <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
             <div className="flex items-center space-x-2">
               <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-              <span>AI is ready to help</span>
+              <span>AI is ready to help • Supports file uploads</span>
             </div>
             <div className="flex items-center space-x-1">
               <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">

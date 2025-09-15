@@ -39,6 +39,8 @@ export interface SalesOrder {
   customerId?: string
   customerEmail?: string
   customerName?: string
+  branchId?: string
+  locationId?: string
 }
 
 export interface CapitalMetrics {
@@ -414,6 +416,16 @@ export class CapitalIntelligenceService {
         this.getPurchaseOrdersData(),
         this.getRecentSalesData()
       ])
+
+      // Debug logging to check data sources
+      console.log('🔍 Capital Intelligence Debug:', {
+        expectedBranch: this.branchId,
+        salesCount: sales.length,
+        salesBranchIds: sales.slice(0, 3).map(s => ({ id: s.id, branchId: s.branchId, locationId: s.locationId, total: s.total })),
+        totalSalesValue: sales.reduce((sum, s) => sum + (s.total || 0), 0),
+        inventoryCount: inventory.length,
+        purchaseCount: purchases.length
+      })
 
       // Calculate core metrics
       const totalInventoryValue = this.calculateInventoryValue(inventory)

@@ -495,28 +495,13 @@ export default function BusinessReports() {
           const dayDateOnly = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate())
           const isMatch = expenseDateOnly.getTime() === dayDateOnly.getTime()
           
-          // 🔥 ENHANCED DEBUG: Show ALL expense matching attempts
-          console.log('🗓️ DAILY EXPENSE MATCHING:', {
-            expenseId: expense.id,
-            title: expense.title,
-            amount: expense.amount,
-            category: expense.category,
-            expenseDate: expenseDateOnly.toDateString(),
-            dayDate: dayDateOnly.toDateString(),
-            expenseDateTime: expense.date.toDate().toISOString(),
-            currentDateTime: currentDate.toISOString(),
-            isMatch,
-            currentDateFormatted: currentDate.toLocaleDateString(),
-            // 🔥 CRITICAL: Show if expense has required fields
-            hasId: !!expense.id,
-            hasTitle: !!expense.title,
-            hasDate: !!expense.date,
-            hasAmount: expense.amount !== undefined,
-            source: expense.source || 'operational'
-          });
-          
           return isMatch
         })
+        
+        // Log summary instead of individual matches
+        if (dayExpenses.length > 0) {
+          console.log(`📊 Day ${currentDate.toLocaleDateString()}: Found ${dayExpenses.length} expenses totaling ₱${dayExpenses.reduce((sum, e) => sum + e.amount, 0).toFixed(2)}`)
+        }
         
         const dayRevenue = dayOrders.reduce((sum, order) => sum + order.total, 0)
         const dayExpenseAmount = dayExpenses.reduce((sum, expense) => sum + expense.amount, 0)
